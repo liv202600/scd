@@ -16,6 +16,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <style>
+        /* ==========================================
+           대표님의 원본 디자인 코드 100% 복구 영역
+           ========================================== */
         :root {
             --main-pink: #ff85a2;
             --soft-pink: #fff0f3;
@@ -32,10 +35,11 @@
         }
 
         * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; }
+        body { margin: 0; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; height: 100vh; overflow: hidden; }
 
+        /* 사이드바 */
         .sidebar-hover-zone { display: none; }
-        .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1000; flex-shrink: 0; transition: left 0.3s ease; height: 100%; }
+        .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1000; flex-shrink: 0; transition: left 0.3s ease; }
         .logo-area { padding: 30px 20px; text-align: center; border-bottom: 1px solid #222; display: flex; flex-direction: column; justify-content: center; }
         .logo-title { font-size: 2rem; font-weight: 800; letter-spacing: 2px; margin: 0; font-family: serif; color: var(--white); }
         .logo-subtitle { font-size: 0.75rem; font-weight: 300; letter-spacing: 4px; color: var(--main-pink); margin-top: 5px; text-transform: uppercase; }
@@ -51,50 +55,57 @@
         .writer-sub-item { padding: 10px 25px 10px 40px; font-size: 0.85rem; cursor: pointer; color: #888; }
         .writer-sub-item:hover { color: var(--white); background: #111; }
 
+        /* 메인 콘텐츠 (가로 스크롤 완전 방지) */
         .main-container { flex-grow: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; background: #fafbfc; min-width: 0; position: relative; }
-        .main-container.view-calendar { overflow: hidden !important; padding: 15px; }
-
         .card { background: var(--white); border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #eaeaea; margin-bottom: 20px; }
         h2 { font-size: 1.4rem; margin-top: 0; margin-bottom: 15px; font-weight: 700; color: var(--black); }
         
-        .cal-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
-        .cal-header-wrap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px; flex-shrink: 0; }
+        /* 캘린더 */
+        .cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 500px; }
+        .cal-header-wrap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px; }
         .cal-nav { display: flex; align-items: center; gap: 15px; font-size: 1.2rem; font-weight: bold; }
         .cal-btn { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 5px; color: #555; }
         .filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
         .filter-btn { padding: 5px 10px; border: 1px solid #ddd; background: #fff; border-radius: 20px; font-size: 0.8rem; cursor: pointer; }
         .filter-btn.active { background: var(--main-pink); border-color: var(--main-pink); color: #fff; font-weight: bold; }
-        
-        .calendar-grid { flex: 1; display: grid; gap: 4px; min-height: 0; overflow: hidden; }
+        .calendar-grid { flex-grow: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
         .day-header { text-align: center; font-weight: bold; padding: 4px 0; color: #888; font-size: 0.85rem; margin-bottom: 0; }
-        
-        .day-box { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; transition: 0.2s; cursor: pointer; touch-action: manipulation; }
-        .day-box:hover { border-color: #ccc; box-shadow: 0 0 5px rgba(0,0,0,0.05); }
+        .day-box { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; transition: 0.2s; cursor: pointer; }
+        .day-box:hover { border-color: #ccc; }
         .day-box::-webkit-scrollbar { width: 3px; }
         .day-box::-webkit-scrollbar-thumb { background: #ddd; }
-        .day-num { font-weight: 700; margin-bottom: 5px; font-size: 0.8rem; color: #444; flex-shrink: 0; }
+        .day-num { font-weight: 700; margin-bottom: 5px; font-size: 0.8rem; color: #444; }
         .day-box.today { background: var(--soft-pink); border: 1px solid var(--main-pink); }
 
+        /* 데스크탑 가로형 테이블 - 유령칸 박멸 및 비율형 넓이 */
         .table-wrap { width: 100%; overflow-x: hidden; }
         .liv-table { width: 100%; min-width: 1050px; border-collapse: collapse; background: #fff; }
+        
         .liv-table th { text-align: left; padding: 10px; font-size: 0.8rem; color: #888; border-bottom: 2px solid #eee; }
         .liv-table td { padding: 12px 10px; border-bottom: 1px solid #eee; vertical-align: middle; font-size: 0.85rem; position: relative; }
         
         .cover-thumb { width: 75px; height: 105px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; background: #fafafa; flex-shrink: 0; display: block; }
         
-        .input-text, .input-select, .input-date { height: 32px !important; padding: 0 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box; font-family: inherit; width: 100%; line-height: 30px; margin: 0; }
+        /* 폼 요소 고정 높이 */
+        .input-text, .input-select, .input-date { 
+            height: 32px !important; padding: 0 8px; border: 1px solid #ddd; border-radius: 4px; 
+            font-size: 0.85rem; box-sizing: border-box; font-family: inherit; width: 100%; line-height: 30px; margin: 0;
+        }
         .input-text:focus, .input-select:focus, .input-date:focus { border-color: var(--main-pink); outline: none; }
         
+        /* 후속권 전용 회색 배경 강조 */
         .row-child { background-color: #f1f3f5 !important; }
         .child-indicator { display: inline-block; color: var(--main-pink); font-weight: bold; margin-right: 5px; padding-left: 15px; font-size: 0.8rem; }
 
+        /* 공통 버튼 */
         .btn { height: 32px !important; line-height: 32px; padding: 0 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 0.8rem; white-space: nowrap; display: inline-block; box-sizing: border-box; transition: 0.2s; }
         .btn-black { background: var(--black); color: white; }
         .btn-pink { background: var(--main-pink); color: white; }
         .btn-del { height: 28px !important; line-height: 26px; background: #fff; color: #999; border: 1px solid #ddd; padding: 0 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer; box-sizing: border-box; }
         .btn-del:hover { color: #e63946; border-color: #e63946; background: #fff0f0; }
         
-        .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; max-width: 100%; box-sizing: border-box; flex-shrink: 0; }
+        /* ★ 일정 추가 바 (화면 밖으로 튀어나가지 않게 width 100% 강제 잠금) ★ */
+        .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; max-width: 100%; box-sizing: border-box; }
         .adder-label { font-weight: bold; color: #555; white-space: nowrap; flex-shrink: 0; }
         .schedule-adder .input-date { width: 130px; flex-shrink: 0; }
         .schedule-adder .input-select { width: 110px; flex-shrink: 0; }
@@ -104,7 +115,8 @@
 
         .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         
-        .event-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #333; gap: 4px; user-select: none; flex-shrink: 0; }
+        /* 캘린더 칩스 (드래그 가능) */
+        .event-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #333; gap: 4px; user-select: none; }
         .event-item:active { cursor: grabbing; }
         .event-item:hover { filter: brightness(0.95); }
         .evt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
@@ -126,10 +138,12 @@
         .platform-grid { display: flex; flex-wrap: wrap; gap: 6px; }
         .platform-grid label { font-size: 0.7rem; display: flex; align-items: center; gap: 2px; cursor: pointer; color: #222; }
 
+        /* 2x2 날짜 격자 강제 고정 */
         .date-grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; width: 100%; min-width: 220px; }
         .date-grid-item { display: flex; align-items: center; gap: 5px; }
         .date-grid-label { font-size: 0.75rem; color: #666; width: 25px; font-weight: bold; flex-shrink: 0; text-align: right; }
 
+        /* 포스트잇 - 2배 크기로 확장 */
         .memo-board { display: flex; flex-wrap: wrap; gap: 15px; }
         .memo-postit { width: 440px; min-height: 440px; padding: 25px; border-radius: 4px; box-shadow: 2px 4px 8px rgba(0,0,0,0.05); position: relative; display: flex; flex-direction: column; background-color:#fff3b0; }
         .memo-postit textarea { flex-grow: 1; border: none; background: transparent; resize: none; font-family: 'Pretendard'; font-size: 1.1rem; line-height: 1.5; color: #333; outline: none; }
@@ -139,22 +153,18 @@
         .memo-add-btn { width: 440px; height: 440px; border: 2px dashed #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 1.2rem; color: #888; transition: 0.2s; }
         .memo-add-btn:hover { background: #eee; }
 
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
-        .modal-overlay.show { display: flex; }
-        .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 300px; }
-
+        /* 데스크탑/모바일 표시 제어 클래스 */
         .mobile-only { display: none !important; }
         .desktop-only-td { display: table-cell; }
 
+        /* 📱 세로 화면(Portrait/모바일) 반응형 완벽 유지 */
         @media (max-width: 1200px), (orientation: portrait) {
-            .sidebar { position: fixed; left: -240px; height: 100vh; height: 100dvh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
+            .sidebar { position: fixed; left: -240px; height: 100vh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
             .sidebar-hover-zone { display: flex; align-items: center; position: fixed; left: 0; top: 0; bottom: 0; width: 15px; z-index: 1001; cursor: pointer; background: rgba(255,133,162,0.1); border-right: 1px solid rgba(255,133,162,0.2); }
             .sidebar-hover-zone::after { content: '▶'; position: absolute; left: 0; top: 50%; transform: translateY(-50%); background: var(--main-pink); color: white; padding: 10px 2px; font-size: 10px; border-radius: 0 4px 4px 0; }
             .sidebar-hover-zone:hover + .sidebar, .sidebar:hover { left: 0; }
             
             .main-container { padding: 15px 15px 15px 35px; margin: 0; width: 100%; box-sizing: border-box; }
-            .main-container.view-calendar { padding: 5px 5px 5px 35px !important; }
-
             .dash-grid-3 { grid-template-columns: 1fr; }
 
             .schedule-adder { flex-wrap: wrap; height: auto; }
@@ -173,18 +183,31 @@
             .liv-table tbody, .liv-table tr { display: block; width: 100%; }
             .liv-table th { display: none; } 
             
-            .liv-table tr { margin-bottom: 20px; border: 1px solid #ddd; border-radius: 10px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02); padding: 15px; position: relative; display: flex; flex-direction: column; gap: 15px; }
+            .liv-table tr { 
+                margin-bottom: 20px; border: 1px solid #ddd; border-radius: 10px; 
+                background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+                padding: 15px; position: relative; display: flex; flex-direction: column; gap: 15px; 
+            }
             .liv-table td { display: block; width: 100%; padding: 0; border: none; position: static; }
             
             .row-child { border-left: 4px solid var(--main-pink); margin-left: 0; border-radius: 0 10px 10px 0; }
+            
             .mobile-del-btn { display: block !important; position: absolute !important; top: 35px; right: 15px; z-index: 10; margin: 0; }
+            
             .mobile-title-wrap { padding-right: 50px; } 
             .date-grid-2x2 { gap: 10px; min-width: 0; }
         }
 
+        /* ==========================================
+           앱 기능을 위한 팝업/로딩 디자인 (기존 레이아웃 영향 X)
+           ========================================== */
         #firebase-loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fafbfc; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--main-pink); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 300px; max-height: 80vh; display: flex; flex-direction: column; }
     </style>
 </head>
 <body>
@@ -245,7 +268,7 @@
     </div>
 
     <div class="modal-overlay" id="day-modal">
-        <div class="modal-content" style="width: 320px; max-width: 90%; max-height: 80vh; display: flex; flex-direction: column; padding: 20px;">
+        <div class="modal-content" style="width: 320px; max-width: 90%;">
             <h3 style="margin-top:0; color:var(--black); border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
                 <span id="day-modal-title">날짜</span>
                 <span style="font-size: 0.8rem; color: var(--main-pink); cursor: pointer; padding: 5px;" onclick="closeDayModal()">✕ 닫기</span>
@@ -256,9 +279,9 @@
     </div>
 
     <script>
-        // ★ 앱 모드 활성화를 위한 엔진(Service Worker) 등록 ★
+        // 앱 엔진 등록
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js').catch(err => console.log('Service Worker 등록 실패:', err));
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Fail:', err));
         }
 
         const firebaseConfig = {
@@ -278,7 +301,6 @@
         let currentCalFilter = 'all';
         let currentWriterFilter = null; 
         let currentSearchText = ''; 
-        
         let currentViewName = 'dashboard';
         let currentViewParam = null;
 
@@ -299,10 +321,6 @@
                 if (saved) livData = JSON.parse(saved);
                 saveData(); 
             }
-        }, (error) => {
-            console.error("Firebase 연결 에러:", error);
-            alert("서버 연결에 실패했습니다. Firestore 설정을 다시 확인해주세요.");
-            document.getElementById('firebase-loading').style.display = 'none';
         });
 
         function saveData() { 
@@ -356,32 +374,12 @@
             reader.readAsText(file);
         }
 
-        function compressImage(file, callback) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = 120; canvas.height = img.height * (120/img.width);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    callback(canvas.toDataURL('image/jpeg', 0.7)); 
-                }
-                img.src = e.target.result;
-            }
-            reader.readAsDataURL(file);
-        }
-
         function changeView(view, param = null) {
             currentViewName = view;
             currentViewParam = param;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            
             const main = document.getElementById('main-view');
             
-            if(view === 'calendar') main.classList.add('view-calendar');
-            else main.classList.remove('view-calendar');
-
             if(view === 'dashboard') { document.querySelectorAll('.nav-item')[0].classList.add('active'); renderDashboard(main); }
             else if(view === 'calendar') { document.querySelectorAll('.nav-item')[1].classList.add('active'); currentDate = new Date(); currentCalFilter = 'all'; renderCalendar(main); }
             else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
@@ -511,7 +509,7 @@
                         </div>
                     </div>
                     
-                    <div class="calendar-grid" style="grid-template-rows: auto repeat(${weeks}, minmax(0, 1fr));">
+                    <div class="calendar-grid" style="grid-template-rows: auto repeat(${weeks}, 1fr);">
                         ${['일','월','화','수','목','금','토'].map(d => `<div class="day-header">${d}</div>`).join('')}
             `;
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
