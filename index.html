@@ -152,12 +152,10 @@
             .main-container { padding: 15px 15px 15px 35px; margin: 0; width: 100%; box-sizing: border-box; }
             .dash-grid-3 { grid-template-columns: 1fr; }
             
-            /* ★ 1. 모바일 메모지 스마트 반응형 자동 조절 ★ */
             .memo-board { width: 100%; display: flex; flex-direction: column; gap: 15px; }
             .memo-postit { width: 100% !important; min-height: 320px !important; height: auto; }
             .memo-add-btn { width: 100% !important; height: 80px !important; min-height: 80px !important; font-size: 1rem; }
 
-            /* ★ 2. 모바일 달력 세로 화면 맞춤 압축 ★ */
             .main-container.view-calendar { padding: 10px 10px 10px 35px !important; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
             .main-container.view-calendar .cal-wrapper { flex: 1; min-height: 0; display: flex; flex-direction: column; }
             .main-container.view-calendar .calendar-grid { flex: 1; min-height: 0; display: grid; overflow: hidden; }
@@ -254,7 +252,7 @@
     </div>
 
     <script>
-        // ★ 이전 캐시를 강제로 무시하는 앱 엔진 업데이트 코드 ★
+        // 앱 엔진 등록
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()).catch(err => console.log('SW Fail:', err));
         }
@@ -333,12 +331,20 @@
             reader.readAsText(file);
         }
 
+        // ★ 모바일 사이드바 강제 접기 함수 ★
+        function closeSidebarMobile() {
+            if (window.matchMedia('(max-width: 1200px), (orientation: portrait)').matches) {
+                const sidebar = document.querySelector('.sidebar');
+                sidebar.style.setProperty('left', '-240px', 'important');
+                setTimeout(() => { sidebar.style.left = ''; }, 350); 
+            }
+        }
+
         function changeView(view, param = null) {
             currentViewName = view; currentViewParam = param;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             const main = document.getElementById('main-view');
             
-            // ★ 모바일 달력 레이아웃을 위한 특수 클래스 부여 ★
             if(view === 'calendar') main.classList.add('view-calendar');
             else main.classList.remove('view-calendar');
 
@@ -346,6 +352,11 @@
             else if(view === 'calendar') { document.querySelectorAll('.nav-item')[1].classList.add('active'); currentDate = new Date(); currentCalFilter = 'all'; renderCalendar(main); }
             else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
             else if(view === 'writer') { document.querySelectorAll('.nav-item')[3].classList.add('active'); if(param === null) { currentWriterFilter = null; currentSearchText = ''; } renderWriterDetail(main, param); }
+            
+            // ★ 작가관리(하위메뉴 폂침)를 누른 게 아니라면 모바일에서 사이드바 자동 접기 ★
+            if (!(view === 'writer' && param === null)) {
+                closeSidebarMobile();
+            }
         }
 
         function getWriterOptions() { let html = `<option value="">[선택 안함]</option>`; livData.writers.forEach(w => html += `<option value="${w.id}">${w.name}</option>`); return html; }
@@ -591,7 +602,10 @@
             saveData(); if (['msStatus', 'coverStatus', 'sequel'].includes(key)) { changeView('writer', currentWriterFilter); }
         }
 
-        function openWriterModal() { document.getElementById('writer-modal').classList.add('show'); }
+        function openWriterModal() { 
+            document.getElementById('writer-modal').classList.add('show'); 
+            closeSidebarMobile(); // ★ 모달 열 때도 사이드바 접어주기 ★
+        }
         function closeWriterModal() { document.getElementById('writer-modal').classList.remove('show'); document.getElementById('new-writer-name').value = ''; }
         function confirmAddWriter() {
             const name = document.getElementById('new-writer-name').value; if(!name) return alert("작가명을 입력하세요.");
