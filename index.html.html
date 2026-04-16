@@ -430,16 +430,19 @@
         }
 
         function completeWorkTask(wId, workId, key, view) {
-            if(!confirm('해당 일정을 달력에서 지우시겠습니까?\n(작가 관리 페이지의 설정된 날짜는 유지됩니다)')) return;
+            if(!confirm('해당 일정을 달력에서 지우시겠습니까?\n(작가 관리 페이지의 설정된 날짜는 유지됩니다)')) return false;
             const work = livData.writers.find(x => x.id === wId).works.find(x => x.id === workId);
             if (!work.completedDates) work.completedDates = {};
             work.completedDates[key] = true; 
             saveData(); changeView(view);
+            return true;
         }
+
         function completeExtraTask(taskId, view) {
-            if(!confirm('해당 일반 일정을 완료하시겠습니까?')) return;
+            if(!confirm('해당 일반 일정을 완료하시겠습니까?')) return false;
             livData.extraTasks = livData.extraTasks.filter(t => t.id !== taskId);
             saveData(); changeView(view); 
+            return true;
         }
 
         function drag(ev, type, wId, itemId) {
@@ -534,10 +537,10 @@
             
             // 데이터 매칭하여 가져오기
             livData.writers.forEach(w => w.works.forEach(work => {
-                if (work.pubDate === dateStr) listHtml += createDayModalItemHtml('ev-pub', '[출간]', work.title, w.name, work.completedDates?.pubDate);
-                if (work.coverDate === dateStr) listHtml += createDayModalItemHtml('ev-cover', '[표지]', work.title, w.name, work.completedDates?.coverDate);
-                if (work.proofDate === dateStr) listHtml += createDayModalItemHtml('ev-proof1', '[1교]', work.title, w.name, work.completedDates?.proofDate);
-                if (work.proofDate2 === dateStr) listHtml += createDayModalItemHtml('ev-proof2', '[2교]', work.title, w.name, work.completedDates?.proofDate2);
+                if (work.pubDate === dateStr) listHtml += createDayModalItemHtml('ev-pub', '[출간]', work.title, w.name, work.completedDates?.pubDate, `if(completeWorkTask(${w.id}, ${work.id}, 'pubDate', 'calendar')) openDayModal(null, '${dateStr}')`);
+                if (work.coverDate === dateStr) listHtml += createDayModalItemHtml('ev-cover', '[표지]', work.title, w.name, work.completedDates?.coverDate, `if(completeWorkTask(${w.id}, ${work.id}, 'coverDate', 'calendar')) openDayModal(null, '${dateStr}')`);
+                if (work.proofDate === dateStr) listHtml += createDayModalItemHtml('ev-proof1', '[1교]', work.title, w.name, work.completedDates?.proofDate, `if(completeWorkTask(${w.id}, ${work.id}, 'proofDate', 'calendar')) openDayModal(null, '${dateStr}')`);
+                if (work.proofDate2 === dateStr) listHtml += createDayModalItemHtml('ev-proof2', '[2교]', work.title, w.name, work.completedDates?.proofDate2, `if(completeWorkTask(${w.id}, ${work.id}, 'proofDate2', 'calendar')) openDayModal(null, '${dateStr}')`);
             }));
             
             if (livData.extraTasks) {
@@ -545,7 +548,7 @@
                     if (t.date === dateStr) {
                         const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null;
                         const wName = writerObj ? writerObj.name : '';
-                        listHtml += createDayModalItemHtml(t.type, '', t.title, wName, false);
+                        listHtml += createDayModalItemHtml(t.type, '', t.title, wName, false, `if(completeExtraTask(${t.id}, 'calendar')) openDayModal(null, '${dateStr}')`);
                     }
                 });
             }
@@ -559,10 +562,13 @@
             document.getElementById('day-modal').classList.add('show');
         }
         
-        function createDayModalItemHtml(typeClass, prefix, title, writerName, isCompleted) {
+        function createDayModalItemHtml(typeClass, prefix, title, writerName, isCompleted, actionCode) {
             const completedStyle = isCompleted ? 'text-decoration: line-through; opacity: 0.4;' : '';
+            const cursorStyle = isCompleted ? 'cursor: default;' : 'cursor: pointer;';
+            const dblClickAttr = (!isCompleted && actionCode) ? `ondblclick="${actionCode}"` : '';
+
             return `
-                <div class="event-item ${typeClass}" style="padding: 12px 10px; font-size: 0.95rem; cursor: default; ${completedStyle}">
+                <div class="event-item ${typeClass}" style="padding: 12px 10px; font-size: 0.95rem; ${cursorStyle} ${completedStyle}" ${dblClickAttr} title="${!isCompleted ? '더블클릭하여 완료(달력에서 숨김) 처리' : ''}">
                     <div style="font-weight: 800; flex-grow:1; white-space: normal; word-break: keep-all;">${prefix} ${title}</div>
                     ${writerName ? `<div style="font-size: 0.8rem; color:#555; font-weight: bold; background:rgba(255,255,255,0.6); padding: 4px 8px; border-radius: 4px; flex-shrink: 0; margin-left: 10px;">${writerName}</div>` : ''}
                 </div>
