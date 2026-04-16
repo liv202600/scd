@@ -145,13 +145,13 @@
            ========================================== */
         @media (max-width: 1200px), (orientation: portrait) {
             .sidebar { position: fixed; left: -240px; height: 100vh; height: 100dvh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
+            
+            /* ★ 유령 손가락 차단: 모바일에서는 Hover 기능을 완전히 죽이고 Class로만 제어합니다 ★ */
+            .sidebar.mobile-open { left: 0 !important; }
+            
             .sidebar-hover-zone { display: flex; align-items: center; position: fixed; left: 0; top: 0; bottom: 0; width: 15px; z-index: 1001; cursor: pointer; background: rgba(255,133,162,0.1); border-right: 1px solid rgba(255,133,162,0.2); }
             .sidebar-hover-zone::after { content: '▶'; position: absolute; left: 0; top: 50%; transform: translateY(-50%); background: var(--main-pink); color: white; padding: 10px 2px; font-size: 10px; border-radius: 0 4px 4px 0; }
-            .sidebar-hover-zone:hover + .sidebar, .sidebar:hover { left: 0; }
             
-            /* ★ 이 클래스가 붙으면 폰의 '유령 손가락' 착각을 원천 차단해버립니다 ★ */
-            body.disable-sidebar-hover .sidebar { left: -240px !important; }
-
             .main-container { padding: 15px 15px 15px 35px; margin: 0; width: 100%; box-sizing: border-box; }
             .dash-grid-3 { grid-template-columns: 1fr; }
             
@@ -200,8 +200,9 @@
         <p style="color:#888; font-size:0.9rem;">PC와 모바일을 연결하고 있습니다.</p>
     </div>
 
-    <div class="sidebar-hover-zone"></div>
-    <aside class="sidebar">
+    <div class="sidebar-hover-zone" onclick="openMobileSidebar()"></div>
+    
+    <aside class="sidebar" id="main-sidebar">
         <div class="logo-area">
             <h1 class="logo-title">LIV</h1>
             <div class="logo-subtitle">publishing</div>
@@ -225,7 +226,7 @@
         <div style="padding: 15px; font-size: 0.7rem; color: #555; text-align: center; border-top: 1px solid #222;">Liv Publishing Team</div>
     </aside>
 
-    <main class="main-container" id="main-view"></main>
+    <main class="main-container" id="main-view" onclick="closeSidebarMobile()"></main>
 
     <div class="modal-overlay" id="writer-modal">
         <div class="modal-content">
@@ -333,20 +334,13 @@
             reader.readAsText(file);
         }
 
-        // ★ 모바일 유령 손가락(Sticky Hover) 완벽 차단 함수 ★
+        // ★ 모바일 사이드바 강제 제어 함수 (버그 원천 차단) ★
+        function openMobileSidebar() {
+            document.getElementById('main-sidebar').classList.add('mobile-open');
+        }
+
         function closeSidebarMobile() {
-            if (window.matchMedia('(max-width: 1200px), (orientation: portrait)').matches) {
-                // 메뉴를 클릭하면 <body>에 '강제 잠금' 족쇄를 채웁니다.
-                document.body.classList.add('disable-sidebar-hover');
-                
-                // 0.1초 뒤에, 대표님이 '다음 번에 화면을 터치할 때' 족쇄를 풀어주도록 예약합니다.
-                setTimeout(() => {
-                    document.addEventListener('touchstart', function unlockHover() {
-                        document.body.classList.remove('disable-sidebar-hover');
-                        document.removeEventListener('touchstart', unlockHover);
-                    }, { once: true }); // 딱 한 번만 실행됨
-                }, 100);
-            }
+            document.getElementById('main-sidebar').classList.remove('mobile-open');
         }
 
         function changeView(view, param = null) {
@@ -362,7 +356,7 @@
             else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
             else if(view === 'writer') { document.querySelectorAll('.nav-item')[3].classList.add('active'); if(param === null) { currentWriterFilter = null; currentSearchText = ''; } renderWriterDetail(main, param); }
             
-            // ★ 작가관리(하위메뉴 펼침)를 누른 게 아니라면 모바일에서 무조건 강제 잠금 실행 ★
+            // ★ 메뉴를 누르면 무조건 강제 종료 실행 (단, 작가관리 폴더를 펼칠 때만 예외) ★
             if (!(view === 'writer' && param === null)) {
                 closeSidebarMobile();
             }
