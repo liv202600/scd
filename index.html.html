@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liv Publishing - Management System Final</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
     <style>
+        /* 대표님의 원본 CSS 100% 유지 */
         :root {
             --main-pink: #ff85a2;
             --soft-pink: #fff0f3;
@@ -23,7 +28,6 @@
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; height: 100vh; overflow: hidden; }
 
-        /* 사이드바 */
         .sidebar-hover-zone { display: none; }
         .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1000; flex-shrink: 0; transition: left 0.3s ease; }
         .logo-area { padding: 30px 20px; text-align: center; border-bottom: 1px solid #222; display: flex; flex-direction: column; justify-content: center; }
@@ -41,12 +45,10 @@
         .writer-sub-item { padding: 10px 25px 10px 40px; font-size: 0.85rem; cursor: pointer; color: #888; }
         .writer-sub-item:hover { color: var(--white); background: #111; }
 
-        /* 메인 콘텐츠 (가로 스크롤 완전 방지) */
         .main-container { flex-grow: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; background: #fafbfc; min-width: 0; position: relative; }
         .card { background: var(--white); border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #eaeaea; margin-bottom: 20px; }
         h2 { font-size: 1.4rem; margin-top: 0; margin-bottom: 15px; font-weight: 700; color: var(--black); }
         
-        /* 캘린더 */
         .cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 500px; }
         .cal-header-wrap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px; }
         .cal-nav { display: flex; align-items: center; gap: 15px; font-size: 1.2rem; font-weight: bold; }
@@ -63,34 +65,25 @@
         .day-num { font-weight: 700; margin-bottom: 5px; font-size: 0.8rem; color: #444; }
         .day-box.today { background: var(--soft-pink); border: 1px solid var(--main-pink); }
 
-        /* 데스크탑 가로형 테이블 - 유령칸 박멸 및 비율형 넓이 */
         .table-wrap { width: 100%; overflow-x: hidden; }
         .liv-table { width: 100%; min-width: 1050px; border-collapse: collapse; background: #fff; }
-        
         .liv-table th { text-align: left; padding: 10px; font-size: 0.8rem; color: #888; border-bottom: 2px solid #eee; }
         .liv-table td { padding: 12px 10px; border-bottom: 1px solid #eee; vertical-align: middle; font-size: 0.85rem; position: relative; }
         
         .cover-thumb { width: 75px; height: 105px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; background: #fafafa; flex-shrink: 0; display: block; }
         
-        /* 폼 요소 고정 높이 */
-        .input-text, .input-select, .input-date { 
-            height: 32px !important; padding: 0 8px; border: 1px solid #ddd; border-radius: 4px; 
-            font-size: 0.85rem; box-sizing: border-box; font-family: inherit; width: 100%; line-height: 30px; margin: 0;
-        }
+        .input-text, .input-select, .input-date { height: 32px !important; padding: 0 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box; font-family: inherit; width: 100%; line-height: 30px; margin: 0; }
         .input-text:focus, .input-select:focus, .input-date:focus { border-color: var(--main-pink); outline: none; }
         
-        /* 후속권 전용 회색 배경 강조 */
         .row-child { background-color: #f1f3f5 !important; }
         .child-indicator { display: inline-block; color: var(--main-pink); font-weight: bold; margin-right: 5px; padding-left: 15px; font-size: 0.8rem; }
 
-        /* 공통 버튼 */
         .btn { height: 32px !important; line-height: 32px; padding: 0 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 0.8rem; white-space: nowrap; display: inline-block; box-sizing: border-box; transition: 0.2s; }
         .btn-black { background: var(--black); color: white; }
         .btn-pink { background: var(--main-pink); color: white; }
         .btn-del { height: 28px !important; line-height: 26px; background: #fff; color: #999; border: 1px solid #ddd; padding: 0 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer; box-sizing: border-box; }
         .btn-del:hover { color: #e63946; border-color: #e63946; background: #fff0f0; }
         
-        /* ★ 일정 추가 바 (화면 밖으로 튀어나가지 않게 width 100% 강제 잠금) ★ */
         .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; max-width: 100%; box-sizing: border-box; }
         .adder-label { font-weight: bold; color: #555; white-space: nowrap; flex-shrink: 0; }
         .schedule-adder .input-date { width: 130px; flex-shrink: 0; }
@@ -101,7 +94,6 @@
 
         .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         
-        /* 캘린더 칩스 (드래그 가능) */
         .event-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #333; gap: 4px; user-select: none; }
         .event-item:active { cursor: grabbing; }
         .event-item:hover { filter: brightness(0.95); }
@@ -124,12 +116,10 @@
         .platform-grid { display: flex; flex-wrap: wrap; gap: 6px; }
         .platform-grid label { font-size: 0.7rem; display: flex; align-items: center; gap: 2px; cursor: pointer; color: #222; }
 
-        /* 2x2 날짜 격자 강제 고정 */
         .date-grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; width: 100%; min-width: 220px; }
         .date-grid-item { display: flex; align-items: center; gap: 5px; }
         .date-grid-label { font-size: 0.75rem; color: #666; width: 25px; font-weight: bold; flex-shrink: 0; text-align: right; }
 
-        /* 포스트잇 - 2배 크기로 확장 */
         .memo-board { display: flex; flex-wrap: wrap; gap: 15px; }
         .memo-postit { width: 440px; min-height: 440px; padding: 25px; border-radius: 4px; box-shadow: 2px 4px 8px rgba(0,0,0,0.05); position: relative; display: flex; flex-direction: column; background-color:#fff3b0; }
         .memo-postit textarea { flex-grow: 1; border: none; background: transparent; resize: none; font-family: 'Pretendard'; font-size: 1.1rem; line-height: 1.5; color: #333; outline: none; }
@@ -143,11 +133,9 @@
         .modal-overlay.show { display: flex; }
         .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 300px; }
 
-        /* 데스크탑/모바일 표시 제어 클래스 */
         .mobile-only { display: none !important; }
         .desktop-only-td { display: table-cell; }
 
-        /* 📱 세로 화면(Portrait/모바일) 반응형 완벽 유지 */
         @media (max-width: 1200px), (orientation: portrait) {
             .sidebar { position: fixed; left: -240px; height: 100vh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
             .sidebar-hover-zone { display: flex; align-items: center; position: fixed; left: 0; top: 0; bottom: 0; width: 15px; z-index: 1001; cursor: pointer; background: rgba(255,133,162,0.1); border-right: 1px solid rgba(255,133,162,0.2); }
@@ -187,9 +175,20 @@
             .mobile-title-wrap { padding-right: 50px; } 
             .date-grid-2x2 { gap: 10px; min-width: 0; }
         }
+
+        /* ★ 로딩 오버레이 디자인 ★ */
+        #firebase-loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fafbfc; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--main-pink); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
+
+    <div id="firebase-loading">
+        <div class="loading-spinner"></div>
+        <h2 style="color:var(--main-pink); margin:0;">데이터 동기화 중...</h2>
+        <p style="color:#888; font-size:0.9rem;">PC와 모바일을 연결하고 있습니다.</p>
+    </div>
 
     <div class="sidebar-hover-zone"></div>
     
@@ -211,19 +210,18 @@
             <div style="padding: 15px 25px; text-align: center;">
                 <button class="btn btn-black" style="width: 100%; height: 36px; line-height: 36px;" onclick="openWriterModal()">+ 새 작가 등록</button>
             </div>
-            <!-- 데이터 백업/복원 영역 -->
+            
             <div style="padding: 0 25px 15px; text-align: center; display:flex; gap:5px;">
                 <button class="btn btn-del" style="flex:1; height: 30px !important; line-height:28px; padding:0;" onclick="exportData()">데이터 백업</button>
                 <button class="btn btn-del" style="flex:1; height: 30px !important; line-height:28px; padding:0;" onclick="document.getElementById('import-input').click()">데이터 복원</button>
                 <input type="file" id="import-input" style="display:none;" accept=".json" onchange="importData(event)">
             </div>
         </div>
-        <div style="padding: 15px; font-size: 0.7rem; color: #555; text-align: center; border-top: 1px solid #222;">Liv Publishing Team</div>
+        <div style="padding: 15px; font-size: 0.7rem; color: #555; text-align: center; border-top: 1px solid #222;">Liv Publishing Team (Cloud)</div>
     </aside>
 
     <main class="main-container" id="main-view"></main>
 
-    <!-- 작가 등록 팝업 -->
     <div class="modal-overlay" id="writer-modal">
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--main-pink);">새 작가 등록</h3>
@@ -242,13 +240,63 @@
     </div>
 
     <script>
+        // ★ 1. Firebase 초기화 ★
+        const firebaseConfig = {
+            apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8",
+            authDomain: "liv-management.firebaseapp.com",
+            projectId: "liv-management",
+            storageBucket: "liv-management.firebasestorage.app",
+            messagingSenderId: "206638436310",
+            appId: "1:206638436310:web:3ec139c6522a84a89c5e77",
+            measurementId: "G-WX64SC0CDS"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // 전역 변수 유지
         let livData = { writers: [], extraTasks: [], memos: [] };
-        try { const saved = localStorage.getItem('livDataFinal_v21'); if (saved) livData = JSON.parse(saved); } catch(e) {}
-        
         let currentDate = new Date();
         let currentCalFilter = 'all';
         let currentWriterFilter = null; 
         let currentSearchText = ''; 
+        
+        // 현재 보고 있는 뷰를 추적하기 위한 변수
+        let currentViewName = 'dashboard';
+        let currentViewParam = null;
+
+        // ★ 2. 데이터 불러오기 (서버 실시간 감지) ★
+        db.collection("config").doc("mainData").onSnapshot((doc) => {
+            document.getElementById('firebase-loading').style.display = 'none'; // 로딩 숨김
+            
+            // 입력창 포커스 잃음 방지: 내가 방금 쓴 데이터라면 전체 새로고침 무시
+            if (doc.metadata.hasPendingWrites) return;
+
+            if (doc.exists) {
+                livData = doc.data();
+                // 데이터 안전장치
+                if(!livData.writers) livData.writers = [];
+                if(!livData.extraTasks) livData.extraTasks = [];
+                if(!livData.memos) livData.memos = [];
+                
+                renderSidebarWriters();
+                changeView(currentViewName, currentViewParam); // 현재 화면 새로고침
+            } else {
+                // 초기 데이터가 아예 없다면 기존 LocalStorage를 찾거나 빈 값 서버에 등록
+                const saved = localStorage.getItem('livDataFinal_v21'); 
+                if (saved) livData = JSON.parse(saved);
+                saveData(); // 서버로 올림
+            }
+        }, (error) => {
+            console.error("Firebase 연결 에러:", error);
+            alert("서버 연결에 실패했습니다. Firestore 설정을 다시 확인해주세요.");
+            document.getElementById('firebase-loading').style.display = 'none';
+        });
+
+        // ★ 3. 데이터 저장 함수 (로컬 대신 서버로 전송) ★
+        function saveData() { 
+            db.collection("config").doc("mainData").set(livData);
+            renderSidebarWriters(); 
+        }
 
         const msStatuses = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
         const coverStatuses = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
@@ -262,8 +310,7 @@
             return `hsl(345, 60%, ${lightness}%)`;
         }
 
-        function saveData() { localStorage.setItem('livDataFinal_v21', JSON.stringify(livData)); renderSidebarWriters(); }
-
+        // 백업, 복원, 이미지 압축 원본 그대로
         function exportData() {
             const dataStr = JSON.stringify(livData);
             const blob = new Blob([dataStr], {type: "application/json"});
@@ -284,8 +331,8 @@
                     const importedData = JSON.parse(e.target.result);
                     if (importedData && typeof importedData === 'object') {
                         livData = importedData;
-                        saveData();
-                        alert('데이터가 성공적으로 복원되었습니다.');
+                        saveData(); // 서버에 통째로 덮어씌움
+                        alert('데이터가 서버에 성공적으로 복원되었습니다.');
                         changeView('dashboard');
                     } else {
                         alert('올바른 백업 파일이 아닙니다.');
@@ -315,6 +362,8 @@
         }
 
         function changeView(view, param = null) {
+            currentViewName = view;
+            currentViewParam = param;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             const main = document.getElementById('main-view');
             if(view === 'dashboard') { document.querySelectorAll('.nav-item')[0].classList.add('active'); renderDashboard(main); }
@@ -322,7 +371,7 @@
             else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
             else if(view === 'writer') { 
                 document.querySelectorAll('.nav-item')[3].classList.add('active'); 
-                if(param === null) { currentWriterFilter = null; currentSearchText = ''; }
+                if(param === null && document.activeElement.id !== 'search-writer-input') { currentWriterFilter = null; currentSearchText = ''; }
                 renderWriterDetail(main, param); 
             }
         }
@@ -787,32 +836,8 @@
             const w = livData.writers.find(x => x.id === wId);
             w.works = w.works.filter(x => x.id !== workId && x.parentId !== workId); saveData(); changeView('writer', currentWriterFilter);
         }
-
-        renderSidebarWriters();
-        changeView('dashboard');
+        
+        // (맨 처음에 실행되던 changeView('dashboard')는 Firebase onSnapshot 안에서 처리됨)
     </script>
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8",
-    authDomain: "liv-management.firebaseapp.com",
-    projectId: "liv-management",
-    storageBucket: "liv-management.firebasestorage.app",
-    messagingSenderId: "206638436310",
-    appId: "1:206638436310:web:3ec139c6522a84a89c5e77",
-    measurementId: "G-WX64SC0CDS"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 </body>
 </html>
