@@ -791,5 +791,28 @@
         renderSidebarWriters();
         changeView('dashboard');
     </script>
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8",
+    authDomain: "liv-management.firebaseapp.com",
+    projectId: "liv-management",
+    storageBucket: "liv-management.firebasestorage.app",
+    messagingSenderId: "206638436310",
+    appId: "1:206638436310:web:3ec139c6522a84a89c5e77",
+    measurementId: "G-WX64SC0CDS"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
 </body>
 </html>
