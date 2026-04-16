@@ -1,0 +1,15 @@
+{
+  "name": "LIV System",
+  "short_name": "LIV",
+  "display": "standalone",
+  "start_url": "./index.html",
+  "background_color": "#fafbfc",
+  "theme_color": "#ff85a2",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2206/2206368.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
