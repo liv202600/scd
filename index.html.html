@@ -9,7 +9,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <style>
-        /* 대표님의 원본 CSS 100% 유지 */
         :root {
             --main-pink: #ff85a2;
             --soft-pink: #fff0f3;
@@ -26,7 +25,8 @@
         }
 
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; height: 100vh; overflow: hidden; }
+        /* ★ 모바일 주소창을 고려해 height: 100dvh 적용 ★ */
+        body { margin: 0; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; height: 100dvh; overflow: hidden; }
 
         .sidebar-hover-zone { display: none; }
         .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1000; flex-shrink: 0; transition: left 0.3s ease; }
@@ -49,17 +49,20 @@
         .card { background: var(--white); border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #eaeaea; margin-bottom: 20px; }
         h2 { font-size: 1.4rem; margin-top: 0; margin-bottom: 15px; font-weight: 700; color: var(--black); }
         
-        .cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 500px; }
+        /* ★ 캘린더 영역 자동 조절을 위해 min-height 제거 및 비율 할당 ★ */
+        .cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 0; }
         .cal-header-wrap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px; }
         .cal-nav { display: flex; align-items: center; gap: 15px; font-size: 1.2rem; font-weight: bold; }
         .cal-btn { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 5px; color: #555; }
         .filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
         .filter-btn { padding: 5px 10px; border: 1px solid #ddd; background: #fff; border-radius: 20px; font-size: 0.8rem; cursor: pointer; }
         .filter-btn.active { background: var(--main-pink); border-color: var(--main-pink); color: #fff; font-weight: bold; }
-        .calendar-grid { flex-grow: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-grid { flex-grow: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; min-height: 0; }
         .day-header { text-align: center; font-weight: bold; padding: 4px 0; color: #888; font-size: 0.85rem; margin-bottom: 0; }
-        .day-box { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; transition: 0.2s; }
-        .day-box:hover { border-color: #ccc; }
+        
+        /* ★ 날짜 박스에 cursor: pointer 추가 (클릭 유도) ★ */
+        .day-box { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; transition: 0.2s; cursor: pointer; }
+        .day-box:hover { border-color: #ccc; box-shadow: 0 0 5px rgba(0,0,0,0.05); }
         .day-box::-webkit-scrollbar { width: 3px; }
         .day-box::-webkit-scrollbar-thumb { background: #ddd; }
         .day-num { font-weight: 700; margin-bottom: 5px; font-size: 0.8rem; color: #444; }
@@ -142,7 +145,8 @@
             .sidebar-hover-zone::after { content: '▶'; position: absolute; left: 0; top: 50%; transform: translateY(-50%); background: var(--main-pink); color: white; padding: 10px 2px; font-size: 10px; border-radius: 0 4px 4px 0; }
             .sidebar-hover-zone:hover + .sidebar, .sidebar:hover { left: 0; }
             
-            .main-container { padding: 15px 15px 15px 35px; margin: 0; width: 100%; box-sizing: border-box; }
+            /* 모바일 여백 최소화하여 달력 넓게 쓰기 */
+            .main-container { padding: 10px 10px 10px 30px; margin: 0; width: 100%; box-sizing: border-box; }
             .dash-grid-3 { grid-template-columns: 1fr; }
 
             .schedule-adder { flex-wrap: wrap; height: auto; }
@@ -176,7 +180,6 @@
             .date-grid-2x2 { gap: 10px; min-width: 0; }
         }
 
-        /* ★ 로딩 오버레이 디자인 ★ */
         #firebase-loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fafbfc; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--main-pink); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -239,8 +242,18 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="day-modal">
+        <div class="modal-content" style="width: 320px; max-width: 90%; max-height: 80vh; display: flex; flex-direction: column; padding: 20px;">
+            <h3 style="margin-top:0; color:var(--black); border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
+                <span id="day-modal-title">날짜</span>
+                <span style="font-size: 0.8rem; color: var(--main-pink); cursor: pointer; padding: 5px;" onclick="closeDayModal()">✕ 닫기</span>
+            </h3>
+            <div id="day-modal-list" style="overflow-y: auto; flex-grow: 1; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px;">
+                </div>
+        </div>
+    </div>
+
     <script>
-        // ★ 1. Firebase 초기화 ★
         const firebaseConfig = {
             apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8",
             authDomain: "liv-management.firebaseapp.com",
@@ -253,38 +266,32 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // 전역 변수 유지
         let livData = { writers: [], extraTasks: [], memos: [] };
         let currentDate = new Date();
         let currentCalFilter = 'all';
         let currentWriterFilter = null; 
         let currentSearchText = ''; 
         
-        // 현재 보고 있는 뷰를 추적하기 위한 변수
         let currentViewName = 'dashboard';
         let currentViewParam = null;
 
-        // ★ 2. 데이터 불러오기 (서버 실시간 감지) ★
         db.collection("config").doc("mainData").onSnapshot((doc) => {
-            document.getElementById('firebase-loading').style.display = 'none'; // 로딩 숨김
+            document.getElementById('firebase-loading').style.display = 'none'; 
             
-            // 입력창 포커스 잃음 방지: 내가 방금 쓴 데이터라면 전체 새로고침 무시
             if (doc.metadata.hasPendingWrites) return;
 
             if (doc.exists) {
                 livData = doc.data();
-                // 데이터 안전장치
                 if(!livData.writers) livData.writers = [];
                 if(!livData.extraTasks) livData.extraTasks = [];
                 if(!livData.memos) livData.memos = [];
                 
                 renderSidebarWriters();
-                changeView(currentViewName, currentViewParam); // 현재 화면 새로고침
+                changeView(currentViewName, currentViewParam); 
             } else {
-                // 초기 데이터가 아예 없다면 기존 LocalStorage를 찾거나 빈 값 서버에 등록
                 const saved = localStorage.getItem('livDataFinal_v21'); 
                 if (saved) livData = JSON.parse(saved);
-                saveData(); // 서버로 올림
+                saveData(); 
             }
         }, (error) => {
             console.error("Firebase 연결 에러:", error);
@@ -292,7 +299,6 @@
             document.getElementById('firebase-loading').style.display = 'none';
         });
 
-        // ★ 3. 데이터 저장 함수 (로컬 대신 서버로 전송) ★
         function saveData() { 
             db.collection("config").doc("mainData").set(livData);
             renderSidebarWriters(); 
@@ -310,7 +316,6 @@
             return `hsl(345, 60%, ${lightness}%)`;
         }
 
-        // 백업, 복원, 이미지 압축 원본 그대로
         function exportData() {
             const dataStr = JSON.stringify(livData);
             const blob = new Blob([dataStr], {type: "application/json"});
@@ -331,7 +336,7 @@
                     const importedData = JSON.parse(e.target.result);
                     if (importedData && typeof importedData === 'object') {
                         livData = importedData;
-                        saveData(); // 서버에 통째로 덮어씌움
+                        saveData(); 
                         alert('데이터가 서버에 성공적으로 복원되었습니다.');
                         changeView('dashboard');
                     } else {
@@ -382,7 +387,6 @@
             return html;
         }
 
-        // 1. 대시보드
         function renderDashboard(container) {
             const tzoffset = (new Date()).getTimezoneOffset() * 60000;
             const today = new Date(Date.now() - tzoffset);
@@ -465,7 +469,7 @@
             renderCalendar(document.getElementById('main-view'));
         }
 
-        // 2. 캘린더
+        // ★ 캘린더 세로 자동 맞춤 적용 ★
         function renderCalendar(container) {
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth(); 
@@ -496,22 +500,77 @@
                             </div>
                         </div>
                     </div>
-                    <div class="calendar-grid" style="grid-template-rows: auto repeat(${weeks}, 1fr);">
+                    <div class="calendar-grid" style="grid-template-rows: auto repeat(${weeks}, minmax(0, 1fr));">
                         ${['일','월','화','수','목','금','토'].map(d => `<div class="day-header">${d}</div>`).join('')}
             `;
             for(let i=0; i<firstDay; i++) html += `<div></div>`;
             for(let i=1; i<=daysInMonth; i++) {
                 const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                 const isToday = dStr === todayStr ? 'today' : '';
-                html += `<div class="day-box ${isToday}" ondragover="allowDrop(event)" ondrop="drop(event, '${dStr}')">
+                // ★ onClick 이벤트 연결 완료 ★
+                html += `<div class="day-box ${isToday}" ondragover="allowDrop(event)" ondrop="drop(event, '${dStr}')" onclick="openDayModal(event, '${dStr}')">
                             <div class="day-num">${i}</div>
-                            <div id="cal-day-${dStr}" style="display:flex; flex-direction:column; gap:2px; min-height: 50px;"></div>
+                            <div id="cal-day-${dStr}" style="display:flex; flex-direction:column; gap:2px; min-height: 10px;"></div>
                          </div>`;
             }
             html += `</div></div>`;
             container.innerHTML = html;
 
             for(let i=1; i<=daysInMonth; i++) updateTasksHtml(`${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, `cal-day-${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, 'calendar', currentCalFilter);
+        }
+
+        // ★ 캘린더 팝업 관련 함수 모음 ★
+        function openDayModal(e, dateStr) {
+            // 내부 아이템(드래그용 칩스)을 건드렸을 때는 팝업이 뜨지 않도록 방어
+            if (e && e.target.closest('.event-item')) return;
+
+            const titleEl = document.getElementById('day-modal-title');
+            const listEl = document.getElementById('day-modal-list');
+            
+            const [y, m, d] = dateStr.split('-');
+            titleEl.innerText = `${y}년 ${parseInt(m)}월 ${parseInt(d)}일 일정`;
+            
+            let listHtml = '';
+            
+            // 데이터 매칭하여 가져오기
+            livData.writers.forEach(w => w.works.forEach(work => {
+                if (work.pubDate === dateStr) listHtml += createDayModalItemHtml('ev-pub', '[출간]', work.title, w.name, work.completedDates?.pubDate);
+                if (work.coverDate === dateStr) listHtml += createDayModalItemHtml('ev-cover', '[표지]', work.title, w.name, work.completedDates?.coverDate);
+                if (work.proofDate === dateStr) listHtml += createDayModalItemHtml('ev-proof1', '[1교]', work.title, w.name, work.completedDates?.proofDate);
+                if (work.proofDate2 === dateStr) listHtml += createDayModalItemHtml('ev-proof2', '[2교]', work.title, w.name, work.completedDates?.proofDate2);
+            }));
+            
+            if (livData.extraTasks) {
+                livData.extraTasks.forEach(t => {
+                    if (t.date === dateStr) {
+                        const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null;
+                        const wName = writerObj ? writerObj.name : '';
+                        listHtml += createDayModalItemHtml(t.type, '', t.title, wName, false);
+                    }
+                });
+            }
+            
+            // 일정이 없을 경우 표시
+            if (listHtml === '') {
+                listHtml = '<div style="color:#999; text-align:center; padding: 30px 0; font-size: 0.95rem;">등록된 일정이 없습니다.</div>';
+            }
+            
+            listEl.innerHTML = listHtml;
+            document.getElementById('day-modal').classList.add('show');
+        }
+        
+        function createDayModalItemHtml(typeClass, prefix, title, writerName, isCompleted) {
+            const completedStyle = isCompleted ? 'text-decoration: line-through; opacity: 0.4;' : '';
+            return `
+                <div class="event-item ${typeClass}" style="padding: 12px 10px; font-size: 0.95rem; cursor: default; ${completedStyle}">
+                    <div style="font-weight: 800; flex-grow:1; white-space: normal; word-break: keep-all;">${prefix} ${title}</div>
+                    ${writerName ? `<div style="font-size: 0.8rem; color:#555; font-weight: bold; background:rgba(255,255,255,0.6); padding: 4px 8px; border-radius: 4px; flex-shrink: 0; margin-left: 10px;">${writerName}</div>` : ''}
+                </div>
+            `;
+        }
+        
+        function closeDayModal() {
+            document.getElementById('day-modal').classList.remove('show');
         }
 
         function moveMonth(dir) { currentDate.setMonth(currentDate.getMonth() + dir); renderCalendar(document.getElementById('main-view')); }
@@ -565,7 +624,7 @@
         function updateMemo(id, text) { livData.memos.find(m => m.id === id).text = text; saveData(); }
         function deleteMemo(id) { if(confirm("메모를 삭제할까요?")){ livData.memos = livData.memos.filter(m => m.id !== id); saveData(); changeView('memo'); } }
 
-        // 3. 작가/작품 관리 (검색 + 필터 통합)
+        // 3. 작가/작품 관리
         function executeTextSearch() {
             currentSearchText = document.getElementById('search-writer-input').value.toLowerCase();
             currentWriterFilter = null; 
@@ -836,8 +895,6 @@
             const w = livData.writers.find(x => x.id === wId);
             w.works = w.works.filter(x => x.id !== workId && x.parentId !== workId); saveData(); changeView('writer', currentWriterFilter);
         }
-        
-        // (맨 처음에 실행되던 changeView('dashboard')는 Firebase onSnapshot 안에서 처리됨)
     </script>
 </body>
 </html>
