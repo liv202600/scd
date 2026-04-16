@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liv Publishing - Management System Final</title>
+    <style>
+        :root {
+            --main-pink: #ff85a2;
+            --soft-pink: #fff0f3;
+            --black: #111111;
+            --gray-light: #f4f6f8;
+            --white: #ffffff;
+            
+            --color-pub: #e8f0eb;
+            --color-cover: #fff0e6;
+            --color-proof: #ffe6eb;
+            --color-task: #fdf5f6;
+            --color-email: #eff0ff;
+            --color-meeting: #fcf4dd;
+        }
+
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; height: 100vh; overflow: hidden; }
+
+        /* 사이드바 */
+        .sidebar-hover-zone { display: none; }
+        .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1000; flex-shrink: 0; transition: left 0.3s ease; }
+        .logo-area { padding: 30px 20px; text-align: center; border-bottom: 1px solid #222; display: flex; flex-direction: column; justify-content: center; }
+        .logo-title { font-size: 2rem; font-weight: 800; letter-spacing: 2px; margin: 0; font-family: serif; color: var(--white); }
+        .logo-subtitle { font-size: 0.75rem; font-weight: 300; letter-spacing: 4px; color: var(--main-pink); margin-top: 5px; text-transform: uppercase; }
+
+        .nav-group { padding: 15px 0; flex-grow: 1; overflow-y: auto; }
+        .nav-label { padding: 15px 25px 5px; font-size: 0.75rem; color: #666; font-weight: bold; text-transform: uppercase; }
+        .nav-item { padding: 12px 25px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; font-size: 0.9rem; border-left: 3px solid transparent; color: #ddd; }
+        .nav-item:hover { background: #1a1a1a; color: var(--white); }
+        .nav-item.active { background: #1a1a1a; border-left: 3px solid var(--main-pink); color: var(--main-pink); font-weight: bold; }
+        
+        .writer-sub-list { background: #0a0a0a; display: none; }
+        .writer-sub-list.show { display: block; }
+        .writer-sub-item { padding: 10px 25px 10px 40px; font-size: 0.85rem; cursor: pointer; color: #888; }
+        .writer-sub-item:hover { color: var(--white); background: #111; }
+
+        /* 메인 콘텐츠 (가로 스크롤 완전 방지) */
+        .main-container { flex-grow: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; background: #fafbfc; min-width: 0; position: relative; }
+        .card { background: var(--white); border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #eaeaea; margin-bottom: 20px; }
+        h2 { font-size: 1.4rem; margin-top: 0; margin-bottom: 15px; font-weight: 700; color: var(--black); }
+        
+        /* 캘린더 */
+        .cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 500px; }
+        .cal-header-wrap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px; }
+        .cal-nav { display: flex; align-items: center; gap: 15px; font-size: 1.2rem; font-weight: bold; }
+        .cal-btn { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 5px; color: #555; }
+        .filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
+        .filter-btn { padding: 5px 10px; border: 1px solid #ddd; background: #fff; border-radius: 20px; font-size: 0.8rem; cursor: pointer; }
+        .filter-btn.active { background: var(--main-pink); border-color: var(--main-pink); color: #fff; font-weight: bold; }
+        .calendar-grid { flex-grow: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day-header { text-align: center; font-weight: bold; padding: 4px 0; color: #888; font-size: 0.85rem; margin-bottom: 0; }
+        .day-box { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; transition: 0.2s; }
+        .day-box:hover { border-color: #ccc; }
+        .day-box::-webkit-scrollbar { width: 3px; }
+        .day-box::-webkit-scrollbar-thumb { background: #ddd; }
+        .day-num { font-weight: 700; margin-bottom: 5px; font-size: 0.8rem; color: #444; }
+        .day-box.today { background: var(--soft-pink); border: 1px solid var(--main-pink); }
+
+        /* 데스크탑 가로형 테이블 - 유령칸 박멸 및 비율형 넓이 */
+        .table-wrap { width: 100%; overflow-x: hidden; }
+        .liv-table { width: 100%; min-width: 1050px; border-collapse: collapse; background: #fff; }
+        
+        .liv-table th { text-align: left; padding: 10px; font-size: 0.8rem; color: #888; border-bottom: 2px solid #eee; }
+        .liv-table td { padding: 12px 10px; border-bottom: 1px solid #eee; vertical-align: middle; font-size: 0.85rem; position: relative; }
+        
+        .cover-thumb { width: 75px; height: 105px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; background: #fafafa; flex-shrink: 0; display: block; }
+        
+        /* 폼 요소 고정 높이 */
+        .input-text, .input-select, .input-date { 
+            height: 32px !important; padding: 0 8px; border: 1px solid #ddd; border-radius: 4px; 
+            font-size: 0.85rem; box-sizing: border-box; font-family: inherit; width: 100%; line-height: 30px; margin: 0;
+        }
+        .input-text:focus, .input-select:focus, .input-date:focus { border-color: var(--main-pink); outline: none; }
+        
+        /* 후속권 전용 회색 배경 강조 */
+        .row-child { background-color: #f1f3f5 !important; }
+        .child-indicator { display: inline-block; color: var(--main-pink); font-weight: bold; margin-right: 5px; padding-left: 15px; font-size: 0.8rem; }
+
+        /* 공통 버튼 */
+        .btn { height: 32px !important; line-height: 32px; padding: 0 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 0.8rem; white-space: nowrap; display: inline-block; box-sizing: border-box; transition: 0.2s; }
+        .btn-black { background: var(--black); color: white; }
+        .btn-pink { background: var(--main-pink); color: white; }
+        .btn-del { height: 28px !important; line-height: 26px; background: #fff; color: #999; border: 1px solid #ddd; padding: 0 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer; box-sizing: border-box; }
+        .btn-del:hover { color: #e63946; border-color: #e63946; background: #fff0f0; }
+        
+        /* ★ 일정 추가 바 (화면 밖으로 튀어나가지 않게 width 100% 강제 잠금) ★ */
+        .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; max-width: 100%; box-sizing: border-box; }
+        .adder-label { font-weight: bold; color: #555; white-space: nowrap; flex-shrink: 0; }
+        .schedule-adder .input-date { width: 130px; flex-shrink: 0; }
+        .schedule-adder .input-select { width: 110px; flex-shrink: 0; }
+        .adder-bottom-row { display: flex; gap: 8px; flex: 1 1 auto; align-items: center; min-width: 0; } 
+        .adder-bottom-row .input-text { flex: 1 1 auto; min-width: 0; width: 100%; }
+        .adder-bottom-row .btn-black { flex: 0 0 60px !important; width: 60px !important; text-align: center; padding: 0; flex-shrink: 0; }
+
+        .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        
+        /* 캘린더 칩스 (드래그 가능) */
+        .event-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #333; gap: 4px; user-select: none; }
+        .event-item:active { cursor: grabbing; }
+        .event-item:hover { filter: brightness(0.95); }
+        .evt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+        .evt-writer { background: transparent; padding: 0; font-size: 0.8rem; font-weight: 700; color: #555; flex-shrink: 0; margin-left: 4px; }
+        
+        .ev-pub { background: var(--color-pub); border-left: 3px solid #a3b8ac; }
+        .ev-cover { background: var(--color-cover); border-left: 3px solid #ffbba1; }
+        .ev-proof1 { background: var(--color-proof); border-left: 3px solid #ff9db3; }
+        .ev-proof2 { background: #ffe3fa; border-left: 3px solid #d991ce; }
+        .ev-task { background: var(--color-task); border-left: 3px solid #e08996; }
+        .ev-email { background: var(--color-email); border-left: 3px solid #9ba0fc; }
+        .ev-meeting { background: var(--color-meeting); border-left: 3px solid #e6c565; }
+
+        .status-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; height: 32px; }
+        .status-label { font-size: 0.75rem; font-weight: bold; color: #888; width: 40px; flex-shrink: 0; }
+        
+        .platform-box { padding: 10px; background: #fffcfd; border-radius: 6px; border: 1px solid var(--main-pink); }
+        .platform-box-title { font-size: 0.75rem; font-weight: bold; color: var(--main-pink); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .platform-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+        .platform-grid label { font-size: 0.7rem; display: flex; align-items: center; gap: 2px; cursor: pointer; color: #222; }
+
+        /* 2x2 날짜 격자 강제 고정 */
+        .date-grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; width: 100%; min-width: 220px; }
+        .date-grid-item { display: flex; align-items: center; gap: 5px; }
+        .date-grid-label { font-size: 0.75rem; color: #666; width: 25px; font-weight: bold; flex-shrink: 0; text-align: right; }
+
+        /* 포스트잇 - 2배 크기로 확장 */
+        .memo-board { display: flex; flex-wrap: wrap; gap: 15px; }
+        .memo-postit { width: 440px; min-height: 440px; padding: 25px; border-radius: 4px; box-shadow: 2px 4px 8px rgba(0,0,0,0.05); position: relative; display: flex; flex-direction: column; background-color:#fff3b0; }
+        .memo-postit textarea { flex-grow: 1; border: none; background: transparent; resize: none; font-family: 'Pretendard'; font-size: 1.1rem; line-height: 1.5; color: #333; outline: none; }
+        .memo-date { font-size: 0.8rem; color: rgba(0,0,0,0.4); text-align: right; margin-top: 10px; font-weight: bold; }
+        .memo-del { position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 0.9rem; font-weight: bold; color: rgba(0,0,0,0.3); transition: 0.2s; }
+        .memo-del:hover { color: #e63946; }
+        .memo-add-btn { width: 440px; height: 440px; border: 2px dashed #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 1.2rem; color: #888; transition: 0.2s; }
+        .memo-add-btn:hover { background: #eee; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 300px; }
+
+        /* 데스크탑/모바일 표시 제어 클래스 */
+        .mobile-only { display: none !important; }
+        .desktop-only-td { display: table-cell; }
+
+        /* 📱 세로 화면(Portrait/모바일) 반응형 완벽 유지 */
+        @media (max-width: 1200px), (orientation: portrait) {
+            .sidebar { position: fixed; left: -240px; height: 100vh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
+            .sidebar-hover-zone { display: flex; align-items: center; position: fixed; left: 0; top: 0; bottom: 0; width: 15px; z-index: 1001; cursor: pointer; background: rgba(255,133,162,0.1); border-right: 1px solid rgba(255,133,162,0.2); }
+            .sidebar-hover-zone::after { content: '▶'; position: absolute; left: 0; top: 50%; transform: translateY(-50%); background: var(--main-pink); color: white; padding: 10px 2px; font-size: 10px; border-radius: 0 4px 4px 0; }
+            .sidebar-hover-zone:hover + .sidebar, .sidebar:hover { left: 0; }
+            
+            .main-container { padding: 15px 15px 15px 35px; margin: 0; width: 100%; box-sizing: border-box; }
+            .dash-grid-3 { grid-template-columns: 1fr; }
+
+            .schedule-adder { flex-wrap: wrap; height: auto; }
+            .adder-label { flex: 1 1 100%; margin-bottom: 4px; display: block; }
+            .schedule-adder .input-date { flex: 1 1 calc(33% - 8px); width: auto; }
+            .schedule-adder .input-select { flex: 1 1 calc(33% - 8px); width: auto; }
+            .adder-bottom-row { flex: 1 1 100%; width: 100%; margin-top: 4px; display: flex; gap: 8px; }
+
+            .desktop-only-td, .liv-table td.desktop-only-td { display: none !important; }
+            .mobile-only { display: flex !important; }
+            
+            .liv-table thead { display: none !important; }
+            
+            .table-wrap { overflow-x: hidden; }
+            .liv-table { display: block; width: 100% !important; min-width: 0 !important; }
+            .liv-table tbody, .liv-table tr { display: block; width: 100%; }
+            .liv-table th { display: none; } 
+            
+            .liv-table tr { 
+                margin-bottom: 20px; border: 1px solid #ddd; border-radius: 10px; 
+                background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+                padding: 15px; position: relative; display: flex; flex-direction: column; gap: 15px; 
+            }
+            .liv-table td { display: block; width: 100%; padding: 0; border: none; position: static; }
+            
+            .row-child { border-left: 4px solid var(--main-pink); margin-left: 0; border-radius: 0 10px 10px 0; }
+            
+            .mobile-del-btn { display: block !important; position: absolute !important; top: 35px; right: 15px; z-index: 10; margin: 0; }
+            
+            .mobile-title-wrap { padding-right: 50px; } 
+            .date-grid-2x2 { gap: 10px; min-width: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-hover-zone"></div>
+    
+    <aside class="sidebar">
+        <div class="logo-area">
+            <h1 class="logo-title">LIV</h1>
+            <div class="logo-subtitle">publishing</div>
+        </div>
+        
+        <div class="nav-group">
+            <div class="nav-item active" onclick="changeView('dashboard')">데스크</div>
+            <div class="nav-item" onclick="changeView('calendar')">스케줄러</div>
+            <div class="nav-item" onclick="changeView('memo')">메모</div>
+            
+            <div class="nav-label">Management</div>
+            <div class="nav-item" onclick="changeView('writer'); toggleWriters();">계약 작가 관리 <span>▼</span></div>
+            <div class="writer-sub-list show" id="sidebar-writer-list"></div>
+            
+            <div style="padding: 15px 25px; text-align: center;">
+                <button class="btn btn-black" style="width: 100%; height: 36px; line-height: 36px;" onclick="openWriterModal()">+ 새 작가 등록</button>
+            </div>
+            <!-- 데이터 백업/복원 영역 -->
+            <div style="padding: 0 25px 15px; text-align: center; display:flex; gap:5px;">
+                <button class="btn btn-del" style="flex:1; height: 30px !important; line-height:28px; padding:0;" onclick="exportData()">데이터 백업</button>
+                <button class="btn btn-del" style="flex:1; height: 30px !important; line-height:28px; padding:0;" onclick="document.getElementById('import-input').click()">데이터 복원</button>
+                <input type="file" id="import-input" style="display:none;" accept=".json" onchange="importData(event)">
+            </div>
+        </div>
+        <div style="padding: 15px; font-size: 0.7rem; color: #555; text-align: center; border-top: 1px solid #222;">Liv Publishing Team</div>
+    </aside>
+
+    <main class="main-container" id="main-view"></main>
+
+    <!-- 작가 등록 팝업 -->
+    <div class="modal-overlay" id="writer-modal">
+        <div class="modal-content">
+            <h3 style="margin-top:0; color:var(--main-pink);">새 작가 등록</h3>
+            <label>작가명 (필명)</label><input type="text" id="new-writer-name" class="input-text">
+            <label>교정 스타일</label>
+            <select id="new-writer-proof" class="input-select">
+                <option value="피드백과 함께 꼼꼼 교정">피드백과 함께 꼼꼼 교정</option><option value="피드백과 함께 러프 교정">피드백과 함께 러프 교정</option><option value="피드백 없이 꼼꼼 교정">피드백 없이 꼼꼼 교정</option><option value="피드백 없이 러프 교정">피드백 없이 러프 교정</option>
+            </select>
+            <label>메일 수신 시간</label>
+            <select id="new-writer-email" class="input-select"><option value="상시 연락">상시 연락</option><option value="평일 주간만">평일 주간만</option></select>
+            <div style="display:flex; justify-content:space-between; margin-top:20px; gap:10px;">
+                <button class="btn btn-del" style="flex:1; height: 36px;" onclick="closeWriterModal()">취소</button>
+                <button class="btn btn-black" style="flex:1; height: 36px;" onclick="confirmAddWriter()">등록</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let livData = { writers: [], extraTasks: [], memos: [] };
+        try { const saved = localStorage.getItem('livDataFinal_v21'); if (saved) livData = JSON.parse(saved); } catch(e) {}
+        
+        let currentDate = new Date();
+        let currentCalFilter = 'all';
+        let currentWriterFilter = null; 
+        let currentSearchText = ''; 
+
+        const msStatuses = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
+        const coverStatuses = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
+        const platforms = ['리디', '시리즈', '예스24', '알라딘', '교보문고', '미스터블루', '봄툰', '북큐브', '구글북스', '스토린랩'];
+
+        function getStatusColor(status, type) {
+            const list = type === 'ms' ? msStatuses : coverStatuses;
+            const idx = list.indexOf(status);
+            if(idx === -1 || idx === 0) return '#ffffff'; 
+            const lightness = 98 - (idx / (list.length - 1)) * 28;
+            return `hsl(345, 60%, ${lightness}%)`;
+        }
+
+        function saveData() { localStorage.setItem('livDataFinal_v21', JSON.stringify(livData)); renderSidebarWriters(); }
+
+        function exportData() {
+            const dataStr = JSON.stringify(livData);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `liv_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (importedData && typeof importedData === 'object') {
+                        livData = importedData;
+                        saveData();
+                        alert('데이터가 성공적으로 복원되었습니다.');
+                        changeView('dashboard');
+                    } else {
+                        alert('올바른 백업 파일이 아닙니다.');
+                    }
+                } catch (err) {
+                    alert('파일을 읽는 중 오류가 발생했습니다.');
+                }
+                event.target.value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 120; canvas.height = img.height * (120/img.width);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    callback(canvas.toDataURL('image/jpeg', 0.7)); 
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function changeView(view, param = null) {
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            const main = document.getElementById('main-view');
+            if(view === 'dashboard') { document.querySelectorAll('.nav-item')[0].classList.add('active'); renderDashboard(main); }
+            else if(view === 'calendar') { document.querySelectorAll('.nav-item')[1].classList.add('active'); currentDate = new Date(); currentCalFilter = 'all'; renderCalendar(main); }
+            else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
+            else if(view === 'writer') { 
+                document.querySelectorAll('.nav-item')[3].classList.add('active'); 
+                if(param === null) { currentWriterFilter = null; currentSearchText = ''; }
+                renderWriterDetail(main, param); 
+            }
+        }
+
+        function getWriterOptions() {
+            let html = `<option value="">[선택 안함]</option>`;
+            livData.writers.forEach(w => html += `<option value="${w.id}">${w.name}</option>`);
+            return html;
+        }
+
+        // 1. 대시보드
+        function renderDashboard(container) {
+            const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+            const today = new Date(Date.now() - tzoffset);
+            const tom = new Date(today.getTime() + 86400000);
+            const afterTom = new Date(today.getTime() + 86400000 * 2);
+
+            container.innerHTML = `
+                <h2>업무 데스크</h2>
+                <div class="schedule-adder">
+                    <span class="adder-label">+ 빠른 등록</span>
+                    <input type="date" id="dash-date" class="input-date" value="${today.toISOString().split('T')[0]}">
+                    <select id="dash-writer" class="input-select">${getWriterOptions()}</select>
+                    <select id="dash-type" class="input-select">
+                        <option value="ev-task">일반</option><option value="ev-email">메일</option><option value="ev-meeting">미팅</option>
+                    </select>
+                    <div class="adder-bottom-row">
+                        <input type="text" id="dash-title" class="input-text" placeholder="일정 내용을 입력하세요">
+                        <button class="btn btn-black" onclick="addExtraTask('dash-date', 'dash-writer', 'dash-type', 'dash-title', 'dashboard')">등록</button>
+                    </div>
+                </div>
+                <div class="dash-grid-3">
+                    <div class="card" style="padding: 15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">오늘 (${today.getMonth()+1}/${today.getDate()})</h3><div id="today-tasks"></div></div>
+                    <div class="card" style="padding: 15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">내일 (${tom.getMonth()+1}/${tom.getDate()})</h3><div id="tom-tasks"></div></div>
+                    <div class="card" style="padding: 15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">모레 (${afterTom.getMonth()+1}/${afterTom.getDate()})</h3><div id="after-tasks"></div></div>
+                </div>
+            `;
+            updateTasksHtml(today.toISOString().split('T')[0], 'today-tasks', 'dashboard', 'all');
+            updateTasksHtml(tom.toISOString().split('T')[0], 'tom-tasks', 'dashboard', 'all');
+            updateTasksHtml(afterTom.toISOString().split('T')[0], 'after-tasks', 'dashboard', 'all');
+        }
+
+        function addExtraTask(dateId, writerSelId, typeId, titleId, view) {
+            const date = document.getElementById(dateId).value;
+            const wId = document.getElementById(writerSelId).value;
+            const type = document.getElementById(typeId).value;
+            const title = document.getElementById(titleId).value;
+            if(!title || !date) return;
+            if(!livData.extraTasks) livData.extraTasks = [];
+            livData.extraTasks.push({ id: Date.now(), date, writerId: wId, type, title });
+            saveData(); changeView(view);
+        }
+
+        function completeWorkTask(wId, workId, key, view) {
+            if(!confirm('해당 일정을 달력에서 지우시겠습니까?\n(작가 관리 페이지의 설정된 날짜는 유지됩니다)')) return;
+            const work = livData.writers.find(x => x.id === wId).works.find(x => x.id === workId);
+            if (!work.completedDates) work.completedDates = {};
+            work.completedDates[key] = true; 
+            saveData(); changeView(view);
+        }
+        function completeExtraTask(taskId, view) {
+            if(!confirm('해당 일반 일정을 완료하시겠습니까?')) return;
+            livData.extraTasks = livData.extraTasks.filter(t => t.id !== taskId);
+            saveData(); changeView(view); 
+        }
+
+        function drag(ev, type, wId, itemId) {
+            ev.dataTransfer.setData("type", type);
+            ev.dataTransfer.setData("wId", wId);
+            ev.dataTransfer.setData("itemId", itemId);
+        }
+        function allowDrop(ev) { ev.preventDefault(); }
+        function drop(ev, newDate) {
+            ev.preventDefault();
+            const type = ev.dataTransfer.getData("type");
+            const wId = ev.dataTransfer.getData("wId");
+            const itemId = ev.dataTransfer.getData("itemId");
+            if (!type) return;
+
+            if (type === 'extraTask') {
+                const task = livData.extraTasks.find(t => t.id == itemId);
+                if (task) task.date = newDate;
+            } else {
+                const writer = livData.writers.find(w => w.id == wId);
+                if (writer) {
+                    const work = writer.works.find(w => w.id == itemId);
+                    if (work) work[type] = newDate;
+                }
+            }
+            saveData();
+            renderCalendar(document.getElementById('main-view'));
+        }
+
+        // 2. 캘린더
+        function renderCalendar(container) {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth(); 
+            const todayStr = new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000).toISOString().split('T')[0];
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const weeks = Math.ceil((firstDay + daysInMonth) / 7);
+
+            let html = `
+                <div class="cal-wrapper">
+                    <div class="card" style="padding: 15px 20px; margin-bottom: 10px;">
+                        <div class="cal-header-wrap">
+                            <div class="cal-nav"><button class="cal-btn" onclick="moveMonth(-1)">◀</button><span>${year}년 ${month + 1}월</span><button class="cal-btn" onclick="moveMonth(1)">▶</button></div>
+                            <div class="filter-group">
+                                <button class="filter-btn ${currentCalFilter==='all'?'active':''}" onclick="setCalFilter('all')">전체</button>
+                                <button class="filter-btn ${currentCalFilter==='pub'?'active':''}" onclick="setCalFilter('pub')">출간</button>
+                                <button class="filter-btn ${currentCalFilter==='cover'?'active':''}" onclick="setCalFilter('cover')">표지</button>
+                                <button class="filter-btn ${currentCalFilter==='proof'?'active':''}" onclick="setCalFilter('proof')">교정</button>
+                            </div>
+                        </div>
+                        <div class="schedule-adder" style="margin-bottom:0; padding:0; border:none;">
+                            <input type="date" id="cal-date" class="input-date" value="${todayStr}">
+                            <select id="cal-writer" class="input-select">${getWriterOptions()}</select>
+                            <select id="cal-type" class="input-select"><option value="ev-task">일반</option><option value="ev-email">메일</option><option value="ev-meeting">미팅</option></select>
+                            <div class="adder-bottom-row">
+                                <input type="text" id="cal-title" class="input-text" placeholder="달력에 바로 등록">
+                                <button class="btn btn-black" onclick="addExtraTask('cal-date', 'cal-writer', 'cal-type', 'cal-title', 'calendar')">등록</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="calendar-grid" style="grid-template-rows: auto repeat(${weeks}, 1fr);">
+                        ${['일','월','화','수','목','금','토'].map(d => `<div class="day-header">${d}</div>`).join('')}
+            `;
+            for(let i=0; i<firstDay; i++) html += `<div></div>`;
+            for(let i=1; i<=daysInMonth; i++) {
+                const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const isToday = dStr === todayStr ? 'today' : '';
+                html += `<div class="day-box ${isToday}" ondragover="allowDrop(event)" ondrop="drop(event, '${dStr}')">
+                            <div class="day-num">${i}</div>
+                            <div id="cal-day-${dStr}" style="display:flex; flex-direction:column; gap:2px; min-height: 50px;"></div>
+                         </div>`;
+            }
+            html += `</div></div>`;
+            container.innerHTML = html;
+
+            for(let i=1; i<=daysInMonth; i++) updateTasksHtml(`${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, `cal-day-${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, 'calendar', currentCalFilter);
+        }
+
+        function moveMonth(dir) { currentDate.setMonth(currentDate.getMonth() + dir); renderCalendar(document.getElementById('main-view')); }
+        function setCalFilter(filter) { currentCalFilter = filter; renderCalendar(document.getElementById('main-view')); }
+
+        function updateTasksHtml(dateStr, containerId, view, filter) {
+            const el = document.getElementById(containerId);
+            if(!el) return;
+            let html = '';
+            livData.writers.forEach(w => w.works.forEach(work => {
+                const wTag = `<span class="evt-writer">${w.name}</span>`;
+                if((filter === 'all' || filter === 'pub') && work.pubDate === dateStr && !(work.completedDates && work.completedDates.pubDate)) 
+                    html += `<div class="event-item ev-pub" draggable="true" ondragstart="drag(event, 'pubDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'pubDate', '${view}')"><span class="evt-title">[출간] ${work.title}</span> ${wTag}</div>`;
+                if((filter === 'all' || filter === 'cover') && work.coverDate === dateStr && !(work.completedDates && work.completedDates.coverDate)) 
+                    html += `<div class="event-item ev-cover" draggable="true" ondragstart="drag(event, 'coverDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'coverDate', '${view}')"><span class="evt-title">[표지] ${work.title}</span> ${wTag}</div>`;
+                if((filter === 'all' || filter === 'proof') && work.proofDate === dateStr && !(work.completedDates && work.completedDates.proofDate)) 
+                    html += `<div class="event-item ev-proof1" draggable="true" ondragstart="drag(event, 'proofDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate', '${view}')"><span class="evt-title">[1교] ${work.title}</span> ${wTag}</div>`;
+                if((filter === 'all' || filter === 'proof') && work.proofDate2 === dateStr && !(work.completedDates && work.completedDates.proofDate2)) 
+                    html += `<div class="event-item ev-proof2" draggable="true" ondragstart="drag(event, 'proofDate2', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate2', '${view}')"><span class="evt-title">[2교] ${work.title}</span> ${wTag}</div>`;
+            }));
+            if(livData.extraTasks) {
+                livData.extraTasks.forEach(t => {
+                    if((filter === 'all' || filter === 'task') && t.date === dateStr) {
+                        const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null;
+                        const wTag = writerObj ? `<span class="evt-writer">${writerObj.name}</span>` : '';
+                        html += `<div class="event-item ${t.type}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${view}')"><span class="evt-title">${t.title}</span> ${wTag}</div>`;
+                    }
+                });
+            }
+            el.innerHTML = html;
+        }
+
+        // 중요 메모
+        function renderMemoBoard(container) {
+            let html = `<h2>출판사 중요 메모</h2><div class="memo-board"><div class="memo-add-btn" onclick="addMemo()">+ 새 메모 추가</div>`;
+            if(!livData.memos) livData.memos = [];
+            livData.memos.forEach(m => {
+                html += `<div class="memo-postit" style="background-color:${m.color};"><span class="memo-del" onclick="deleteMemo(${m.id})">삭제</span><textarea onchange="updateMemo(${m.id}, this.value)" placeholder="내용을 입력하세요">${m.text}</textarea><div class="memo-date">${m.date}</div></div>`;
+            });
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+        function addMemo() {
+            const colors = ['#fff3b0', '#cff0ff', '#e2f4c9', '#ffdcf4'];
+            const rColor = colors[Math.floor(Math.random() * colors.length)];
+            const today = new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000).toISOString().split('T')[0];
+            if(!livData.memos) livData.memos = [];
+            livData.memos.push({ id: Date.now(), text: '', color: rColor, date: today });
+            saveData(); changeView('memo');
+        }
+        function updateMemo(id, text) { livData.memos.find(m => m.id === id).text = text; saveData(); }
+        function deleteMemo(id) { if(confirm("메모를 삭제할까요?")){ livData.memos = livData.memos.filter(m => m.id !== id); saveData(); changeView('memo'); } }
+
+        // 3. 작가/작품 관리 (검색 + 필터 통합)
+        function executeTextSearch() {
+            currentSearchText = document.getElementById('search-writer-input').value.toLowerCase();
+            currentWriterFilter = null; 
+            renderWriterDetail(document.getElementById('main-view'), null);
+        }
+
+        function filterByChip(wId) {
+            currentWriterFilter = wId; 
+            currentSearchText = ''; 
+            renderWriterDetail(document.getElementById('main-view'), wId); 
+        }
+
+        function renderWriterDetail(container, wId = null) {
+            let chipsHtml = `<button class="btn ${currentWriterFilter === null ? 'btn-black' : 'btn-del'}" style="height:32px!important;" onclick="filterByChip(null)">전체 보기</button>`;
+            livData.writers.forEach(w => {
+                chipsHtml += `<button class="btn ${currentWriterFilter === w.id ? 'btn-black' : 'btn-del'}" style="height:32px!important; margin-left:5px;" onclick="filterByChip(${w.id})">${w.name}</button>`;
+            });
+
+            container.innerHTML = `
+                <div class="card" style="margin-bottom: 20px;">
+                    <h2 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px; display:flex; align-items:center; gap:10px;">
+                        계약 작가 및 작품 검색
+                    </h2>
+                    <div style="display:flex; flex-direction:column; gap:15px;">
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="search-writer-input" value="${currentSearchText}" class="input-text" placeholder="작가 이름 또는 작품 이름을 검색하세요..." style="font-size:1rem; padding:0 15px; height:45px!important; border-color:var(--main-pink);" onkeyup="if(event.key==='Enter') executeTextSearch()">
+                            <button class="btn btn-black" style="height:45px!important; width:80px; font-size:1rem; padding: 0;" onclick="executeTextSearch()">검색</button>
+                        </div>
+                        <div id="writer-chips" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${chipsHtml}
+                        </div>
+                    </div>
+                </div>
+                <div id="writers-container" style="display:flex; flex-direction:column; gap:20px;"></div>
+            `;
+
+            renderFilteredWriters();
+        }
+
+        function renderFilteredWriters() {
+            const container = document.getElementById('writers-container');
+            let writersToRender = JSON.parse(JSON.stringify(livData.writers));
+            
+            if (currentWriterFilter) {
+                writersToRender = writersToRender.filter(w => w.id === currentWriterFilter);
+            }
+            if (currentSearchText) {
+                writersToRender = writersToRender.map(w => {
+                    if (w.name.toLowerCase().includes(currentSearchText)) return w; 
+                    const matchedWorks = w.works.filter(work => work.title.toLowerCase().includes(currentSearchText));
+                    if (matchedWorks.length > 0) {
+                        w.works = matchedWorks;
+                        return w;
+                    }
+                    return null;
+                }).filter(Boolean);
+            }
+
+            if (writersToRender.length === 0) {
+                container.innerHTML = `<div class="card" style="text-align:center; padding:40px; color:#888;">검색 결과가 없습니다.</div>`;
+                return;
+            }
+
+            let html = '';
+            writersToRender.forEach(writer => {
+                html += `
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding: 20px; margin-bottom:0; background-color: var(--soft-pink); border: 2px solid var(--main-pink);">
+                            <div><h2 style="margin:0; margin-bottom:8px;">${writer.name}</h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${writer.proofStyle}</span><span style="margin-left:12px;">${writer.emailTime}</span></div></div>
+                            <div style="display:flex; gap:8px;"><button class="btn btn-black" onclick="addWork(${writer.id})">+ 새 작품 추가</button><button class="btn-del" style="border:none; height:32px; line-height:30px;" onclick="deleteWriter(${writer.id})">계정 삭제</button></div>
+                        </div>
+                        
+                        <div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;">
+                            <div class="table-wrap">
+                                <table class="liv-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 32%;">표지 / 작품명</th>
+                                            <th class="desktop-only-td" style="width: 8%;">인세(%)</th>
+                                            <th class="desktop-only-td" style="width: 10%;">후속권</th>
+                                            <th style="width: 20%;">진행 상태</th>
+                                            <th style="width: 25%;">마감 일정</th>
+                                            <th class="desktop-only-td" style="width: 5%; text-align:center;">관리</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${generateWorkRows(writer)}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function generateWorkRows(writer) {
+            if(!writer.works || writer.works.length === 0) return `<tr><td colspan="6" style="text-align:center; padding:30px; color:#999; border:none;">작품을 추가해주세요.</td></tr>`;
+            let html = '';
+            writer.works.filter(w => !w.parentId).forEach(p => {
+                html += getRowHtml(writer.id, p, false);
+                writer.works.filter(w => w.parentId === p.id).forEach(c => { html += getRowHtml(writer.id, c, true); });
+            });
+            return html;
+        }
+
+        function getRowHtml(writerId, w, isChild) {
+            const rowClass = isChild ? 'row-child' : '';
+            const prefix = isChild ? `<span class="child-indicator">└</span>` : '';
+            const baseTitleStr = w.title.replace(/\s*\d+권$/, '').replace(/'/g, "\\'");
+            
+            const msBg = getStatusColor(w.msStatus, 'ms');
+            const cvBg = getStatusColor(w.coverStatus, 'cover');
+
+            let statusHtml = '';
+            if (w.msStatus === '출간 완료') {
+                statusHtml = `
+                    <div class="platform-box" style="margin-top:0; padding:10px;">
+                        <div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${writerId}, ${w.id})">상태 변경</button></div>
+                        <div class="platform-grid">${platforms.map(p => `<label><input type="checkbox" ${w.platforms && w.platforms.includes(p) ? 'checked' : ''} onchange="togglePlatform(${writerId}, ${w.id}, '${p}')"> ${p}</label>`).join('')}</div>
+                    </div>`;
+            } else {
+                statusHtml = `
+                    <div class="status-row"><span class="status-label">작업</span><select class="input-select" style="background-color:${msBg}; font-weight:bold;" onchange="updateWork(${writerId}, ${w.id}, 'msStatus', this.value)"><option value="" disabled selected>선택</option>${msStatuses.map(s => `<option ${w.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>
+                    <div class="status-row"><span class="status-label">표지</span><select class="input-select" style="background-color:${cvBg}; font-weight:bold;" onchange="updateWork(${writerId}, ${w.id}, 'coverStatus', this.value)"><option value="" disabled selected>선택</option>${coverStatuses.map(s => `<option ${w.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>`;
+            }
+
+            return `
+                <tr class="${rowClass}">
+                    <td>
+                        <div class="mobile-only mobile-del-btn">
+                            <button class="btn-del" onclick="deleteWork(${writerId}, ${w.id})">삭제</button>
+                        </div>
+                        
+                        <div style="display:flex; gap:12px; align-items:flex-start;">
+                            <label style="cursor:pointer; flex-shrink:0;" title="표지 등록">
+                                <img src="${w.coverImg || 'https://via.placeholder.com/75x105?text=Cover'}" class="cover-thumb" id="thumb-${w.id}">
+                                <input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${writerId}, ${w.id})">
+                            </label>
+                            
+                            <div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;">
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    ${prefix}
+                                    <span style="font-weight: 800; font-size: 0.95rem; color: #222; word-break: keep-all; padding-top:4px;">${w.title}</span>
+                                </div>
+                                
+                                <div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;">
+                                    <span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span>
+                                    <input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${writerId}, ${w.id}, 'royalty', this.value)">%
+                                    <span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>
+                                    ${!isChild ? `
+                                        <select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${writerId}, ${w.id}, 'sequel', this.value)">
+                                            <option value="N" ${w.sequel==='N'?'selected':''}>N</option>
+                                            <option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option>
+                                        </select>
+                                        ${w.sequel === 'Y' ? `<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${writerId}, ${w.id}, '${baseTitleStr}')">생성</button>` : ''}
+                                    ` : `<span style="color:#aaa; font-size:0.7rem;">종속</span>`}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    
+                    <td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${writerId}, ${w.id}, 'royalty', this.value)"></td>
+                    <td class="desktop-only-td">
+                        ${!isChild ? `
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <select class="input-select" style="padding:0 6px; width:50px;" onchange="updateWork(${writerId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>
+                            ${w.sequel === 'Y' ? `<button class="btn" style="background:#eee; color:#333; padding:0 8px; font-size:0.75rem;" onclick="addSequel(${writerId}, ${w.id}, '${baseTitleStr}')">생성</button>` : ''}
+                        </div>
+                        ` : `<span style="color:#aaa; font-size:0.75rem; padding-left:5px;">종속됨</span>`}
+                    </td>
+                    
+                    <td>${statusHtml}</td>
+                    
+                    <td>
+                        <div class="date-grid-2x2">
+                            <div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate}" onchange="updateWork(${writerId}, ${w.id}, 'pubDate', this.value)"></div>
+                            <div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate}" onchange="updateWork(${writerId}, ${w.id}, 'proofDate', this.value)"></div>
+                            <div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate}" onchange="updateWork(${writerId}, ${w.id}, 'coverDate', this.value)"></div>
+                            <div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2 || ''}" onchange="updateWork(${writerId}, ${w.id}, 'proofDate2', this.value)"></div>
+                        </div>
+                    </td>
+                    
+                    <td class="desktop-only-td" style="text-align:center;">
+                        <button class="btn-del" onclick="deleteWork(${writerId}, ${w.id})">삭제</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function revertStatus(wId, workId) { updateWork(wId, workId, 'msStatus', '출간 대기'); }
+        function togglePlatform(wId, workId, platform) {
+            const w = livData.writers.find(x => x.id === wId);
+            const work = w.works.find(x => x.id === workId);
+            if(!work.platforms) work.platforms = [];
+            if(work.platforms.includes(platform)) work.platforms = work.platforms.filter(p => p !== platform);
+            else work.platforms.push(platform);
+            saveData();
+        }
+        function updateWork(wId, workId, key, val) {
+            const w = livData.writers.find(x => x.id === wId);
+            const work = w.works.find(x => x.id === workId);
+            work[key] = val;
+            
+            if (['pubDate', 'coverDate', 'proofDate', 'proofDate2'].includes(key)) {
+                if (work.completedDates && work.completedDates[key]) {
+                    work.completedDates[key] = false;
+                }
+            }
+            
+            saveData(); 
+            if (['msStatus', 'coverStatus', 'sequel'].includes(key)) { 
+                changeView('writer', currentWriterFilter);
+            }
+        }
+
+        function openWriterModal() { document.getElementById('writer-modal').classList.add('show'); }
+        function closeWriterModal() { document.getElementById('writer-modal').classList.remove('show'); document.getElementById('new-writer-name').value = ''; }
+        function confirmAddWriter() {
+            const name = document.getElementById('new-writer-name').value;
+            if(!name) return alert("작가명을 입력하세요.");
+            livData.writers.push({ id: Date.now(), name, proofStyle: document.getElementById('new-writer-proof').value, emailTime: document.getElementById('new-writer-email').value, works: [] });
+            saveData(); closeWriterModal(); changeView('writer', livData.writers[livData.writers.length-1].id);
+        }
+
+        function uploadWorkCover(input, wId, workId) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = 120; canvas.height = img.height * (120/img.width);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const b64 = canvas.toDataURL('image/jpeg', 0.7);
+                        document.getElementById(`thumb-${workId}`).src = b64;
+                        updateWork(wId, workId, 'coverImg', b64);
+                    }
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function toggleWriters() { document.getElementById('sidebar-writer-list').classList.toggle('show'); }
+        function renderSidebarWriters() { document.getElementById('sidebar-writer-list').innerHTML = livData.writers.map(w => `<div class="writer-sub-item" onclick="changeView('writer', ${w.id})">${w.name}</div>`).join(''); }
+        
+        function addWork(wId) {
+            const title = prompt("추가할 작품의 제목을 입력하세요:");
+            if(!title) return;
+            livData.writers.find(x => x.id === wId).works.push({ id: Date.now(), title: title, royalty: 70, sequel: 'N', msStatus: '계약 완료', coverStatus: '제안서 입고 전', pubDate: '', coverDate: '', proofDate: '', proofDate2: '', coverImg: '', platforms: [] });
+            saveData(); changeView('writer', currentWriterFilter);
+        }
+        
+        function addSequel(wId, parentId, baseTitle) {
+            const w = livData.writers.find(x => x.id === wId);
+            const childCount = w.works.filter(x => x.parentId === parentId).length;
+            const nextVol = childCount + 2; 
+            w.works.push({ id: Date.now(), title: `${baseTitle} ${nextVol}권`, parentId: parentId, royalty: 70, sequel: 'N', msStatus: '계약 완료', coverStatus: '제안서 입고 전', pubDate: '', coverDate: '', proofDate: '', proofDate2: '', coverImg: '', platforms: [] });
+            saveData(); changeView('writer', currentWriterFilter);
+        }
+        function deleteWriter(wId) {
+            if(!confirm('계정을 삭제하시겠습니까?')) return;
+            livData.writers = livData.writers.filter(w => w.id !== wId); saveData(); changeView('dashboard');
+        }
+        function deleteWork(wId, workId) {
+            if(!confirm('작품을 삭제하시겠습니까?')) return;
+            const w = livData.writers.find(x => x.id === wId);
+            w.works = w.works.filter(x => x.id !== workId && x.parentId !== workId); saveData(); changeView('writer', currentWriterFilter);
+        }
+
+        renderSidebarWriters();
+        changeView('dashboard');
+    </script>
+</body>
+</html>
