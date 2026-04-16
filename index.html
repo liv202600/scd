@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LIV 시스템">
     <meta name="theme-color" content="#ff85a2">
-    <link rel="manifest" href='data:application/manifest+json,%7B%22name%22%3A%22LIV%20System%22%2C%22short_name%22%3A%22LIV%22%2C%22display%22%3A%22standalone%22%2C%22start_url%22%3A%22.%2Findex.html%22%2C%22background_color%22%3A%22%23fafbfc%22%2C%22theme_color%22%3A%22%23ff85a2%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fvia.placeholder.com%2F192%2Fff85a2%2Fffffff%3Ftext%3DLIV%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fvia.placeholder.com%2F512%2Fff85a2%2Fffffff%3Ftext%3DLIV%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D'>
+    <link rel="manifest" href="./manifest.json">
 
     <style>
         :root {
@@ -908,5 +908,10 @@
             w.works = w.works.filter(x => x.id !== workId && x.parentId !== workId); saveData(); changeView('writer', currentWriterFilter);
         }
     </script>
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js');
+    }
+</script>
 </body>
 </html>
