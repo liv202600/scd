@@ -252,7 +252,6 @@
     </div>
 
     <script>
-        // 앱 엔진 등록
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()).catch(err => console.log('SW Fail:', err));
         }
@@ -331,12 +330,24 @@
             reader.readAsText(file);
         }
 
-        // ★ 모바일 사이드바 강제 접기 함수 ★
+        // ★ 모바일 사이드바의 '터치 잔상'을 완벽하게 죽이는 마법의 코드 ★
         function closeSidebarMobile() {
             if (window.matchMedia('(max-width: 1200px), (orientation: portrait)').matches) {
                 const sidebar = document.querySelector('.sidebar');
+                
+                // 1. 강제로 왼쪽으로 밀어 넣어서 닫음 (애니메이션 0.3초)
                 sidebar.style.setProperty('left', '-240px', 'important');
-                setTimeout(() => { sidebar.style.left = ''; }, 350); 
+                
+                // 2. 애니메이션이 끝난 직후
+                setTimeout(() => { 
+                    sidebar.style.display = 'none'; // 브라우저의 '손가락 잔상' 기억을 강제로 날려버림
+                    sidebar.style.left = ''; // 강제 값 제거 (잔상이 없어서 안 튀어나옴)
+                    
+                    // 3. 아주 짧은 시간 뒤에 본래 속성(flex)으로 복구
+                    setTimeout(() => {
+                        sidebar.style.display = ''; 
+                    }, 50);
+                }, 300); 
             }
         }
 
@@ -353,7 +364,7 @@
             else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
             else if(view === 'writer') { document.querySelectorAll('.nav-item')[3].classList.add('active'); if(param === null) { currentWriterFilter = null; currentSearchText = ''; } renderWriterDetail(main, param); }
             
-            // ★ 작가관리(하위메뉴 폂침)를 누른 게 아니라면 모바일에서 사이드바 자동 접기 ★
+            // 작가관리 메뉴를 펼치는 터치가 아니라면 무조건 사이드바 접기 (터치 잔상 완벽 제거)
             if (!(view === 'writer' && param === null)) {
                 closeSidebarMobile();
             }
@@ -604,7 +615,7 @@
 
         function openWriterModal() { 
             document.getElementById('writer-modal').classList.add('show'); 
-            closeSidebarMobile(); // ★ 모달 열 때도 사이드바 접어주기 ★
+            closeSidebarMobile(); // 모달창 열 때 사이드바 접기
         }
         function closeWriterModal() { document.getElementById('writer-modal').classList.remove('show'); document.getElementById('new-writer-name').value = ''; }
         function confirmAddWriter() {
