@@ -17,28 +17,21 @@
 
     <style>
         /* ==========================================
-           공통/PC 디자인 (원본 100% 유지)
+           공통/PC 디자인
            ========================================== */
         :root {
-            --main-pink: #ff85a2;
-            --soft-pink: #fff0f3;
-            --black: #111111;
-            --gray-light: #f4f6f8;
-            --white: #ffffff;
-            
-            --color-pub: #e8f0eb;
-            --color-cover: #fff0e6;
-            --color-proof: #ffe6eb;
-            --color-task: #fdf5f6;
-            --color-email: #eff0ff;
-            --color-meeting: #fcf4dd;
+            --main-pink: #ff85a2; --soft-pink: #fff0f3; --black: #111111; 
+            --gray-light: #f4f6f8; --white: #ffffff;
+            --color-pub: #e8f0eb; --color-cover: #fff0e6; --color-proof: #ffe6eb;
+            --color-task: #fdf5f6; --color-email: #eff0ff; --color-meeting: #fcf4dd;
         }
 
         * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; font-family: 'Pretendard', sans-serif; background-color: var(--gray-light); color: var(--black); display: flex; }
 
         .sidebar-hover-zone { display: none; }
-        .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1000; flex-shrink: 0; transition: left 0.3s ease; height: 100%; }
+        /* ★ 사이드바 z-index를 1002로 올려서 열렸을 때 확실히 최상단으로 오게 변경 ★ */
+        .sidebar { width: 240px; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 0; z-index: 1002; flex-shrink: 0; transition: left 0.3s ease; height: 100%; }
         .logo-area { padding: 30px 20px; text-align: center; border-bottom: 1px solid #222; display: flex; flex-direction: column; justify-content: center; }
         .logo-title { font-size: 2rem; font-weight: 800; letter-spacing: 2px; margin: 0; font-family: serif; color: var(--white); }
         .logo-subtitle { font-size: 0.75rem; font-weight: 300; letter-spacing: 4px; color: var(--main-pink); margin-top: 5px; text-transform: uppercase; }
@@ -58,6 +51,9 @@
         .card { background: var(--white); border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #eaeaea; margin-bottom: 20px; }
         h2 { font-size: 1.4rem; margin-top: 0; margin-bottom: 15px; font-weight: 700; color: var(--black); }
         
+        /* --------------------------
+           월간 캘린더
+        ---------------------------*/
         .cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 500px; }
         .cal-header-wrap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px; }
         .cal-nav { display: flex; align-items: center; gap: 15px; font-size: 1.2rem; font-weight: bold; }
@@ -75,6 +71,36 @@
         .day-num { font-weight: 700; margin-bottom: 5px; font-size: 0.8rem; color: #444; }
         .day-box.today { background: var(--soft-pink); border: 1px solid var(--main-pink); }
 
+        /* --------------------------
+           주간 캘린더
+        ---------------------------*/
+        .week-cal-wrapper { display: flex; flex-direction: column; flex-grow: 1; height: 100%; min-height: 500px; }
+        .week-grid { flex-grow: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; min-height: 0; }
+        
+        .week-nav-box { background: #fff; border: 2px solid var(--main-pink); border-radius: 10px; display: flex; flex-direction: column; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .mini-cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: 800; font-size: 1rem; color: var(--main-pink); }
+        .mini-cal-header span { cursor: pointer; padding: 0 5px; }
+        .mini-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; flex-grow: 1; align-items: center; }
+        .mini-day { font-size: 0.75rem; text-align: center; color: #777; font-weight: bold; padding: 2px 0; }
+        .mini-day.active { background: var(--main-pink); color: white; border-radius: 4px; }
+        
+        .week-day-box { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; overflow-y: auto; min-height: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); cursor: pointer; }
+        .week-day-header { font-weight: 800; font-size: 1rem; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 8px; color: #333; }
+        .week-day-box.today { border: 2px solid var(--main-pink); background: var(--soft-pink); }
+        .week-day-box.today .week-day-header { color: var(--main-pink); border-bottom-color: var(--main-pink); }
+        
+        .event-item, .week-evt-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #333; gap: 4px; user-select: none; border-left: 3px solid transparent; }
+        .evt-title, .week-evt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+        .evt-writer, .week-evt-writer { background: rgba(255,255,255,0.6); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; color: #555; flex-shrink: 0; margin-left: 4px; }
+        
+        .ev-pub { background: var(--color-pub); border-left-color: #a3b8ac; }
+        .ev-cover { background: var(--color-cover); border-left-color: #ffbba1; }
+        .ev-proof1 { background: var(--color-proof); border-left-color: #ff9db3; }
+        .ev-proof2 { background: #ffe3fa; border-left-color: #d991ce; }
+        .ev-task { background: var(--color-task); border-left-color: #e08996; }
+        .ev-email { background: var(--color-email); border-left-color: #9ba0fc; }
+        .ev-meeting { background: var(--color-meeting); border-left-color: #e6c565; }
+
         .table-wrap { width: 100%; overflow-x: hidden; }
         .liv-table { width: 100%; min-width: 1050px; border-collapse: collapse; background: #fff; }
         .liv-table th { text-align: left; padding: 10px; font-size: 0.8rem; color: #888; border-bottom: 2px solid #eee; }
@@ -90,7 +116,7 @@
         .btn-del { height: 28px !important; line-height: 26px; background: #fff; color: #999; border: 1px solid #ddd; padding: 0 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer; box-sizing: border-box; }
         .btn-del:hover { color: #e63946; border-color: #e63946; background: #fff0f0; }
         
-        .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; max-width: 100%; box-sizing: border-box; }
+        .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; box-sizing: border-box; }
         .adder-label { font-weight: bold; color: #555; white-space: nowrap; flex-shrink: 0; }
         .schedule-adder .input-date { width: 130px; flex-shrink: 0; }
         .schedule-adder .input-select { width: 110px; flex-shrink: 0; }
@@ -100,20 +126,6 @@
 
         .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         
-        .event-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #333; gap: 4px; user-select: none; }
-        .event-item:active { cursor: grabbing; }
-        .event-item:hover { filter: brightness(0.95); }
-        .evt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
-        .evt-writer { background: transparent; padding: 0; font-size: 0.8rem; font-weight: 700; color: #555; flex-shrink: 0; margin-left: 4px; }
-        
-        .ev-pub { background: var(--color-pub); border-left: 3px solid #a3b8ac; }
-        .ev-cover { background: var(--color-cover); border-left: 3px solid #ffbba1; }
-        .ev-proof1 { background: var(--color-proof); border-left: 3px solid #ff9db3; }
-        .ev-proof2 { background: #ffe3fa; border-left: 3px solid #d991ce; }
-        .ev-task { background: var(--color-task); border-left: 3px solid #e08996; }
-        .ev-email { background: var(--color-email); border-left: 3px solid #9ba0fc; }
-        .ev-meeting { background: var(--color-meeting); border-left: 3px solid #e6c565; }
-
         .status-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; height: 32px; }
         .status-label { font-size: 0.75rem; font-weight: bold; color: #888; width: 40px; flex-shrink: 0; }
         .platform-box { padding: 10px; background: #fffcfd; border-radius: 6px; border: 1px solid var(--main-pink); }
@@ -132,21 +144,20 @@
         .memo-del { position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 0.9rem; font-weight: bold; color: rgba(0,0,0,0.3); transition: 0.2s; }
         .memo-del:hover { color: #e63946; }
         .memo-add-btn { width: 440px; height: 440px; border: 2px dashed #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 1.2rem; color: #888; transition: 0.2s; }
-        .memo-add-btn:hover { background: #eee; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
         .modal-overlay.show { display: flex; }
-        .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 300px; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 320px; max-height: 80vh; display: flex; flex-direction: column; }
         .mobile-only { display: none !important; }
         .desktop-only-td { display: table-cell; }
 
         /* ==========================================
-           📱 모바일 전용 반응형 수정 영역 (앱 최적화)
+           📱 모바일 전용 반응형 수정 영역 
            ========================================== */
         @media (max-width: 1200px), (orientation: portrait) {
             .sidebar { position: fixed; left: -240px; height: 100vh; height: 100dvh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
             
-            /* ★ 유령 손가락 차단: 모바일에서는 Hover 기능을 완전히 죽이고 Class로만 제어합니다 ★ */
+            /* ★ CSS Hover, 강제 잠금 다 버리고 순수 Class로만 열고 닫습니다. 절대 꼬이지 않습니다! ★ */
             .sidebar.mobile-open { left: 0 !important; }
             
             .sidebar-hover-zone { display: flex; align-items: center; position: fixed; left: 0; top: 0; bottom: 0; width: 15px; z-index: 1001; cursor: pointer; background: rgba(255,133,162,0.1); border-right: 1px solid rgba(255,133,162,0.2); }
@@ -159,12 +170,31 @@
             .memo-postit { width: 100% !important; min-height: 320px !important; height: auto; }
             .memo-add-btn { width: 100% !important; height: 80px !important; min-height: 80px !important; font-size: 1rem; }
 
+            /* 월간 달력 */
             .main-container.view-calendar { padding: 10px 10px 10px 35px !important; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
             .main-container.view-calendar .cal-wrapper { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-            .main-container.view-calendar .calendar-grid { flex: 1; min-height: 0; display: grid; overflow: hidden; }
-            .main-container.view-calendar .day-box { min-height: 0; padding: 2px 4px; overflow-y: auto; }
+            .main-container.view-calendar .calendar-grid { flex: 1; min-height: 0; display: grid; overflow: hidden; gap: 2px; }
+            .main-container.view-calendar .day-box { min-height: 0; padding: 2px 4px; overflow: hidden !important; }
             .main-container.view-calendar .day-num { font-size: 0.7rem; margin-bottom: 2px; }
-            .main-container.view-calendar .event-item { font-size: 0.65rem; padding: 2px 4px; margin-bottom: 2px; }
+            .main-container.view-calendar .event-item { font-size: 0.65rem; padding: 1px 2px; margin-bottom: 2px; height: 14px; display: flex; align-items: center; border-left-width: 2px; }
+            .main-container.view-calendar .evt-title { display: none !important; }
+            .main-container.view-calendar .evt-writer { font-size: 0.55rem !important; padding: 0 !important; background: transparent !important; margin: 0; }
+
+            /* 주간 캘린더 */
+            .main-container.view-week-calendar { padding: 5px 5px 5px 35px !important; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+            .main-container.view-week-calendar .week-cal-wrapper { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+            .week-grid { grid-template-columns: 1fr 1fr !important; grid-template-rows: repeat(4, 1fr) !important; gap: 4px !important; }
+            
+            .week-nav-box { padding: 5px !important; border-width: 1px !important; border-radius: 6px !important; }
+            .mini-cal-header { font-size: 0.75rem !important; margin-bottom: 4px !important; }
+            .mini-day { font-size: 0.6rem !important; padding: 1px 0 !important; }
+
+            .week-day-box { padding: 4px 6px !important; border-radius: 6px !important; overflow: hidden !important; border-width: 1px !important; }
+            .week-day-header { font-size: 0.75rem !important; margin-bottom: 4px !important; padding-bottom: 3px !important; border-bottom-width: 1px !important; }
+            
+            .main-container.view-week-calendar .week-evt-item { padding: 2px 4px !important; margin-bottom: 3px !important; border-radius: 3px !important; border-left-width: 2px !important; height: 20px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; gap: 4px; }
+            .main-container.view-week-calendar .week-evt-title { display: block !important; flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.65rem !important; font-weight: 600 !important; line-height: 16px !important; }
+            .main-container.view-week-calendar .week-evt-writer { flex-shrink: 0; font-size: 0.55rem !important; padding: 1px 3px !important; margin-left: 0 !important; border-radius: 2px !important; line-height: 14px !important; }
 
             .schedule-adder { flex-wrap: wrap; height: auto; }
             .adder-label { flex: 1 1 100%; margin-bottom: 4px; display: block; }
@@ -194,442 +224,280 @@
 </head>
 <body>
 
-    <div id="firebase-loading">
-        <div class="loading-spinner"></div>
-        <h2 style="color:var(--main-pink); margin:0;">데이터 동기화 중...</h2>
-        <p style="color:#888; font-size:0.9rem;">PC와 모바일을 연결하고 있습니다.</p>
-    </div>
+    <div id="firebase-loading"><div class="loading-spinner"></div><h2 style="color:var(--main-pink); margin:0;">데이터 동기화 중...</h2></div>
 
     <div class="sidebar-hover-zone" onclick="openMobileSidebar()"></div>
     
     <aside class="sidebar" id="main-sidebar">
-        <div class="logo-area">
-            <h1 class="logo-title">LIV</h1>
-            <div class="logo-subtitle">publishing</div>
-        </div>
+        <div class="logo-area"><h1 class="logo-title">LIV</h1><div class="logo-subtitle">publishing</div></div>
         <div class="nav-group">
             <div class="nav-item active" onclick="changeView('dashboard')">데스크</div>
-            <div class="nav-item" onclick="changeView('calendar')">스케줄러</div>
+            <div class="nav-item" onclick="changeView('calendar')">월간 스케줄러</div>
+            <div class="nav-item" onclick="changeView('week-calendar')">주간 스케줄러</div>
             <div class="nav-item" onclick="changeView('memo')">메모</div>
             <div class="nav-label">Management</div>
             <div class="nav-item" onclick="changeView('writer'); toggleWriters();">계약 작가 관리 <span>▼</span></div>
             <div class="writer-sub-list show" id="sidebar-writer-list"></div>
-            <div style="padding: 15px 25px; text-align: center;">
-                <button class="btn btn-black" style="width: 100%; height: 36px; line-height: 36px;" onclick="openWriterModal()">+ 새 작가 등록</button>
-            </div>
-            <div style="padding: 0 25px 15px; text-align: center; display:flex; gap:5px;">
-                <button class="btn btn-del" style="flex:1; height: 30px !important; line-height:28px; padding:0;" onclick="exportData()">데이터 백업</button>
-                <button class="btn btn-del" style="flex:1; height: 30px !important; line-height:28px; padding:0;" onclick="document.getElementById('import-input').click()">데이터 복원</button>
+            <div style="padding: 15px 25px;"><button class="btn btn-black" style="width: 100%; height: 36px;" onclick="openWriterModal()">+ 새 작가 등록</button></div>
+            <div style="padding: 0 25px 15px; display:flex; flex-direction: column; gap:5px;">
+                <div style="display:flex; gap:5px;">
+                    <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="exportData()">수동 백업</button>
+                    <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="document.getElementById('import-input').click()">수동 복원</button>
+                </div>
+                <button class="btn" style="background:#ffe6eb; color:#e63946; font-size:0.7rem; font-weight:bold; border: 1px solid #ffb3c1;" onclick="restoreFromAutoBackup()">🚨 긴급 복구</button>
                 <input type="file" id="import-input" style="display:none;" accept=".json" onchange="importData(event)">
             </div>
         </div>
-        <div style="padding: 15px; font-size: 0.7rem; color: #555; text-align: center; border-top: 1px solid #222;">Liv Publishing Team</div>
     </aside>
 
     <main class="main-container" id="main-view" onclick="closeSidebarMobile()"></main>
 
     <div class="modal-overlay" id="writer-modal">
         <div class="modal-content">
-            <h3 style="margin-top:0; color:var(--main-pink);">새 작가 등록</h3>
-            <label>작가명 (필명)</label><input type="text" id="new-writer-name" class="input-text">
-            <label>교정 스타일</label>
-            <select id="new-writer-proof" class="input-select">
-                <option value="피드백과 함께 꼼꼼 교정">피드백과 함께 꼼꼼 교정</option><option value="피드백과 함께 러프 교정">피드백과 함께 러프 교정</option><option value="피드백 없이 꼼꼼 교정">피드백 없이 꼼꼼 교정</option><option value="피드백 없이 러프 교정">피드백 없이 러프 교정</option>
+            <h3 style="color:var(--main-pink); margin-top:0;">새 작가 등록</h3>
+            <label style="font-size:0.8rem; font-weight:bold; margin-bottom:5px; display:block;">작가명</label>
+            <input type="text" id="new-writer-name" class="input-text" style="margin-bottom:10px;">
+            <label style="font-size:0.8rem; font-weight:bold; margin-bottom:5px; display:block;">교정 스타일</label>
+            <select id="new-writer-proof" class="input-select" style="margin-bottom:10px;">
+                <option>피드백과 함께 꼼꼼 교정</option><option>피드백과 함께 러프 교정</option><option>피드백 없이 꼼꼼 교정</option><option>피드백 없이 러프 교정</option>
             </select>
-            <label>메일 수신 시간</label>
-            <select id="new-writer-email" class="input-select"><option value="상시 연락">상시 연락</option><option value="평일 주간만">평일 주간만</option></select>
-            <div style="display:flex; justify-content:space-between; margin-top:20px; gap:10px;">
-                <button class="btn btn-del" style="flex:1; height: 36px;" onclick="closeWriterModal()">취소</button>
-                <button class="btn btn-black" style="flex:1; height: 36px;" onclick="confirmAddWriter()">등록</button>
+            <label style="font-size:0.8rem; font-weight:bold; margin-bottom:5px; display:block;">메일 수신 시간</label>
+            <select id="new-writer-email" class="input-select">
+                <option>상시 연락</option><option>평일 주간만</option>
+            </select>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-del" style="flex:1; height: 36px!important;" onclick="closeWriterModal()">취소</button>
+                <button class="btn btn-black" style="flex:1; height: 36px!important;" onclick="confirmAddWriter()">등록</button>
             </div>
         </div>
     </div>
 
     <div class="modal-overlay" id="day-modal">
-        <div class="modal-content" style="width: 320px; max-width: 90%;">
-            <h3 style="margin-top:0; color:var(--black); border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
-                <span id="day-modal-title">날짜</span>
-                <span style="font-size: 0.8rem; color: var(--main-pink); cursor: pointer; padding: 5px;" onclick="closeDayModal()">✕ 닫기</span>
-            </h3>
-            <div id="day-modal-list" style="overflow-y: auto; flex-grow: 1; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px;"></div>
+        <div class="modal-content">
+            <h3 id="day-modal-title" style="margin-top:0; border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;"></h3>
+            <div id="day-modal-list" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 8px;"></div>
+            <button class="btn btn-black" style="width:100%; margin-top:15px; height:36px!important;" onclick="closeDayModal()">닫기</button>
         </div>
     </div>
 
     <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()).catch(err => console.log('SW Fail:', err));
-        }
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()).catch(e=>console.log(e));
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8",
-            authDomain: "liv-management.firebaseapp.com",
-            projectId: "liv-management",
-            storageBucket: "liv-management.firebasestorage.app",
-            messagingSenderId: "206638436310",
-            appId: "1:206638436310:web:3ec139c6522a84a89c5e77",
-            measurementId: "G-WX64SC0CDS"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        const firebaseConfig = { apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8", authDomain: "liv-management.firebaseapp.com", projectId: "liv-management", storageBucket: "liv-management.firebasestorage.app" };
+        firebase.initializeApp(firebaseConfig); const db = firebase.firestore();
 
         let livData = { writers: [], extraTasks: [], memos: [] };
-        let currentDate = new Date();
-        let currentCalFilter = 'all';
-        let currentWriterFilter = null; 
-        let currentSearchText = ''; 
-        let currentViewName = 'dashboard';
-        let currentViewParam = null;
+        let currentDate = new Date(), currentWeekStart = new Date(), currentCalFilter = 'all', currentWriterFilter = null, currentSearchText = '', currentViewName = 'dashboard', currentViewParam = null;
 
         db.collection("config").doc("mainData").onSnapshot((doc) => {
-            document.getElementById('firebase-loading').style.display = 'none'; 
+            document.getElementById('firebase-loading').style.display = 'none';
             if (doc.metadata.hasPendingWrites) return;
             if (doc.exists) {
                 livData = doc.data();
-                if(!livData.writers) livData.writers = [];
-                if(!livData.extraTasks) livData.extraTasks = [];
-                if(!livData.memos) livData.memos = [];
-                renderSidebarWriters();
-                changeView(currentViewName, currentViewParam); 
+                if(!livData.writers) livData.writers = []; if(!livData.extraTasks) livData.extraTasks = []; if(!livData.memos) livData.memos = [];
+                
+                if (livData.writers.length > 0 || livData.memos.length > 0 || livData.extraTasks.length > 0) {
+                    livData.lastBackupTime = new Date().toLocaleString(); localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+                }
+                renderSidebarWriters(); changeView(currentViewName, currentViewParam);
             } else {
-                const saved = localStorage.getItem('livDataFinal_v21'); 
-                if (saved) livData = JSON.parse(saved);
-                saveData(); 
+                const sv = localStorage.getItem('livDataFinal_v21'); if (sv) { livData = JSON.parse(sv); saveData(); }
             }
         });
 
-        function saveData() { db.collection("config").doc("mainData").set(livData); renderSidebarWriters(); }
+        function saveData() {
+            if (!livData || (livData.writers.length === 0 && livData.memos.length === 0 && livData.extraTasks.length === 0)) {
+                if(!confirm("🚨 데이터가 비어있습니다! 보호하시려면 '취소'를 누르세요.")) return;
+            } else {
+                livData.lastBackupTime = new Date().toLocaleString(); localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+            }
+            db.collection("config").doc("mainData").set(livData); renderSidebarWriters();
+        }
+
+        function restoreFromAutoBackup() {
+            const bk = localStorage.getItem('liv_auto_backup');
+            if (bk && confirm("자동 백업본을 불러올까요?")) { livData = JSON.parse(bk); saveData(); changeView('dashboard'); alert('복구되었습니다.'); }
+            else if(!bk) alert("백업본이 없습니다.");
+        }
 
         const msStatuses = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
         const coverStatuses = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
         const platforms = ['리디', '시리즈', '예스24', '알라딘', '교보문고', '미스터블루', '봄툰', '북큐브', '구글북스', '스토린랩'];
+        
+        function getStatusColor(s, t) { let l = t==='ms'?msStatuses:coverStatuses; let i = l.indexOf(s); return i<=0 ? '#fff' : `hsl(345, 60%, ${98-(i/(l.length-1))*28}%)`; }
+        function exportData() { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(livData)],{type:"application/json"})); a.download=`liv.json`; a.click(); }
+        function importData(e) { const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=x=>{ try{ livData=JSON.parse(x.target.result); saveData(); changeView('dashboard'); }catch(err){alert('오류')} }; r.readAsText(f); }
 
-        function getStatusColor(status, type) {
-            const list = type === 'ms' ? msStatuses : coverStatuses;
-            const idx = list.indexOf(status);
-            if(idx === -1 || idx === 0) return '#ffffff'; 
-            const lightness = 98 - (idx / (list.length - 1)) * 28;
-            return `hsl(345, 60%, ${lightness}%)`;
+        // ★ 가장 단순하고 확실한 사이드바 여닫기 로직 ★
+        function openMobileSidebar() { 
+            const sb = document.getElementById('main-sidebar');
+            if(sb) sb.classList.add('mobile-open'); 
+        }
+        function closeSidebarMobile() { 
+            const sb = document.getElementById('main-sidebar');
+            if(sb) sb.classList.remove('mobile-open'); 
         }
 
-        function exportData() {
-            const dataStr = JSON.stringify(livData);
-            const blob = new Blob([dataStr], {type: "application/json"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `liv_backup.json`; a.click(); URL.revokeObjectURL(url);
-        }
-
-        function importData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const importedData = JSON.parse(e.target.result);
-                    if (importedData && typeof importedData === 'object') {
-                        livData = importedData; saveData(); alert('복원 성공!'); changeView('dashboard');
-                    }
-                } catch (err) { alert('오류 발생'); }
-                event.target.value = ''; 
-            };
-            reader.readAsText(file);
-        }
-
-        // ★ 모바일 사이드바 강제 제어 함수 (버그 원천 차단) ★
-        function openMobileSidebar() {
-            document.getElementById('main-sidebar').classList.add('mobile-open');
-        }
-
-        function closeSidebarMobile() {
-            document.getElementById('main-sidebar').classList.remove('mobile-open');
-        }
-
-        function changeView(view, param = null) {
-            currentViewName = view; currentViewParam = param;
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            const main = document.getElementById('main-view');
+        function changeView(v, p = null) {
+            currentViewName = v; currentViewParam = p;
+            document.querySelectorAll('.nav-item').forEach((el, idx) => {
+                el.classList.remove('active');
+                if((v==='dashboard' && idx===0) || (v==='calendar' && idx===1) || (v==='week-calendar' && idx===2) || (v==='memo' && idx===3) || (v==='writer' && idx===4)) el.classList.add('active');
+            });
+            const m = document.getElementById('main-view');
+            m.className = 'main-container' + (v==='calendar'?' view-calendar':'') + (v==='week-calendar'?' view-week-calendar':'');
             
-            if(view === 'calendar') main.classList.add('view-calendar');
-            else main.classList.remove('view-calendar');
-
-            if(view === 'dashboard') { document.querySelectorAll('.nav-item')[0].classList.add('active'); renderDashboard(main); }
-            else if(view === 'calendar') { document.querySelectorAll('.nav-item')[1].classList.add('active'); currentDate = new Date(); currentCalFilter = 'all'; renderCalendar(main); }
-            else if(view === 'memo') { document.querySelectorAll('.nav-item')[2].classList.add('active'); renderMemoBoard(main); }
-            else if(view === 'writer') { document.querySelectorAll('.nav-item')[3].classList.add('active'); if(param === null) { currentWriterFilter = null; currentSearchText = ''; } renderWriterDetail(main, param); }
-            
-            // ★ 메뉴를 누르면 무조건 강제 종료 실행 (단, 작가관리 폴더를 펼칠 때만 예외) ★
-            if (!(view === 'writer' && param === null)) {
-                closeSidebarMobile();
+            if(v==='dashboard') renderDashboard(m);
+            else if(v==='calendar') renderCalendar(m);
+            else if(v==='week-calendar') {
+                if(currentViewName !== 'week-calendar') { currentWeekStart = new Date(); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); }
+                renderWeekCalendar(m);
             }
-        }
-
-        function getWriterOptions() { let html = `<option value="">[선택 안함]</option>`; livData.writers.forEach(w => html += `<option value="${w.id}">${w.name}</option>`); return html; }
-
-        function renderDashboard(container) {
-            const tzoffset = (new Date()).getTimezoneOffset() * 60000;
-            const today = new Date(Date.now() - tzoffset);
-            const tom = new Date(today.getTime() + 86400000);
-            const afterTom = new Date(today.getTime() + 86400000 * 2);
-
-            container.innerHTML = `
-                <h2>업무 데스크</h2>
-                <div class="schedule-adder">
-                    <span class="adder-label">+ 빠른 등록</span>
-                    <input type="date" id="dash-date" class="input-date" value="${today.toISOString().split('T')[0]}">
-                    <select id="dash-writer" class="input-select">${getWriterOptions()}</select>
-                    <select id="dash-type" class="input-select"><option value="ev-task">일반</option><option value="ev-email">메일</option><option value="ev-meeting">미팅</option></select>
-                    <div class="adder-bottom-row"><input type="text" id="dash-title" class="input-text" placeholder="일정 내용을 입력하세요"><button class="btn btn-black" onclick="addExtraTask('dash-date', 'dash-writer', 'dash-type', 'dash-title', 'dashboard')">등록</button></div>
-                </div>
-                <div class="dash-grid-3">
-                    <div class="card" style="padding: 15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">오늘 (${today.getMonth()+1}/${today.getDate()})</h3><div id="today-tasks"></div></div>
-                    <div class="card" style="padding: 15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">내일 (${tom.getMonth()+1}/${tom.getDate()})</h3><div id="tom-tasks"></div></div>
-                    <div class="card" style="padding: 15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">모레 (${afterTom.getMonth()+1}/${afterTom.getDate()})</h3><div id="after-tasks"></div></div>
-                </div>
-            `;
-            updateTasksHtml(today.toISOString().split('T')[0], 'today-tasks', 'dashboard', 'all'); updateTasksHtml(tom.toISOString().split('T')[0], 'tom-tasks', 'dashboard', 'all'); updateTasksHtml(afterTom.toISOString().split('T')[0], 'after-tasks', 'dashboard', 'all');
-        }
-
-        function addExtraTask(dateId, writerSelId, typeId, titleId, view) {
-            const date = document.getElementById(dateId).value; const wId = document.getElementById(writerSelId).value; const type = document.getElementById(typeId).value; const title = document.getElementById(titleId).value;
-            if(!title || !date) return; if(!livData.extraTasks) livData.extraTasks = []; livData.extraTasks.push({ id: Date.now(), date, writerId: wId, type, title }); saveData(); changeView(view);
-        }
-
-        function completeWorkTask(wId, workId, key, view) {
-            if(!confirm('달력에서 지우시겠습니까?')) return; const work = livData.writers.find(x => x.id === wId).works.find(x => x.id === workId);
-            if (!work.completedDates) work.completedDates = {}; work.completedDates[key] = true; saveData(); changeView(view);
-        }
-        function completeExtraTask(taskId, view) { if(!confirm('일반 일정을 완료하시겠습니까?')) return; livData.extraTasks = livData.extraTasks.filter(t => t.id !== taskId); saveData(); changeView(view); }
-
-        function drag(ev, type, wId, itemId) { ev.dataTransfer.setData("type", type); ev.dataTransfer.setData("wId", wId); ev.dataTransfer.setData("itemId", itemId); }
-        function allowDrop(ev) { ev.preventDefault(); }
-        function drop(ev, newDate) {
-            ev.preventDefault(); const type = ev.dataTransfer.getData("type"); const wId = ev.dataTransfer.getData("wId"); const itemId = ev.dataTransfer.getData("itemId"); if (!type) return;
-            if (type === 'extraTask') { const task = livData.extraTasks.find(t => t.id == itemId); if (task) task.date = newDate; } 
-            else { const writer = livData.writers.find(w => w.id == wId); if (writer) { const work = writer.works.find(w => w.id == itemId); if (work) work[type] = newDate; } }
-            saveData(); renderCalendar(document.getElementById('main-view'));
-        }
-
-        function renderCalendar(container) {
-            const year = currentDate.getFullYear(); const month = currentDate.getMonth(); 
-            const todayStr = new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000).toISOString().split('T')[0];
-            const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const weeks = Math.ceil((firstDay + daysInMonth) / 7);
-
-            let html = `
-                <div class="cal-wrapper">
-                    <div class="card" style="padding: 15px 20px; margin-bottom: 10px;">
-                        <div class="cal-header-wrap">
-                            <div class="cal-nav"><button class="cal-btn" onclick="moveMonth(-1)">◀</button><span>${year}년 ${month + 1}월</span><button class="cal-btn" onclick="moveMonth(1)">▶</button></div>
-                            <div class="filter-group">
-                                <button class="filter-btn ${currentCalFilter==='all'?'active':''}" onclick="setCalFilter('all')">전체</button>
-                                <button class="filter-btn ${currentCalFilter==='pub'?'active':''}" onclick="setCalFilter('pub')">출간</button>
-                                <button class="filter-btn ${currentCalFilter==='cover'?'active':''}" onclick="setCalFilter('cover')">표지</button>
-                                <button class="filter-btn ${currentCalFilter==='proof'?'active':''}" onclick="setCalFilter('proof')">교정</button>
-                            </div>
-                        </div>
-                        <div class="schedule-adder" style="margin-bottom:0; padding:0; border:none;">
-                            <input type="date" id="cal-date" class="input-date" value="${todayStr}">
-                            <select id="cal-writer" class="input-select">${getWriterOptions()}</select>
-                            <select id="cal-type" class="input-select"><option value="ev-task">일반</option><option value="ev-email">메일</option><option value="ev-meeting">미팅</option></select>
-                            <div class="adder-bottom-row"><input type="text" id="cal-title" class="input-text" placeholder="달력에 바로 등록"><button class="btn btn-black" onclick="addExtraTask('cal-date', 'cal-writer', 'cal-type', 'cal-title', 'calendar')">등록</button></div>
-                        </div>
-                    </div>
-                    <div class="calendar-grid" style="grid-template-rows: auto repeat(${weeks}, minmax(0, 1fr));">
-                        ${['일','월','화','수','목','금','토'].map(d => `<div class="day-header">${d}</div>`).join('')}
-            `;
-            for(let i=0; i<firstDay; i++) html += `<div></div>`;
-            for(let i=1; i<=daysInMonth; i++) {
-                const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-                const isToday = dStr === todayStr ? 'today' : '';
-                html += `<div class="day-box ${isToday}" ondragover="allowDrop(event)" ondrop="drop(event, '${dStr}')" onclick="openDayModal(event, '${dStr}')">
-                            <div class="day-num">${i}</div>
-                            <div id="cal-day-${dStr}" style="display:flex; flex-direction:column; gap:2px; min-height: 10px;"></div>
-                         </div>`;
-            }
-            html += `</div></div>`;
-            container.innerHTML = html;
-
-            for(let i=1; i<=daysInMonth; i++) updateTasksHtml(`${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, `cal-day-${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, 'calendar', currentCalFilter);
-        }
-
-        function openDayModal(e, dateStr) {
-            if (e && e.target && e.target.closest && e.target.closest('.event-item')) return;
-            const titleEl = document.getElementById('day-modal-title'); const listEl = document.getElementById('day-modal-list');
-            const parts = dateStr.split('-'); titleEl.innerText = `${parts[0]}년 ${parseInt(parts[1], 10)}월 ${parseInt(parts[2], 10)}일 일정`;
+            else if(v==='memo') renderMemoBoard(m);
+            else if(v==='writer') { currentWriterFilter = p; currentSearchText = ''; renderWriterDetail(m, p); }
             
-            let listHtml = '';
-            livData.writers.forEach(w => w.works.forEach(work => {
-                if (work.pubDate === dateStr) listHtml += createDayModalItemHtml('ev-pub', '[출간]', work.title, w.name, work.completedDates && work.completedDates.pubDate);
-                if (work.coverDate === dateStr) listHtml += createDayModalItemHtml('ev-cover', '[표지]', work.title, w.name, work.completedDates && work.completedDates.coverDate);
-                if (work.proofDate === dateStr) listHtml += createDayModalItemHtml('ev-proof1', '[1교]', work.title, w.name, work.completedDates && work.completedDates.proofDate);
-                if (work.proofDate2 === dateStr) listHtml += createDayModalItemHtml('ev-proof2', '[2교]', work.title, w.name, work.completedDates && work.completedDates.proofDate2);
+            // 메뉴 이동 시 사이드바 닫기 (단, 폴더 펼칠 때는 예외)
+            if (!(v==='writer' && p===null)) closeSidebarMobile();
+        }
+
+        function getWriterOptions() { return `<option value="">[선택 안함]</option>` + livData.writers.map(w=>`<option value="${w.id}">${w.name}</option>`).join(''); }
+
+        function renderDashboard(c) {
+            const tz = new Date().getTimezoneOffset()*60000; const td = new Date(Date.now()-tz); const tm = new Date(td.getTime()+86400000); const at = new Date(td.getTime()+86400000*2);
+            c.innerHTML = `<h2>업무 데스크</h2><div class="schedule-adder"><span class="adder-label">+ 빠른 등록</span><input type="date" id="dash-date" class="input-date" value="${td.toISOString().split('T')[0]}"><select id="dash-writer" class="input-select">${getWriterOptions()}</select><select id="dash-type" class="input-select"><option value="ev-task">일반</option><option value="ev-email">메일</option><option value="ev-meeting">미팅</option></select><div class="adder-bottom-row"><input type="text" id="dash-title" class="input-text" placeholder="일정 내용"><button class="btn btn-black" onclick="addExtraTask()">등록</button></div></div><div class="dash-grid-3"><div class="card" style="padding:15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">오늘</h3><div id="today-tasks"></div></div><div class="card" style="padding:15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">내일</h3><div id="tom-tasks"></div></div><div class="card" style="padding:15px;"><h3 style="margin-top:0; font-size:1rem; border-bottom:1px solid #eee; padding-bottom:10px;">모레</h3><div id="after-tasks"></div></div></div>`;
+            updateTasksHtml(td.toISOString().split('T')[0], 'today-tasks', 'dashboard', 'all'); updateTasksHtml(tm.toISOString().split('T')[0], 'tom-tasks', 'dashboard', 'all'); updateTasksHtml(at.toISOString().split('T')[0], 'after-tasks', 'dashboard', 'all');
+        }
+        function addExtraTask() { const d=document.getElementById('dash-date').value, w=document.getElementById('dash-writer').value, t=document.getElementById('dash-type').value, tt=document.getElementById('dash-title').value; if(!tt||!d)return; livData.extraTasks.push({id:Date.now(),date:d,writerId:w,type:t,title:tt}); saveData(); changeView('dashboard'); }
+        function completeWorkTask(wId, wkId, k, v) { if(!confirm('달력에서 지울까요?'))return; const wk=livData.writers.find(x=>x.id===wId).works.find(x=>x.id===wkId); if(!wk.completedDates)wk.completedDates={}; wk.completedDates[k]=true; saveData(); changeView(v); }
+        function completeExtraTask(id, v) { if(!confirm('일정을 완료할까요?'))return; livData.extraTasks=livData.extraTasks.filter(t=>t.id!==id); saveData(); changeView(v); }
+        function drag(e, t, w, i) { e.dataTransfer.setData("t", t); e.dataTransfer.setData("w", w); e.dataTransfer.setData("i", i); }
+        function allowDrop(e) { e.preventDefault(); }
+        function drop(e, d) { e.preventDefault(); const t=e.dataTransfer.getData("t"), w=e.dataTransfer.getData("w"), i=e.dataTransfer.getData("i"); if(!t)return; if(t==='extraTask'){ let tk=livData.extraTasks.find(x=>x.id==i); if(tk)tk.date=d; }else{ let wr=livData.writers.find(x=>x.id==w); if(wr){ let wk=wr.works.find(x=>x.id==i); if(wk)wk[t]=d; } } saveData(); renderCalendar(document.getElementById('main-view')); }
+
+        /* 월간 캘린더 */
+        function renderCalendar(c) {
+            const y=currentDate.getFullYear(), m=currentDate.getMonth(), td=new Date(Date.now()-(new Date()).getTimezoneOffset()*60000).toISOString().split('T')[0];
+            const fd=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate(), wks=Math.ceil((fd+dim)/7);
+            let h = `<div class="cal-wrapper"><div class="card" style="padding:15px 20px; margin-bottom:10px;"><div class="cal-header-wrap"><div class="cal-nav"><button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()-1);renderCalendar(document.getElementById('main-view'))">◀</button><span>${y}년 ${m+1}월</span><button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()+1);renderCalendar(document.getElementById('main-view'))">▶</button></div><div class="filter-group"><button class="filter-btn ${currentCalFilter==='all'?'active':''}" onclick="currentCalFilter='all';renderCalendar(document.getElementById('main-view'))">전체</button><button class="filter-btn ${currentCalFilter==='pub'?'active':''}" onclick="currentCalFilter='pub';renderCalendar(document.getElementById('main-view'))">출간</button><button class="filter-btn ${currentCalFilter==='cover'?'active':''}" onclick="currentCalFilter='cover';renderCalendar(document.getElementById('main-view'))">표지</button><button class="filter-btn ${currentCalFilter==='proof'?'active':''}" onclick="currentCalFilter='proof';renderCalendar(document.getElementById('main-view'))">교정</button></div></div></div><div class="calendar-grid" style="grid-template-rows: auto repeat(${wks}, 1fr);">${['일','월','화','수','목','금','토'].map(d=>`<div class="day-header">${d}</div>`).join('')}`;
+            for(let i=0; i<fd; i++) h += `<div></div>`;
+            for(let i=1; i<=dim; i++) { let ds = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`; h += `<div class="day-box ${ds===td?'today':''}" ondragover="allowDrop(event)" ondrop="drop(event, '${ds}')" onclick="openDayModal(event, '${ds}')"><div class="day-num">${i}</div><div id="cal-day-${ds}"></div></div>`; }
+            c.innerHTML = h + `</div></div>`;
+            for(let i=1; i<=dim; i++) updateTasksHtml(`${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, `cal-day-${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, 'calendar', currentCalFilter);
+        }
+
+        /* 주간 캘린더 */
+        function renderWeekCalendar(c) {
+            let start = new Date(currentWeekStart); start.setDate(start.getDate() - start.getDay());
+            let days = []; for(let i=0; i<7; i++) { days.push(new Date(start)); start.setDate(start.getDate()+1); }
+            const dn = ['일','월','화','수','목','금','토'], td = new Date(Date.now()-(new Date()).getTimezoneOffset()*60000).toISOString().split('T')[0];
+            let h = `<div class="week-cal-wrapper"><div class="week-grid">`;
+            for(let i=0; i<7; i++) { let ds = days[i].toISOString().split('T')[0]; h += `<div class="week-day-box ${ds===td?'today':''}" onclick="openDayModal(event, '${ds}')"><div class="week-day-header">${days[i].getMonth()+1}/${days[i].getDate()} (${dn[i]})</div><div id="week-day-${ds}"></div></div>`; }
+            h += `<div class="week-nav-box"><div class="mini-cal-header"><span onclick="currentWeekStart.setDate(currentWeekStart.getDate()-7);renderWeekCalendar(document.getElementById('main-view'))">◀</span><span>${days[0].getFullYear()}.${days[0].getMonth()+1}</span><span onclick="currentWeekStart.setDate(currentWeekStart.getDate()+7);renderWeekCalendar(document.getElementById('main-view'))">▶</span></div><div class="mini-cal-grid">`;
+            let my=days[0].getFullYear(), mm=days[0].getMonth(), mfd=new Date(my,mm,1).getDay(), mdim=new Date(my,mm+1,0).getDate();
+            for(let i=0; i<mfd; i++) h += `<div></div>`;
+            for(let i=1; i<=mdim; i++) { let isSel = false; days.forEach(d => { if(d.getMonth()===mm && d.getDate()===i) isSel=true; }); h += `<div class="mini-day ${isSel?'active':''}">${i}</div>`; }
+            h += `</div><div style="font-size:0.6rem; text-align:center; margin-top:5px; color:#ff85a2; font-weight:bold;">WEEKLY NAV</div></div></div></div>`;
+            c.innerHTML = h;
+            days.forEach(d => updateWeekTasksHtml(d.toISOString().split('T')[0], `week-day-${d.toISOString().split('T')[0]}`));
+        }
+
+        function updateTasksHtml(ds, cid, v, f) {
+            const el = document.getElementById(cid); if(!el) return; let h='';
+            livData.writers.forEach(w => (w.works||[]).forEach(wk => {
+                const wt = `<span class="evt-writer">${w.name}</span>`;
+                if((f==='all'||f==='pub') && wk.pubDate===ds && !(wk.completedDates||{}).pubDate) h+=`<div class="event-item ev-pub" draggable="true" ondragstart="drag(event, 'pubDate', ${w.id}, ${wk.id})" ondblclick="completeWorkTask(${w.id}, ${wk.id}, 'pubDate', '${v}')"><span class="evt-title">[출간] ${wk.title}</span>${wt}</div>`;
+                if((f==='all'||f==='cover') && wk.coverDate===ds && !(wk.completedDates||{}).coverDate) h+=`<div class="event-item ev-cover" draggable="true" ondragstart="drag(event, 'coverDate', ${w.id}, ${wk.id})" ondblclick="completeWorkTask(${w.id}, ${wk.id}, 'coverDate', '${v}')"><span class="evt-title">[표지] ${wk.title}</span>${wt}</div>`;
+                if((f==='all'||f==='proof') && wk.proofDate===ds && !(wk.completedDates||{}).proofDate) h+=`<div class="event-item ev-proof1" draggable="true" ondragstart="drag(event, 'proofDate', ${w.id}, ${wk.id})" ondblclick="completeWorkTask(${w.id}, ${wk.id}, 'proofDate', '${v}')"><span class="evt-title">[1교] ${wk.title}</span>${wt}</div>`;
+                if((f==='all'||f==='proof') && wk.proofDate2===ds && !(wk.completedDates||{}).proofDate2) h+=`<div class="event-item ev-proof2" draggable="true" ondragstart="drag(event, 'proofDate2', ${w.id}, ${wk.id})" ondblclick="completeWorkTask(${w.id}, ${wk.id}, 'proofDate2', '${v}')"><span class="evt-title">[2교] ${wk.title}</span>${wt}</div>`;
             }));
-            
-            if (livData.extraTasks) {
-                livData.extraTasks.forEach(t => {
-                    if (t.date === dateStr) { const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null; listHtml += createDayModalItemHtml(t.type, '', t.title, writerObj ? writerObj.name : '', false); }
-                });
-            }
-            if (listHtml === '') listHtml = '<div style="color:#999; text-align:center; padding: 40px 0; font-size: 0.95rem;">등록된 일정이 없습니다.</div>';
-            listEl.innerHTML = listHtml; document.getElementById('day-modal').classList.add('show');
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if((f==='all') && t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; h+=`<div class="event-item ${t.type}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${v}')"><span class="evt-title">${t.title}</span> ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; } });
+            el.innerHTML = h;
         }
-        
-        function createDayModalItemHtml(typeClass, prefix, title, writerName, isCompleted) {
-            const completedStyle = isCompleted ? 'text-decoration: line-through; opacity: 0.4;' : '';
-            return `<div class="event-item ${typeClass}" style="padding: 12px 10px; font-size: 0.95rem; cursor: default; margin-bottom: 4px; ${completedStyle}"><div style="font-weight: 800; flex-grow:1; white-space: normal; word-break: keep-all;">${prefix} ${title}</div>${writerName ? `<div style="font-size: 0.8rem; color:#555; font-weight: bold; background:rgba(255,255,255,0.6); padding: 4px 8px; border-radius: 4px; flex-shrink: 0; margin-left: 10px;">${writerName}</div>` : ''}</div>`;
+
+        function updateWeekTasksHtml(ds, cid) {
+            const el = document.getElementById(cid); if(!el) return; let h='';
+            livData.writers.forEach(w => (w.works||[]).forEach(wk => {
+                const wt = `<span class="week-evt-writer">${w.name}</span>`;
+                if(wk.pubDate===ds && !(wk.completedDates||{}).pubDate) h+=`<div class="week-evt-item ev-pub"><span class="week-evt-title">[출] ${wk.title}</span>${wt}</div>`;
+                if(wk.coverDate===ds && !(wk.completedDates||{}).coverDate) h+=`<div class="week-evt-item ev-cover"><span class="week-evt-title">[표] ${wk.title}</span>${wt}</div>`;
+                if(wk.proofDate===ds && !(wk.completedDates||{}).proofDate) h+=`<div class="week-evt-item ev-proof1"><span class="week-evt-title">[1교] ${wk.title}</span>${wt}</div>`;
+                if(wk.proofDate2===ds && !(wk.completedDates||{}).proofDate2) h+=`<div class="week-evt-item ev-proof2"><span class="week-evt-title">[2교] ${wk.title}</span>${wt}</div>`;
+            }));
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; h+=`<div class="week-evt-item ${t.type}"><span class="week-evt-title">${t.title}</span> ${wo?`<span class="week-evt-writer">${wo.name}</span>`:''}</div>`; } });
+            el.innerHTML = h;
         }
-        
+
+        function openDayModal(e, ds) {
+            if(e.target.closest('.event-item') || e.target.closest('.week-evt-item')) return;
+            document.getElementById('day-modal-title').innerText = ds;
+            let h = '';
+            livData.writers.forEach(w => (w.works||[]).forEach(wk => {
+                if(wk.pubDate===ds && !(wk.completedDates||{}).pubDate) h+=`<div class="event-item ev-pub" style="padding:10px;"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.coverDate===ds && !(wk.completedDates||{}).coverDate) h+=`<div class="event-item ev-cover" style="padding:10px;"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate===ds && !(wk.completedDates||{}).proofDate) h+=`<div class="event-item ev-proof1" style="padding:10px;"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate2===ds && !(wk.completedDates||{}).proofDate2) h+=`<div class="event-item ev-proof2" style="padding:10px;"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+            }));
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; h+=`<div class="event-item ${t.type}" style="padding:10px;"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
+            document.getElementById('day-modal-list').innerHTML = h || '<div style="color:#999; text-align:center; padding:40px 0;">일정이 없습니다.</div>';
+            document.getElementById('day-modal').classList.add('show');
+        }
         function closeDayModal() { document.getElementById('day-modal').classList.remove('show'); }
-        function moveMonth(dir) { currentDate.setMonth(currentDate.getMonth() + dir); renderCalendar(document.getElementById('main-view')); }
-        function setCalFilter(filter) { currentCalFilter = filter; renderCalendar(document.getElementById('main-view')); }
 
-        function updateTasksHtml(dateStr, containerId, view, filter) {
-            const el = document.getElementById(containerId); if(!el) return; let html = '';
-            livData.writers.forEach(w => w.works.forEach(work => {
-                const wTag = `<span class="evt-writer">${w.name}</span>`;
-                if((filter === 'all' || filter === 'pub') && work.pubDate === dateStr && !(work.completedDates && work.completedDates.pubDate)) html += `<div class="event-item ev-pub" draggable="true" ondragstart="drag(event, 'pubDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'pubDate', '${view}')"><span class="evt-title">[출간] ${work.title}</span> ${wTag}</div>`;
-                if((filter === 'all' || filter === 'cover') && work.coverDate === dateStr && !(work.completedDates && work.completedDates.coverDate)) html += `<div class="event-item ev-cover" draggable="true" ondragstart="drag(event, 'coverDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'coverDate', '${view}')"><span class="evt-title">[표지] ${work.title}</span> ${wTag}</div>`;
-                if((filter === 'all' || filter === 'proof') && work.proofDate === dateStr && !(work.completedDates && work.completedDates.proofDate)) html += `<div class="event-item ev-proof1" draggable="true" ondragstart="drag(event, 'proofDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate', '${view}')"><span class="evt-title">[1교] ${work.title}</span> ${wTag}</div>`;
-                if((filter === 'all' || filter === 'proof') && work.proofDate2 === dateStr && !(work.completedDates && work.completedDates.proofDate2)) html += `<div class="event-item ev-proof2" draggable="true" ondragstart="drag(event, 'proofDate2', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate2', '${view}')"><span class="evt-title">[2교] ${work.title}</span> ${wTag}</div>`;
-            }));
-            if(livData.extraTasks) { livData.extraTasks.forEach(t => { if((filter === 'all' || filter === 'task') && t.date === dateStr) { const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null; const wTag = writerObj ? `<span class="evt-writer">${writerObj.name}</span>` : ''; html += `<div class="event-item ${t.type}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${view}')"><span class="evt-title">${t.title}</span> ${wTag}</div>`; } }); }
-            el.innerHTML = html;
+        function renderMemoBoard(c) {
+            let h=`<h2>메모</h2><div class="memo-board"><div class="memo-add-btn" onclick="addMemo()">+ 메모 추가</div>`;
+            livData.memos.forEach(m=>{ h+=`<div class="memo-postit" style="background-color:${m.color};"><span class="memo-del" onclick="deleteMemo(${m.id})">삭제</span><textarea onchange="updateMemo(${m.id}, this.value)" placeholder="내용을 입력하세요">${m.text}</textarea><div class="memo-date">${m.date}</div></div>`; });
+            c.innerHTML = h + `</div>`;
         }
-
-        function renderMemoBoard(container) {
-            let html = `<h2>출판사 중요 메모</h2><div class="memo-board"><div class="memo-add-btn" onclick="addMemo()">+ 새 메모 추가</div>`;
-            if(!livData.memos) livData.memos = [];
-            livData.memos.forEach(m => { html += `<div class="memo-postit" style="background-color:${m.color};"><span class="memo-del" onclick="deleteMemo(${m.id})">삭제</span><textarea onchange="updateMemo(${m.id}, this.value)" placeholder="내용을 입력하세요">${m.text}</textarea><div class="memo-date">${m.date}</div></div>`; });
-            html += `</div>`; container.innerHTML = html;
-        }
-        function addMemo() {
-            const colors = ['#fff3b0', '#cff0ff', '#e2f4c9', '#ffdcf4']; const rColor = colors[Math.floor(Math.random() * colors.length)]; const today = new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000).toISOString().split('T')[0];
-            if(!livData.memos) livData.memos = []; livData.memos.push({ id: Date.now(), text: '', color: rColor, date: today }); saveData(); changeView('memo');
-        }
-        function updateMemo(id, text) { livData.memos.find(m => m.id === id).text = text; saveData(); }
-        function deleteMemo(id) { if(confirm("메모를 삭제할까요?")){ livData.memos = livData.memos.filter(m => m.id !== id); saveData(); changeView('memo'); } }
+        function addMemo() { const cl=['#fff3b0','#cff0ff','#e2f4c9','#ffdcf4']; livData.memos.push({id:Date.now(), text:'', color:cl[Math.floor(Math.random()*cl.length)], date:new Date(Date.now()-(new Date()).getTimezoneOffset()*60000).toISOString().split('T')[0]}); saveData(); changeView('memo'); }
+        function updateMemo(i, t) { livData.memos.find(m=>m.id===i).text=t; saveData(); }
+        function deleteMemo(i) { if(confirm("삭제할까요?")){ livData.memos=livData.memos.filter(m=>m.id!==i); saveData(); changeView('memo'); } }
 
         function executeTextSearch() { currentSearchText = document.getElementById('search-writer-input').value.toLowerCase(); currentWriterFilter = null; renderWriterDetail(document.getElementById('main-view'), null); }
-        function filterByChip(wId) { currentWriterFilter = wId; currentSearchText = ''; renderWriterDetail(document.getElementById('main-view'), wId); }
+        function filterByChip(w) { currentWriterFilter = w; currentSearchText = ''; renderWriterDetail(document.getElementById('main-view'), w); }
 
-        function renderWriterDetail(container, wId = null) {
-            let chipsHtml = `<button class="btn ${currentWriterFilter === null ? 'btn-black' : 'btn-del'}" style="height:32px!important;" onclick="filterByChip(null)">전체 보기</button>`;
-            livData.writers.forEach(w => { chipsHtml += `<button class="btn ${currentWriterFilter === w.id ? 'btn-black' : 'btn-del'}" style="height:32px!important; margin-left:5px;" onclick="filterByChip(${w.id})">${w.name}</button>`; });
-
-            container.innerHTML = `
-                <div class="card" style="margin-bottom: 20px;">
-                    <h2 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px; display:flex; align-items:center; gap:10px;">계약 작가 및 작품 검색</h2>
-                    <div style="display:flex; flex-direction:column; gap:15px;">
-                        <div style="display:flex; gap:10px;"><input type="text" id="search-writer-input" value="${currentSearchText}" class="input-text" placeholder="작가 이름 또는 작품 이름을 검색하세요..." style="font-size:1rem; padding:0 15px; height:45px!important; border-color:var(--main-pink);" onkeyup="if(event.key==='Enter') executeTextSearch()"><button class="btn btn-black" style="height:45px!important; width:80px; font-size:1rem; padding: 0;" onclick="executeTextSearch()">검색</button></div>
-                        <div id="writer-chips" style="display:flex; flex-wrap:wrap; gap:6px;">${chipsHtml}</div>
-                    </div>
-                </div>
-                <div id="writers-container" style="display:flex; flex-direction:column; gap:20px;"></div>
-            `;
+        function renderWriterDetail(c, wId=null) {
+            let ch=`<button class="btn ${currentWriterFilter===null?'btn-black':'btn-del'}" style="height:32px!important;" onclick="filterByChip(null)">전체 보기</button>`;
+            livData.writers.forEach(w=>{ ch+=`<button class="btn ${currentWriterFilter===w.id?'btn-black':'btn-del'}" style="height:32px!important; margin-left:5px;" onclick="filterByChip(${w.id})">${w.name}</button>`; });
+            c.innerHTML = `<div class="card" style="margin-bottom:20px;"><h2 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">작가 및 작품 검색</h2><div style="display:flex; flex-direction:column; gap:15px;"><div style="display:flex; gap:10px;"><input type="text" id="search-writer-input" value="${currentSearchText}" class="input-text" placeholder="검색..." onkeyup="if(event.key==='Enter') executeTextSearch()"><button class="btn btn-black" onclick="executeTextSearch()">검색</button></div><div id="writer-chips" style="display:flex; flex-wrap:wrap; gap:6px;">${ch}</div></div></div><div id="writers-container" style="display:flex; flex-direction:column; gap:20px;"></div>`;
             renderFilteredWriters();
         }
 
         function renderFilteredWriters() {
-            const container = document.getElementById('writers-container'); let writersToRender = JSON.parse(JSON.stringify(livData.writers));
-            if (currentWriterFilter) { writersToRender = writersToRender.filter(w => w.id === currentWriterFilter); }
-            if (currentSearchText) { writersToRender = writersToRender.map(w => { if (w.name.toLowerCase().includes(currentSearchText)) return w; const matchedWorks = w.works.filter(work => work.title.toLowerCase().includes(currentSearchText)); if (matchedWorks.length > 0) { w.works = matchedWorks; return w; } return null; }).filter(Boolean); }
-            if (writersToRender.length === 0) { container.innerHTML = `<div class="card" style="text-align:center; padding:40px; color:#888;">검색 결과가 없습니다.</div>`; return; }
-
-            let html = '';
-            writersToRender.forEach(writer => {
-                html += `
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding: 20px; margin-bottom:0; background-color: var(--soft-pink); border: 2px solid var(--main-pink);">
-                            <div><h2 style="margin:0; margin-bottom:8px;">${writer.name}</h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${writer.proofStyle}</span><span style="margin-left:12px;">${writer.emailTime}</span></div></div>
-                            <div style="display:flex; gap:8px;"><button class="btn btn-black" onclick="addWork(${writer.id})">+ 새 작품 추가</button><button class="btn-del" style="border:none; height:32px; line-height:30px;" onclick="deleteWriter(${writer.id})">계정 삭제</button></div>
-                        </div>
-                        <div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;">
-                            <div class="table-wrap">
-                                <table class="liv-table">
-                                    <thead><tr><th style="width: 32%;">표지 / 작품명</th><th class="desktop-only-td" style="width: 8%;">인세(%)</th><th class="desktop-only-td" style="width: 10%;">후속권</th><th style="width: 20%;">진행 상태</th><th style="width: 25%;">마감 일정</th><th class="desktop-only-td" style="width: 5%; text-align:center;">관리</th></tr></thead>
-                                    <tbody>${generateWorkRows(writer)}</tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            container.innerHTML = html;
+            let lst = JSON.parse(JSON.stringify(livData.writers));
+            if(currentWriterFilter) lst=lst.filter(w=>w.id===currentWriterFilter);
+            if(currentSearchText) lst=lst.map(w=>{ if(w.name.toLowerCase().includes(currentSearchText))return w; const m=w.works.filter(wk=>wk.title.toLowerCase().includes(currentSearchText)); if(m.length>0){ w.works=m; return w; } return null; }).filter(Boolean);
+            const c=document.getElementById('writers-container'); if(lst.length===0) return c.innerHTML=`<div class="card" style="text-align:center; padding:40px; color:#888;">결과가 없습니다.</div>`;
+            let h=''; lst.forEach(w=>{ h+=`<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${w.name}</h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${w.proofStyle}</span><span style="margin-left:12px;">${w.emailTime}</span></div></div><div style="display:flex; gap:8px;"><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`; });
+            c.innerHTML = h;
         }
 
-        function generateWorkRows(writer) {
-            if(!writer.works || writer.works.length === 0) return `<tr><td colspan="6" style="text-align:center; padding:30px; color:#999; border:none;">작품을 추가해주세요.</td></tr>`;
-            let html = ''; writer.works.filter(w => !w.parentId).forEach(p => { html += getRowHtml(writer.id, p, false); writer.works.filter(w => w.parentId === p.id).forEach(c => { html += getRowHtml(writer.id, c, true); }); });
-            return html;
+        function generateWorkRows(w) {
+            if(!w.works||w.works.length===0) return `<tr><td colspan="6" style="text-align:center; padding:30px; color:#999; border:none;">작품이 없습니다.</td></tr>`;
+            let h=''; w.works.filter(x=>!x.parentId).forEach(p=>{ h+=getRowHtml(w.id,p,false); w.works.filter(c=>c.parentId===p.id).forEach(c=>{ h+=getRowHtml(w.id,c,true); }); }); return h;
         }
 
-        function getRowHtml(writerId, w, isChild) {
-            const rowClass = isChild ? 'row-child' : ''; const prefix = isChild ? `<span class="child-indicator">└</span>` : ''; const baseTitleStr = w.title.replace(/\s*\d+권$/, '').replace(/'/g, "\\'");
-            const msBg = getStatusColor(w.msStatus, 'ms'); const cvBg = getStatusColor(w.coverStatus, 'cover');
-
-            let statusHtml = '';
-            if (w.msStatus === '출간 완료') {
-                statusHtml = `<div class="platform-box" style="margin-top:0; padding:10px;"><div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${writerId}, ${w.id})">상태 변경</button></div><div class="platform-grid">${platforms.map(p => `<label><input type="checkbox" ${w.platforms && w.platforms.includes(p) ? 'checked' : ''} onchange="togglePlatform(${writerId}, ${w.id}, '${p}')"> ${p}</label>`).join('')}</div></div>`;
-            } else {
-                statusHtml = `<div class="status-row"><span class="status-label">작업</span><select class="input-select" style="background-color:${msBg}; font-weight:bold;" onchange="updateWork(${writerId}, ${w.id}, 'msStatus', this.value)"><option value="" disabled selected>선택</option>${msStatuses.map(s => `<option ${w.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="status-row"><span class="status-label">표지</span><select class="input-select" style="background-color:${cvBg}; font-weight:bold;" onchange="updateWork(${writerId}, ${w.id}, 'coverStatus', this.value)"><option value="" disabled selected>선택</option>${coverStatuses.map(s => `<option ${w.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>`;
-            }
-
-            return `
-                <tr class="${rowClass}">
-                    <td>
-                        <div class="mobile-only mobile-del-btn"><button class="btn-del" onclick="deleteWork(${writerId}, ${w.id})">삭제</button></div>
-                        <div style="display:flex; gap:12px; align-items:flex-start;">
-                            <label style="cursor:pointer; flex-shrink:0;" title="표지 등록"><img src="${w.coverImg || 'https://via.placeholder.com/75x105?text=Cover'}" class="cover-thumb" id="thumb-${w.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${writerId}, ${w.id})"></label>
-                            <div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;">
-                                <div style="display:flex; align-items:center; gap:5px;">${prefix}<span style="font-weight: 800; font-size: 0.95rem; color: #222; word-break: keep-all; padding-top:4px;">${w.title}</span></div>
-                                <div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;"><span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${writerId}, ${w.id}, 'royalty', this.value)">%<span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${!isChild ? `<select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${writerId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>${w.sequel === 'Y' ? `<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${writerId}, ${w.id}, '${baseTitleStr}')">생성</button>` : ''}` : `<span style="color:#aaa; font-size:0.7rem;">종속</span>`}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${writerId}, ${w.id}, 'royalty', this.value)"></td>
-                    <td class="desktop-only-td">${!isChild ? `<div style="display:flex; align-items:center; gap:5px;"><select class="input-select" style="padding:0 6px; width:50px;" onchange="updateWork(${writerId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>${w.sequel === 'Y' ? `<button class="btn" style="background:#eee; color:#333; padding:0 8px; font-size:0.75rem;" onclick="addSequel(${writerId}, ${w.id}, '${baseTitleStr}')">생성</button>` : ''}</div>` : `<span style="color:#aaa; font-size:0.75rem; padding-left:5px;">종속됨</span>`}</td>
-                    <td>${statusHtml}</td>
-                    <td><div class="date-grid-2x2"><div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate}" onchange="updateWork(${writerId}, ${w.id}, 'pubDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate}" onchange="updateWork(${writerId}, ${w.id}, 'proofDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate}" onchange="updateWork(${writerId}, ${w.id}, 'coverDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2 || ''}" onchange="updateWork(${writerId}, ${w.id}, 'proofDate2', this.value)"></div></div></td>
-                    <td class="desktop-only-td" style="text-align:center;"><button class="btn-del" onclick="deleteWork(${writerId}, ${w.id})">삭제</button></td>
-                </tr>
-            `;
+        function getRowHtml(wId, w, isC) {
+            let rc=isC?'row-child':'', px=isC?`<span class="child-indicator">└</span>`:'', bT=w.title.replace(/\s*\d+권$/,'').replace(/'/g,"\\'");
+            let msB=getStatusColor(w.msStatus,'ms'), cvB=getStatusColor(w.coverStatus,'cover');
+            let sH=w.msStatus==='출간 완료'?`<div class="platform-box" style="margin-top:0; padding:10px;"><div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${wId}, ${w.id})">상태 변경</button></div><div class="platform-grid">${platforms.map(p=>`<label><input type="checkbox" ${w.platforms&&w.platforms.includes(p)?'checked':''} onchange="togglePlatform(${wId}, ${w.id}, '${p}')"> ${p}</label>`).join('')}</div></div>`:`<div class="status-row"><span class="status-label">작업</span><select class="input-select" style="background-color:${msB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'msStatus', this.value)"><option value="" disabled selected>선택</option>${msStatuses.map(s=>`<option ${w.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="status-row"><span class="status-label">표지</span><select class="input-select" style="background-color:${cvB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'coverStatus', this.value)"><option value="" disabled selected>선택</option>${coverStatuses.map(s=>`<option ${w.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>`;
+            let sqH=!isC?`<select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${wId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>${w.sequel==='Y'?`<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${wId}, ${w.id}, '${bT}')">생성</button>`:''}`:`<span style="color:#aaa; font-size:0.7rem;">종속</span>`;
+            return `<tr class="${rc}"><td><div class="mobile-only mobile-del-btn"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div><div style="display:flex; gap:12px; align-items:flex-start;"><label style="cursor:pointer; flex-shrink:0;" title="표지"><img src="${w.coverImg||'https://via.placeholder.com/75x105?text=Cover'}" class="cover-thumb" id="thumb-${w.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${wId}, ${w.id})"></label><div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;"><div style="display:flex; align-items:center; gap:5px;">${px}<span style="font-weight: 800; font-size: 0.95rem; color: #222; word-break: keep-all; padding-top:4px;">${w.title}</span></div><div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;"><span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)">%<span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${sqH}</div></div></div></td><td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)"></td><td class="desktop-only-td"><div style="display:flex; align-items:center; gap:5px;">${sqH}</div></td><td>${sH}</td><td><div class="date-grid-2x2"><div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate}" onchange="updateWork(${wId}, ${w.id}, 'pubDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate}" onchange="updateWork(${wId}, ${w.id}, 'proofDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate}" onchange="updateWork(${wId}, ${w.id}, 'coverDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate2', this.value)"></div></div></td><td class="desktop-only-td" style="text-align:center;"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></td></tr>`;
         }
 
         function revertStatus(wId, workId) { updateWork(wId, workId, 'msStatus', '출간 대기'); }
-        function togglePlatform(wId, workId, platform) {
-            const w = livData.writers.find(x => x.id === wId); const work = w.works.find(x => x.id === workId);
-            if(!work.platforms) work.platforms = []; if(work.platforms.includes(platform)) work.platforms = work.platforms.filter(p => p !== platform); else work.platforms.push(platform); saveData();
-        }
-        function updateWork(wId, workId, key, val) {
-            const w = livData.writers.find(x => x.id === wId); const work = w.works.find(x => x.id === workId); work[key] = val;
-            if (['pubDate', 'coverDate', 'proofDate', 'proofDate2'].includes(key)) { if (work.completedDates && work.completedDates[key]) { work.completedDates[key] = false; } }
-            saveData(); if (['msStatus', 'coverStatus', 'sequel'].includes(key)) { changeView('writer', currentWriterFilter); }
-        }
+        function togglePlatform(wId, workId, p) { const wk=livData.writers.find(x=>x.id===wId).works.find(x=>x.id===workId); if(!wk.platforms)wk.platforms=[]; if(wk.platforms.includes(p))wk.platforms=wk.platforms.filter(x=>x!==p); else wk.platforms.push(p); saveData(); }
+        function updateWork(wId, workId, k, v) { const wk=livData.writers.find(x=>x.id===wId).works.find(x=>x.id===workId); wk[k]=v; if(['pubDate','coverDate','proofDate','proofDate2'].includes(k)){ if(wk.completedDates&&wk.completedDates[k])wk.completedDates[k]=false; } saveData(); if(['msStatus','coverStatus','sequel'].includes(k)) changeView('writer', currentWriterFilter); }
 
-        function openWriterModal() { 
-            document.getElementById('writer-modal').classList.add('show'); 
-            closeSidebarMobile(); 
-        }
+        function openWriterModal() { document.getElementById('writer-modal').classList.add('show'); closeSidebarMobile(); }
         function closeWriterModal() { document.getElementById('writer-modal').classList.remove('show'); document.getElementById('new-writer-name').value = ''; }
-        function confirmAddWriter() {
-            const name = document.getElementById('new-writer-name').value; if(!name) return alert("작가명을 입력하세요.");
-            livData.writers.push({ id: Date.now(), name, proofStyle: document.getElementById('new-writer-proof').value, emailTime: document.getElementById('new-writer-email').value, works: [] });
-            saveData(); closeWriterModal(); changeView('writer', livData.writers[livData.writers.length-1].id);
-        }
-
-        function uploadWorkCover(input, wId, workId) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = 120; canvas.height = img.height * (120/img.width); ctx.drawImage(img, 0, 0, canvas.width, canvas.height); const b64 = canvas.toDataURL('image/jpeg', 0.7); document.getElementById(`thumb-${workId}`).src = b64; updateWork(wId, workId, 'coverImg', b64); }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]);
-            }
-        }
-
+        function confirmAddWriter() { const n = document.getElementById('new-writer-name').value; if(n){ livData.writers.push({id:Date.now(), name:n, works:[]}); saveData(); closeWriterModal(); } }
         function toggleWriters() { document.getElementById('sidebar-writer-list').classList.toggle('show'); }
         function renderSidebarWriters() { document.getElementById('sidebar-writer-list').innerHTML = livData.writers.map(w => `<div class="writer-sub-item" onclick="changeView('writer', ${w.id})">${w.name}</div>`).join(''); }
-        
-        function addWork(wId) { const title = prompt("추가할 작품의 제목을 입력하세요:"); if(!title) return; livData.writers.find(x => x.id === wId).works.push({ id: Date.now(), title: title, royalty: 70, sequel: 'N', msStatus: '계약 완료', coverStatus: '제안서 입고 전', pubDate: '', coverDate: '', proofDate: '', proofDate2: '', coverImg: '', platforms: [] }); saveData(); changeView('writer', currentWriterFilter); }
-        function addSequel(wId, parentId, baseTitle) { const w = livData.writers.find(x => x.id === wId); const childCount = w.works.filter(x => x.parentId === parentId).length; const nextVol = childCount + 2; w.works.push({ id: Date.now(), title: `${baseTitle} ${nextVol}권`, parentId: parentId, royalty: 70, sequel: 'N', msStatus: '계약 완료', coverStatus: '제안서 입고 전', pubDate: '', coverDate: '', proofDate: '', proofDate2: '', coverImg: '', platforms: [] }); saveData(); changeView('writer', currentWriterFilter); }
-        function deleteWriter(wId) { if(!confirm('계정을 삭제하시겠습니까?')) return; livData.writers = livData.writers.filter(w => w.id !== wId); saveData(); changeView('dashboard'); }
-        function deleteWork(wId, workId) { if(!confirm('작품을 삭제하시겠습니까?')) return; const w = livData.writers.find(x => x.id === wId); w.works = w.works.filter(x => x.id !== workId && x.parentId !== workId); saveData(); changeView('writer', currentWriterFilter); }
+        function uploadWorkCover(inp, wId, wkId) { if(inp.files&&inp.files[0]){ const r=new FileReader(); r.onload=e=>{ const img=new Image(); img.onload=()=>{ const cv=document.createElement('canvas'); const ct=cv.getContext('2d'); cv.width=120; cv.height=img.height*(120/img.width); ct.drawImage(img,0,0,cv.width,cv.height); const b64=cv.toDataURL('image/jpeg',0.7); document.getElementById(`thumb-${wkId}`).src=b64; updateWork(wId, wkId, 'coverImg', b64); }; img.src=e.target.result; }; r.readAsDataURL(inp.files[0]); } }
+        function addWork(wId) { const t=prompt("제목:"); if(!t)return; livData.writers.find(x=>x.id===wId).works.push({id:Date.now(), title:t, royalty:70, sequel:'N', msStatus:'계약 완료', coverStatus:'제안서 입고 전', pubDate:'', coverDate:'', proofDate:'', proofDate2:'', coverImg:'', platforms:[]}); saveData(); changeView('writer', currentWriterFilter); }
+        function addSequel(wId, pId, bt) { const w=livData.writers.find(x=>x.id===wId); const nx=w.works.filter(x=>x.parentId===pId).length+2; w.works.push({id:Date.now(), title:`${bt} ${nx}권`, parentId:pId, royalty:70, sequel:'N', msStatus:'계약 완료', coverStatus:'제안서 입고 전', pubDate:'', coverDate:'', proofDate:'', proofDate2:'', coverImg:'', platforms:[]}); saveData(); changeView('writer', currentWriterFilter); }
+        function deleteWriter(wId) { if(!confirm('삭제할까요?'))return; livData.writers=livData.writers.filter(w=>w.id!==wId); saveData(); changeView('dashboard'); }
+        function deleteWork(wId, wkId) { if(!confirm('삭제할까요?'))return; const w=livData.writers.find(x=>x.id===wId); w.works=w.works.filter(x=>x.id!==wkId&&x.parentId!==wkId); saveData(); changeView('writer', currentWriterFilter); }
     </script>
 </body>
 </html>
