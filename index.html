@@ -17,7 +17,7 @@
 
     <style>
         /* ==========================================
-           공통/PC 디자인
+           공통/PC 디자인 (절대 건드리지 않음)
            ========================================== */
         :root {
             --main-pink: #ff85a2; --soft-pink: #fff0f3; --black: #111111; 
@@ -47,7 +47,7 @@
         .main-container { flex-grow: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; background: #fafbfc; min-width: 0; position: relative; }
         .card { background: var(--white); border-radius: 10px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid #eaeaea; margin-bottom: 20px; }
         
-        /* 업무 데스크 (완벽 복구) */
+        /* 업무 데스크 */
         .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         .schedule-adder { background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 15px; flex-wrap: nowrap; width: 100%; box-sizing: border-box; }
         .adder-label { font-weight: bold; color: #555; white-space: nowrap; flex-shrink: 0; }
@@ -86,7 +86,7 @@
         .mini-day { font-size: 0.6rem; text-align: center; color: #999; padding: 1px 0; }
         .mini-day.active { background: var(--main-pink); color: white; border-radius: 2px; }
 
-        /* 일정 아이템 (드래그 가능 복구) */
+        /* 일정 아이템 */
         .event-item, .week-evt-item { cursor: grab; font-size: 0.75rem; padding: 4px 6px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid transparent; }
         .event-item:active, .week-evt-item:active { cursor: grabbing; }
         .evt-title, .week-evt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
@@ -100,17 +100,33 @@
         .ev-email { background: var(--color-email); border-left-color: #9ba0fc; }
         .ev-meeting { background: var(--color-meeting); border-left-color: #e6c565; }
 
-        /* 테이블 및 기타 요소 */
+        /* 테이블 및 UI 요소 */
+        .table-wrap { width: 100%; overflow-x: hidden; }
         .liv-table { width: 100%; min-width: 1050px; border-collapse: collapse; }
         .liv-table th { text-align: left; padding: 10px; font-size: 0.8rem; color: #888; border-bottom: 2px solid #eee; }
-        .liv-table td { padding: 12px 10px; border-bottom: 1px solid #eee; vertical-align: middle; font-size: 0.85rem; }
+        .liv-table td { padding: 12px 10px; border-bottom: 1px solid #eee; vertical-align: middle; font-size: 0.85rem; position: relative; }
+        .cover-thumb { width: 75px; height: 105px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; background: #fafafa; flex-shrink: 0; display: block; }
         .input-text, .input-select, .input-date { height: 32px !important; padding: 0 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box; font-family: inherit; width: 100%; line-height: 30px; margin: 0; }
         .input-text:focus, .input-select:focus, .input-date:focus { border-color: var(--main-pink); outline: none; }
+        .row-child { background-color: #f1f3f5 !important; }
+        .child-indicator { display: inline-block; color: var(--main-pink); font-weight: bold; margin-right: 5px; padding-left: 15px; font-size: 0.8rem; }
         .btn { height: 32px !important; line-height: 32px; padding: 0 15px; border-radius: 4px; border: none; cursor: pointer; font-weight: 600; font-size: 0.8rem; white-space: nowrap; display: inline-block; box-sizing: border-box; transition: 0.2s; }
         .btn-black { background: var(--black); color: white; }
         .btn-pink { background: var(--main-pink); color: white; }
         .btn-del { height: 28px !important; line-height: 26px; background: #fff; color: #999; border: 1px solid #ddd; padding: 0 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer; box-sizing: border-box; }
         .btn-del:hover { color: #e63946; border-color: #e63946; background: #fff0f0; }
+        
+        .status-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; height: 32px; }
+        .status-label { font-size: 0.75rem; font-weight: bold; color: #888; width: 40px; flex-shrink: 0; }
+        .platform-box { padding: 10px; background: #fffcfd; border-radius: 6px; border: 1px solid var(--main-pink); }
+        .platform-box-title { font-size: 0.75rem; font-weight: bold; color: var(--main-pink); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .platform-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+        .platform-grid label { font-size: 0.7rem; display: flex; align-items: center; gap: 2px; cursor: pointer; color: #222; }
+
+        /* ★ 원본 2x2 격자 강제 유지 ★ */
+        .date-grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; width: 100%; min-width: 220px; }
+        .date-grid-item { display: flex; align-items: center; gap: 5px; }
+        .date-grid-label { font-size: 0.75rem; color: #666; width: 25px; font-weight: bold; flex-shrink: 0; text-align: right; }
 
         /* 메모장 */
         .memo-board { display: flex; flex-wrap: wrap; gap: 15px; }
@@ -118,11 +134,23 @@
         .memo-postit textarea { flex-grow: 1; border: none; background: transparent; resize: none; font-family: 'Pretendard'; font-size: 1.1rem; line-height: 1.5; color: #333; outline: none; }
         .memo-date { font-size: 0.8rem; color: rgba(0,0,0,0.4); text-align: right; margin-top: 10px; font-weight: bold; }
         .memo-del { position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 0.9rem; font-weight: bold; color: rgba(0,0,0,0.3); transition: 0.2s; }
+        .memo-del:hover { color: #e63946; }
         .memo-add-btn { width: 440px; height: 440px; border: 2px dashed #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 1.2rem; color: #888; transition: 0.2s; }
 
-        /* 모바일 최적화 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: #fff; padding: 25px; border-radius: 10px; width: 320px; max-height: 80vh; overflow-y: auto; }
+        
+        .mobile-only { display: none !important; }
+        /* ★ 삭제 버튼 데스크탑 숨김 전용 클래스 분리 ★ */
+        .mobile-del-btn { display: none; }
+        .desktop-only-td { display: table-cell; }
+
+        /* ==========================================
+           📱 모바일 전용 반응형 (레이아웃 완벽 복원)
+           ========================================== */
         @media (max-width: 1200px), (orientation: portrait) {
-            .sidebar { position: fixed; left: -240px; }
+            .sidebar { position: fixed; left: -240px; height: 100vh; height: 100dvh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
             .sidebar.mobile-open { left: 0 !important; }
             .sidebar-hover-zone { display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 15px; z-index: 1001; }
             .sidebar-hover-zone::after { content: '▶'; position: absolute; top: 50%; background: var(--main-pink); color: white; padding: 10px 2px; font-size: 10px; border-radius: 0 4px 4px 0; }
@@ -136,7 +164,7 @@
             .schedule-adder .input-select { flex: 1 1 calc(33% - 8px); width: auto; }
             .adder-bottom-row { flex: 1 1 100%; width: 100%; margin-top: 4px; display: flex; gap: 8px; }
             
-            /* 주간 캘린더 2x4 */
+            /* 주간 캘린더 모바일 2x4 */
             .week-grid { grid-template-columns: 1fr 1fr !important; grid-template-rows: repeat(4, 1fr) !important; gap: 5px !important; }
             .week-day-box { padding: 6px !important; overflow: hidden !important; }
             .week-day-header { font-size: 0.75rem !important; margin-bottom: 5px !important; padding-bottom: 3px !important; }
@@ -150,22 +178,35 @@
             .main-container.view-calendar .evt-title { display: none !important; }
             .main-container.view-calendar .evt-writer { font-size: 0.55rem !important; margin: 0; padding: 0; }
             
-            /* 모바일 숨김 요소들 */
+            /* 메모 보드 */
+            .memo-board { width: 100%; display: flex; flex-direction: column; gap: 15px; }
+            .memo-postit { width: 100% !important; min-height: 320px !important; height: auto; }
+            .memo-add-btn { width: 100% !important; height: 80px !important; min-height: 80px !important; font-size: 1rem; }
+
+            /* ★ 모바일 테이블 분리 및 완벽 복원 ★ */
             .desktop-only-td, .liv-table td.desktop-only-td { display: none !important; }
             .mobile-only { display: flex !important; }
+            
+            /* ★ 삭제 버튼 절대 위치 복구 (우측 상단 15px) ★ */
+            .mobile-del-btn { display: block !important; position: absolute !important; top: 15px !important; right: 15px !important; z-index: 10; }
+            
             .liv-table thead { display: none !important; }
             .table-wrap { overflow-x: hidden; }
             .liv-table { display: block; width: 100% !important; min-width: 0 !important; }
             .liv-table tbody, .liv-table tr { display: block; width: 100%; }
             .liv-table th { display: none; } 
+            
+            /* 카드 형태의 tr 속성 */
             .liv-table tr { margin-bottom: 20px; border: 1px solid #ddd; border-radius: 10px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.02); padding: 15px; position: relative; display: flex; flex-direction: column; gap: 15px; }
             .liv-table td { display: block; width: 100%; padding: 0; border: none; position: static; }
             .row-child { border-left: 4px solid var(--main-pink); margin-left: 0; border-radius: 0 10px 10px 0; }
+            
+            .mobile-title-wrap { padding-right: 50px; } 
+            
+            /* ★ 날짜 2x2 배열 절대 풀리지 않게 강제 잠금 ★ */
+            .date-grid-2x2 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; min-width: 0; width: 100%; }
         }
 
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; }
-        .modal-overlay.show { display: flex; }
-        .modal-content { background: #fff; padding: 25px; border-radius: 10px; width: 320px; max-height: 80vh; overflow-y: auto; }
         #firebase-loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fafbfc; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--main-pink); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -173,7 +214,7 @@
 </head>
 <body>
 
-    <div id="firebase-loading"><div class="loading-spinner"></div><h2 style="color:var(--main-pink); margin:0;">동기화 중...</h2></div>
+    <div id="firebase-loading"><div class="loading-spinner"></div><h2 style="color:var(--main-pink); margin:0;">데이터 동기화 중...</h2></div>
 
     <div class="sidebar-hover-zone" onclick="openMobileSidebar()"></div>
     <aside class="sidebar" id="main-sidebar">
@@ -186,13 +227,13 @@
             <div class="nav-label">Management</div>
             <div class="nav-item" onclick="changeView('writer'); toggleWriters();">계약 작가 관리 <span>▼</span></div>
             <div class="writer-sub-list show" id="sidebar-writer-list"></div>
-            <div style="padding: 15px 25px;"><button class="btn btn-black" style="width: 100%;" onclick="openWriterModal()">+ 새 작가 등록</button></div>
+            <div style="padding: 15px 25px;"><button class="btn btn-black" style="width: 100%; height: 36px; line-height: 36px;" onclick="openWriterModal()">+ 새 작가 등록</button></div>
             <div style="padding: 0 25px 15px; display:flex; flex-direction: column; gap:5px;">
                 <div style="display:flex; gap:5px;">
-                    <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="exportData()">백업</button>
-                    <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="document.getElementById('import-input').click()">복원</button>
+                    <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="exportData()">수동 백업</button>
+                    <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="document.getElementById('import-input').click()">수동 복원</button>
                 </div>
-                <button class="btn" style="background:#ffe6eb; color:#e63946; font-size:0.7rem; font-weight:bold;" onclick="restoreFromAutoBackup()">🚨 긴급 복구</button>
+                <button class="btn" style="background:#ffe6eb; color:#e63946; font-size:0.7rem; font-weight:bold; border: 1px solid #ffb3c1;" onclick="restoreFromAutoBackup()">🚨 긴급 복구</button>
                 <input type="file" id="import-input" style="display:none;" accept=".json" onchange="importData(event)">
             </div>
         </div>
@@ -235,7 +276,7 @@
         firebase.initializeApp(firebaseConfig); const db = firebase.firestore();
 
         let livData = { writers: [], extraTasks: [], memos: [] };
-        let currentDate = new Date(), currentWeekStart = new Date(), currentCalFilter = 'all', currentViewName = 'dashboard', currentViewParam = null, currentWriterFilter = null, currentSearchText = '';
+        let currentDate = new Date(), currentWeekStart = new Date(), currentCalFilter = 'all', currentWriterFilter = null, currentSearchText = '', currentViewName = 'dashboard', currentViewParam = null;
 
         db.collection("config").doc("mainData").onSnapshot((doc) => {
             document.getElementById('firebase-loading').style.display = 'none';
@@ -302,7 +343,6 @@
 
         function getWriterOptions() { return `<option value="">[선택 안함]</option>` + livData.writers.map(w=>`<option value="${w.id}">${w.name}</option>`).join(''); }
 
-        /* ★ 업무 데스크 (드래그 앤 드롭 및 UI 100% 복구) ★ */
         function renderDashboard(container) {
             const tzoffset = (new Date()).getTimezoneOffset() * 60000;
             const today = new Date(Date.now() - tzoffset);
@@ -362,7 +402,6 @@
             changeView(view);
         }
 
-        /* ★ 드래그 앤 드롭 복구 ★ */
         function drag(ev, type, wId, itemId) { ev.dataTransfer.setData("type", type); ev.dataTransfer.setData("wId", wId); ev.dataTransfer.setData("itemId", itemId); }
         function allowDrop(ev) { ev.preventDefault(); }
         function drop(ev, newDate) {
@@ -404,7 +443,6 @@
             for(let i=0; i<fd; i++) h += `<div></div>`;
             for(let i=1; i<=dim; i++) {
                 let ds = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-                // 드롭 영역 지정 복구 (ondragover, ondrop)
                 h += `<div class="day-box ${ds===td?'today':''}" ondragover="allowDrop(event)" ondrop="drop(event, '${ds}')" onclick="openDayModal(event, '${ds}')"><div class="day-num">${i}</div><div id="cal-day-${ds}" style="display:flex; flex-direction:column; gap:2px; min-height: 10px;"></div></div>`;
             }
             c.innerHTML = h + `</div></div>`;
@@ -440,7 +478,6 @@
             days.forEach(d => updateWeekTasksHtml(d.toISOString().split('T')[0], `week-day-${d.toISOString().split('T')[0]}`));
         }
 
-        /* ★ 일정 렌더링 복구 (드래그, 삭제, 일반일정 기능 100% 정상화) ★ */
         function updateTasksHtml(dateStr, containerId, view, filter) {
             const el = document.getElementById(containerId); if(!el) return; let html = '';
             livData.writers.forEach(w => (w.works||[]).forEach(work => {
@@ -481,13 +518,13 @@
             document.getElementById('day-modal-title').innerText = ds;
             let h = '';
             livData.writers.forEach(w => (w.works||[]).forEach(wk => {
-                if(wk.pubDate===ds) h+=`<div class="event-item ev-pub"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.coverDate===ds) h+=`<div class="event-item ev-cover"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.proofDate===ds) h+=`<div class="event-item ev-proof1"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.proofDate2===ds) h+=`<div class="event-item ev-proof2"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.pubDate===ds && !(wk.completedDates||{}).pubDate) h+=`<div class="event-item ev-pub" style="padding:10px;"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.coverDate===ds && !(wk.completedDates||{}).coverDate) h+=`<div class="event-item ev-cover" style="padding:10px;"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate===ds && !(wk.completedDates||{}).proofDate) h+=`<div class="event-item ev-proof1" style="padding:10px;"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate2===ds && !(wk.completedDates||{}).proofDate2) h+=`<div class="event-item ev-proof2" style="padding:10px;"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
             }));
-            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; h+=`<div class="event-item ${t.type}"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
-            document.getElementById('day-modal-list').innerHTML = h || '일정이 없습니다.';
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; h+=`<div class="event-item ${t.type}" style="padding:10px;"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
+            document.getElementById('day-modal-list').innerHTML = h || '<div style="color:#999; text-align:center; padding:40px 0;">일정이 없습니다.</div>';
             document.getElementById('day-modal').classList.add('show');
         }
         function closeDayModal() { document.getElementById('day-modal').classList.remove('show'); }
@@ -537,7 +574,34 @@
             let msB=getStatusColor(w.msStatus,'ms'), cvB=getStatusColor(w.coverStatus,'cover');
             let sH=w.msStatus==='출간 완료'?`<div class="platform-box" style="margin-top:0; padding:10px;"><div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${wId}, ${w.id})">상태 변경</button></div><div class="platform-grid">${platforms.map(p=>`<label><input type="checkbox" ${w.platforms&&w.platforms.includes(p)?'checked':''} onchange="togglePlatform(${wId}, ${w.id}, '${p}')"> ${p}</label>`).join('')}</div></div>`:`<div class="status-row"><span class="status-label">작업</span><select class="input-select" style="background-color:${msB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'msStatus', this.value)"><option value="" disabled selected>선택</option>${msStatuses2.map(s=>`<option ${w.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="status-row"><span class="status-label">표지</span><select class="input-select" style="background-color:${cvB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'coverStatus', this.value)"><option value="" disabled selected>선택</option>${coverStatuses2.map(s=>`<option ${w.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>`;
             let sqH=!isC?`<select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${wId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>${w.sequel==='Y'?`<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${wId}, ${w.id}, '${bT}')">생성</button>`:''}`:`<span style="color:#aaa; font-size:0.7rem;">종속</span>`;
-            return `<tr class="${rc}"><td><div class="mobile-only mobile-del-btn"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div><div style="display:flex; gap:12px; align-items:flex-start;"><label style="cursor:pointer; flex-shrink:0;" title="표지 등록"><img src="${w.coverImg||'https://via.placeholder.com/75x105?text=Cover'}" class="cover-thumb" id="thumb-${w.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${wId}, ${w.id})"></label><div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;"><div style="display:flex; align-items:center; gap:5px;">${px}<span style="font-weight: 800; font-size: 0.95rem; color: #222; word-break: keep-all; padding-top:4px;">${w.title}</span></div><div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;"><span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)">%<span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${sqH}</div></div></div></td><td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)"></td><td class="desktop-only-td"><div style="display:flex; align-items:center; gap:5px;">${sqH}</div></td><td>${sH}</td><td><div class="date-grid-2x2"><div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate||''}" onchange="updateWork(${wId}, ${w.id}, 'pubDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate||''}" onchange="updateWork(${wId}, ${w.id}, 'coverDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate2', this.value)"></div></div></td><td class="desktop-only-td" style="text-align:center;"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></td></tr>`;
+            
+            return `<tr class="${rc}">
+                <td>
+                    <div class="mobile-del-btn"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div>
+                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                        <label style="cursor:pointer; flex-shrink:0;" title="표지 등록"><img src="${w.coverImg||'https://via.placeholder.com/75x105?text=Cover'}" class="cover-thumb" id="thumb-${w.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${wId}, ${w.id})"></label>
+                        <div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;">
+                            <div style="display:flex; align-items:center; gap:5px;">${px}<span style="font-weight: 800; font-size: 0.95rem; color: #222; word-break: keep-all; padding-top:4px;">${w.title}</span></div>
+                            <div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;">
+                                <span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)">%
+                                <span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${sqH}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)"></td>
+                <td class="desktop-only-td"><div style="display:flex; align-items:center; gap:5px;">${sqH}</div></td>
+                <td>${sH}</td>
+                <td>
+                    <div class="date-grid-2x2">
+                        <div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate||''}" onchange="updateWork(${wId}, ${w.id}, 'pubDate', this.value)"></div>
+                        <div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate', this.value)"></div>
+                        <div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate||''}" onchange="updateWork(${wId}, ${w.id}, 'coverDate', this.value)"></div>
+                        <div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate2', this.value)"></div>
+                    </div>
+                </td>
+                <td class="desktop-only-td" style="text-align:center;"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></td>
+            </tr>`;
         }
 
         function uploadWorkCover(inp, wId, wkId) { if(inp.files&&inp.files[0]){ const r=new FileReader(); r.onload=e=>{ const img=new Image(); img.onload=()=>{ const cv=document.createElement('canvas'); const ct=cv.getContext('2d'); cv.width=120; cv.height=img.height*(120/img.width); ct.drawImage(img,0,0,cv.width,cv.height); const b64=cv.toDataURL('image/jpeg',0.7); document.getElementById(`thumb-${wkId}`).src=b64; updateWork(wId, wkId, 'coverImg', b64); }; img.src=e.target.result; }; r.readAsDataURL(inp.files[0]); } }
