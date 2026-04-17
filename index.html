@@ -144,7 +144,7 @@
         .desktop-only-td { display: table-cell; }
 
         /* ==========================================
-           📱 모바일 전용 반응형 (직전의 완벽 레이아웃 유지)
+           📱 모바일 전용 반응형
            ========================================== */
         @media (max-width: 1200px), (orientation: portrait) {
             .sidebar { position: fixed; left: -240px; height: 100vh; height: 100dvh; box-shadow: 5px 0 15px rgba(0,0,0,0.2); }
@@ -175,20 +175,20 @@
             .main-container.view-calendar .evt-title { display: none !important; }
             .main-container.view-calendar .evt-writer { font-size: 0.55rem !important; margin: 0; padding: 0; }
 
-            /* ★ 모바일 캘린더 상단 헤더 가독성 ★ */
+            /* 캘린더 상단 헤더 가독성 */
             .cal-header-wrap { flex-direction: column !important; align-items: center !important; gap: 12px !important; }
             .cal-nav { gap: 10px !important; }
             .cal-nav span { white-space: nowrap !important; }
             .filter-group { flex-wrap: nowrap !important; width: 100%; justify-content: center !important; overflow-x: auto; padding-bottom: 4px; }
             .filter-btn { white-space: nowrap !important; flex-shrink: 0; }
 
-            /* ★ 모바일 입력칸 우측 잘림 완벽 해결 ★ */
+            /* 입력칸 우측 잘림 방지 */
             .status-row { width: 100% !important; box-sizing: border-box !important; }
             .status-row .input-select { flex: 1 !important; min-width: 0 !important; width: 0 !important; }
             .date-grid-item { min-width: 0 !important; width: 100% !important; }
             .date-grid-item .input-date { flex: 1 !important; min-width: 0 !important; width: 0 !important; padding: 0 4px !important; }
 
-            /* ★ 모바일 테이블 분리 및 삭제버튼 위치/2x2달력 복원 ★ */
+            /* 모바일 테이블 */
             .desktop-only-td, .liv-table td.desktop-only-td { display: none !important; }
             .mobile-only { display: flex !important; }
             
@@ -247,27 +247,28 @@
         <div class="modal-content">
             <h3 style="color:var(--main-pink); margin-top:0;">새 작가 등록</h3>
             <label style="font-size:0.8rem; font-weight:bold; margin-bottom:5px; display:block;">작가명</label>
-            <input type="text" id="new-writer-name" class="input-text" style="margin-bottom:10px;">
+            <input type="text" id="new-writer-name" class="input-text" style="margin-bottom:10px; width:100%;">
             <label style="font-size:0.8rem; font-weight:bold; margin-bottom:5px; display:block;">교정 스타일</label>
-            <select id="new-writer-proof" class="input-select" style="margin-bottom:10px;">
-                <option>피드백과 함께 꼼꼼 교정</option><option>피드백과 함께 러프 교정</option><option>피드백 없이 꼼꼼 교정</option><option>피드백 없이 러프 교정</option>
+            <select id="new-writer-proof" class="input-select" style="margin-bottom:10px; width:100%;">
+                <option value="피드백과 함께 꼼꼼 교정">피드백과 함께 꼼꼼 교정</option>
+                <option value="피드백과 함께 러프 교정">피드백과 함께 러프 교정</option>
+                <option value="피드백 없이 꼼꼼 교정">피드백 없이 꼼꼼 교정</option>
+                <option value="피드백 없이 러프 교정">피드백 없이 러프 교정</option>
             </select>
             <label style="font-size:0.8rem; font-weight:bold; margin-bottom:5px; display:block;">메일 수신 시간</label>
-            <select id="new-writer-email" class="input-select">
-                <option>상시 연락</option><option>평일 주간만</option>
+            <select id="new-writer-email" class="input-select" style="margin-bottom:10px; width:100%;">
+                <option value="상시 연락">상시 연락</option>
+                <option value="평일 주간만">평일 주간만</option>
             </select>
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="btn btn-del" style="flex:1; height: 36px!important;" onclick="closeWriterModal()">취소</button>
-                <button class="btn btn-black" style="flex:1; height: 36px!important;" onclick="confirmAddWriter()">등록</button>
-            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;"><button class="btn btn-del" style="flex:1; height: 36px!important;" onclick="closeWriterModal()">취소</button><button class="btn btn-black" style="flex:1; height: 36px!important;" onclick="confirmAddWriter()">등록</button></div>
         </div>
     </div>
 
     <div class="modal-overlay" id="day-modal">
         <div class="modal-content">
-            <h3 id="day-modal-title" style="margin-top:0; border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;"></h3>
-            <div id="day-modal-list" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 8px;"></div>
-            <button class="btn btn-black" style="width:100%; margin-top:15px; height:36px!important;" onclick="closeDayModal()">닫기</button>
+            <h3 id="day-modal-title" style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;"></h3>
+            <div id="day-modal-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <button class="btn btn-black" style="width:100%; margin-top:20px;" onclick="closeDayModal()">닫기</button>
         </div>
     </div>
 
@@ -345,9 +346,6 @@
 
         function getWriterOptions() { return `<option value="">[선택 안함]</option>` + livData.writers.map(w=>`<option value="${w.id}">${w.name}</option>`).join(''); }
 
-        /* ==========================================
-           ★ 데스크탑 및 드래그 앤 드롭 로직 (완벽 복구) ★
-           ========================================== */
         function renderDashboard(container) {
             const tzoffset = (new Date()).getTimezoneOffset() * 60000;
             const today = new Date(Date.now() - tzoffset);
@@ -489,7 +487,6 @@
             days.forEach(d => updateWeekTasksHtml(d.toISOString().split('T')[0], `week-day-${d.toISOString().split('T')[0]}`));
         }
 
-        /* ★ 일정 업데이트 로직 복원 (드래그, 일반일정, 삭제버튼 포함) ★ */
         function updateTasksHtml(dateStr, containerId, view, filter) {
             const el = document.getElementById(containerId); if(!el) return; let html = '';
             livData.writers.forEach(w => (w.works||[]).forEach(work => {
@@ -530,10 +527,10 @@
             document.getElementById('day-modal-title').innerText = ds;
             let h = '';
             livData.writers.forEach(w => (w.works||[]).forEach(wk => {
-                if(wk.pubDate===ds && !(wk.completedDates||{}).pubDate) h+=`<div class="event-item ev-pub" style="padding:10px;"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.coverDate===ds && !(wk.completedDates||{}).coverDate) h+=`<div class="event-item ev-cover" style="padding:10px;"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.proofDate===ds && !(wk.completedDates||{}).proofDate) h+=`<div class="event-item ev-proof1" style="padding:10px;"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.proofDate2===ds && !(wk.completedDates||{}).proofDate2) h+=`<div class="event-item ev-proof2" style="padding:10px;"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.pubDate===ds) h+=`<div class="event-item ev-pub" style="padding:10px;"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.coverDate===ds) h+=`<div class="event-item ev-cover" style="padding:10px;"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate===ds) h+=`<div class="event-item ev-proof1" style="padding:10px;"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate2===ds) h+=`<div class="event-item ev-proof2" style="padding:10px;"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
             }));
             if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; h+=`<div class="event-item ${t.type}" style="padding:10px;"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
             document.getElementById('day-modal-list').innerHTML = h || '<div style="color:#999; text-align:center; padding:40px 0;">일정이 없습니다.</div>';
@@ -628,6 +625,15 @@
         function confirmAddWriter() { const n = document.getElementById('new-writer-name').value; const p = document.getElementById('new-writer-proof').value; const e = document.getElementById('new-writer-email').value; if(!n) return alert("작가명을 입력하세요."); livData.writers.push({ id: Date.now(), name: n, proofStyle: p, emailTime: e, works: [] }); saveData(); closeWriterModal(); changeView('writer', livData.writers[livData.writers.length-1].id); }
         function toggleWriters() { document.getElementById('sidebar-writer-list').classList.toggle('show'); }
         function renderSidebarWriters() { document.getElementById('sidebar-writer-list').innerHTML = livData.writers.map(w => `<div class="writer-sub-item" onclick="changeView('writer', ${w.id})">${w.name}</div>`).join(''); }
+        
+        /* ★ 부활한 후속권 생성 기능 ★ */
+        function addSequel(wId, pId, bt) { 
+            const w=livData.writers.find(x=>x.id===wId); 
+            const nx=w.works.filter(x=>x.parentId===pId).length+2; 
+            w.works.push({id:Date.now(), title:`${bt} ${nx}권`, parentId:pId, royalty:70, sequel:'N', msStatus:'계약 완료', coverStatus:'제안서 입고 전', pubDate:'', coverDate:'', proofDate:'', proofDate2:'', coverImg:'', platforms:[]}); 
+            saveData(); 
+            changeView('writer', currentWriterFilter); 
+        }
     </script>
 </body>
 </html>
