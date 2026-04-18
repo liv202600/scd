@@ -399,17 +399,19 @@
             saveData(); changeView(view);
         }
 
+        /* ★ 일정 더블클릭 로직 복원 (취소선 기능) ★ */
         function completeWorkTask(wId, wkId, key, view) {
-            if(!confirm('해당 일정을 달력에서 지우시겠습니까?')) return; 
+            if(!confirm('해당 일정을 완료(취소선) 처리하시겠습니까?')) return; 
             const work = livData.writers.find(x => x.id === wId).works.find(x => x.id === wkId);
             if (!work.completedDates) work.completedDates = {}; 
-            work.completedDates[key] = true; 
+            work.completedDates[key] = !work.completedDates[key]; 
             saveData(); changeView(view);
         }
 
         function completeExtraTask(taskId, view) {
-            if(!confirm('해당 일반 일정을 완료하시겠습니까?')) return; 
-            livData.extraTasks = livData.extraTasks.filter(t => t.id !== taskId); 
+            if(!confirm('해당 일반 일정을 완료(취소선) 처리하시겠습니까?')) return; 
+            const task = livData.extraTasks.find(t => t.id === taskId);
+            if(task) task.completed = !task.completed;
             saveData(); changeView(view);
         }
 
@@ -489,15 +491,23 @@
             days.forEach(d => updateWeekTasksHtml(d.toISOString().split('T')[0], `week-day-${d.toISOString().split('T')[0]}`));
         }
 
+        /* ★ 달력 내 일정 렌더링 로직 (완료시 취소선 및 회색 표시) ★ */
         function updateTasksHtml(dateStr, containerId, view, filter) {
             const el = document.getElementById(containerId); if(!el) return; 
             let hPub='', hCov='', hPrf1='', hPrf2='', hExt='';
+            let cSty = 'text-decoration:line-through; background-color:#f0f0f0 !important; border-left-color:#ccc !important; color:#888 !important; opacity:0.6;';
+            
             livData.writers.forEach(w => (w.works||[]).forEach(work => {
                 const wTag = `<span class="evt-writer">${w.name}</span>`;
-                if((filter === 'all' || filter === 'pub') && work.pubDate === dateStr && !(work.completedDates && work.completedDates.pubDate)) hPub += `<div class="event-item ev-pub" draggable="true" ondragstart="drag(event, 'pubDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'pubDate', '${view}')"><span class="evt-title">[출간] ${work.title}</span> ${wTag}</div>`;
-                if((filter === 'all' || filter === 'cover') && work.coverDate === dateStr && !(work.completedDates && work.completedDates.coverDate)) hCov += `<div class="event-item ev-cover" draggable="true" ondragstart="drag(event, 'coverDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'coverDate', '${view}')"><span class="evt-title">[표지] ${work.title}</span> ${wTag}</div>`;
-                if((filter === 'all' || filter === 'proof') && work.proofDate === dateStr && !(work.completedDates && work.completedDates.proofDate)) hPrf1 += `<div class="event-item ev-proof1" draggable="true" ondragstart="drag(event, 'proofDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate', '${view}')"><span class="evt-title">[1교] ${work.title}</span> ${wTag}</div>`;
-                if((filter === 'all' || filter === 'proof') && work.proofDate2 === dateStr && !(work.completedDates && work.completedDates.proofDate2)) hPrf2 += `<div class="event-item ev-proof2" draggable="true" ondragstart="drag(event, 'proofDate2', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate2', '${view}')"><span class="evt-title">[2교] ${work.title}</span> ${wTag}</div>`;
+                let isPubC = work.completedDates && work.completedDates.pubDate;
+                let isCovC = work.completedDates && work.completedDates.coverDate;
+                let isPrf1C = work.completedDates && work.completedDates.proofDate;
+                let isPrf2C = work.completedDates && work.completedDates.proofDate2;
+
+                if((filter === 'all' || filter === 'pub') && work.pubDate === dateStr) hPub += `<div class="event-item ev-pub" style="${isPubC ? cSty : ''}" draggable="true" ondragstart="drag(event, 'pubDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'pubDate', '${view}')"><span class="evt-title">[출간] ${work.title}</span> ${wTag}</div>`;
+                if((filter === 'all' || filter === 'cover') && work.coverDate === dateStr) hCov += `<div class="event-item ev-cover" style="${isCovC ? cSty : ''}" draggable="true" ondragstart="drag(event, 'coverDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'coverDate', '${view}')"><span class="evt-title">[표지] ${work.title}</span> ${wTag}</div>`;
+                if((filter === 'all' || filter === 'proof') && work.proofDate === dateStr) hPrf1 += `<div class="event-item ev-proof1" style="${isPrf1C ? cSty : ''}" draggable="true" ondragstart="drag(event, 'proofDate', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate', '${view}')"><span class="evt-title">[1교] ${work.title}</span> ${wTag}</div>`;
+                if((filter === 'all' || filter === 'proof') && work.proofDate2 === dateStr) hPrf2 += `<div class="event-item ev-proof2" style="${isPrf2C ? cSty : ''}" draggable="true" ondragstart="drag(event, 'proofDate2', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, 'proofDate2', '${view}')"><span class="evt-title">[2교] ${work.title}</span> ${wTag}</div>`;
             }));
             
             if(livData.extraTasks) { 
@@ -505,7 +515,7 @@
                     if((filter === 'all' || filter === 'task') && t.date === dateStr) { 
                         const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null; 
                         const wTag = writerObj ? `<span class="evt-writer">${writerObj.name}</span>` : ''; 
-                        hExt += `<div class="event-item ${t.type}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${view}')"><span class="evt-title">${t.title}</span> ${wTag}</div>`; 
+                        hExt += `<div class="event-item ${t.type}" style="${t.completed ? cSty : ''}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${view}')"><span class="evt-title">${t.title}</span> ${wTag}</div>`; 
                     } 
                 }); 
             }
@@ -515,14 +525,21 @@
         function updateWeekTasksHtml(ds, cid) {
             const el = document.getElementById(cid); if(!el) return; 
             let hPub='', hCov='', hPrf1='', hPrf2='', hExt='';
+            let cSty = 'text-decoration:line-through; background-color:#f0f0f0 !important; border-left-color:#ccc !important; color:#888 !important; opacity:0.6;';
+            
             livData.writers.forEach(w => (w.works||[]).forEach(wk => {
                 const wt = `<span class="week-evt-writer">${w.name}</span>`;
-                if(wk.pubDate===ds && !(wk.completedDates||{}).pubDate) hPub+=`<div class="week-evt-item ev-pub"><span class="week-evt-title">[출] ${wk.title}</span>${wt}</div>`;
-                if(wk.coverDate===ds && !(wk.completedDates||{}).coverDate) hCov+=`<div class="week-evt-item ev-cover"><span class="week-evt-title">[표] ${wk.title}</span>${wt}</div>`;
-                if(wk.proofDate===ds && !(wk.completedDates||{}).proofDate) hPrf1+=`<div class="week-evt-item ev-proof1"><span class="week-evt-title">[1교] ${wk.title}</span>${wt}</div>`;
-                if(wk.proofDate2===ds && !(wk.completedDates||{}).proofDate2) hPrf2+=`<div class="week-evt-item ev-proof2"><span class="week-evt-title">[2교] ${wk.title}</span>${wt}</div>`;
+                let isPubC = wk.completedDates && wk.completedDates.pubDate;
+                let isCovC = wk.completedDates && wk.completedDates.coverDate;
+                let isPrf1C = wk.completedDates && wk.completedDates.proofDate;
+                let isPrf2C = wk.completedDates && wk.completedDates.proofDate2;
+
+                if(wk.pubDate===ds) hPub+=`<div class="week-evt-item ev-pub" style="${isPubC ? cSty : ''}"><span class="week-evt-title">[출] ${wk.title}</span>${wt}</div>`;
+                if(wk.coverDate===ds) hCov+=`<div class="week-evt-item ev-cover" style="${isCovC ? cSty : ''}"><span class="week-evt-title">[표] ${wk.title}</span>${wt}</div>`;
+                if(wk.proofDate===ds) hPrf1+=`<div class="week-evt-item ev-proof1" style="${isPrf1C ? cSty : ''}"><span class="week-evt-title">[1교] ${wk.title}</span>${wt}</div>`;
+                if(wk.proofDate2===ds) hPrf2+=`<div class="week-evt-item ev-proof2" style="${isPrf2C ? cSty : ''}"><span class="week-evt-title">[2교] ${wk.title}</span>${wt}</div>`;
             }));
-            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="week-evt-item ${t.type}"><span class="week-evt-title">${t.title}</span> ${wo?`<span class="week-evt-writer">${wo.name}</span>`:''}</div>`; } });
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="week-evt-item ${t.type}" style="${t.completed ? cSty : ''}"><span class="week-evt-title">${t.title}</span> ${wo?`<span class="week-evt-writer">${wo.name}</span>`:''}</div>`; } });
             el.innerHTML = hPub + hCov + hPrf1 + hPrf2 + hExt;
         }
 
@@ -530,13 +547,20 @@
             if(e.target.closest('.event-item') || e.target.closest('.week-evt-item')) return;
             document.getElementById('day-modal-title').innerText = ds;
             let hPub='', hCov='', hPrf1='', hPrf2='', hExt='';
+            let cSty = 'text-decoration:line-through; background-color:#f0f0f0 !important; color:#888 !important; opacity:0.6;';
+            
             livData.writers.forEach(w => (w.works||[]).forEach(wk => {
-                if(wk.pubDate===ds) hPub+=`<div class="event-item ev-pub" style="padding:10px;"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.coverDate===ds) hCov+=`<div class="event-item ev-cover" style="padding:10px;"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.proofDate===ds) hPrf1+=`<div class="event-item ev-proof1" style="padding:10px;"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
-                if(wk.proofDate2===ds) hPrf2+=`<div class="event-item ev-proof2" style="padding:10px;"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                let isPubC = wk.completedDates && wk.completedDates.pubDate;
+                let isCovC = wk.completedDates && wk.completedDates.coverDate;
+                let isPrf1C = wk.completedDates && wk.completedDates.proofDate;
+                let isPrf2C = wk.completedDates && wk.completedDates.proofDate2;
+
+                if(wk.pubDate===ds) hPub+=`<div class="event-item ev-pub" style="padding:10px; ${isPubC ? cSty : ''}"><b>[출간]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.coverDate===ds) hCov+=`<div class="event-item ev-cover" style="padding:10px; ${isCovC ? cSty : ''}"><b>[표지]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate===ds) hPrf1+=`<div class="event-item ev-proof1" style="padding:10px; ${isPrf1C ? cSty : ''}"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
+                if(wk.proofDate2===ds) hPrf2+=`<div class="event-item ev-proof2" style="padding:10px; ${isPrf2C ? cSty : ''}"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
             }));
-            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="event-item ${t.type}" style="padding:10px;"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="event-item ${t.type}" style="padding:10px; ${t.completed ? cSty : ''}"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
             let finalH = hPub + hCov + hPrf1 + hPrf2 + hExt;
             document.getElementById('day-modal-list').innerHTML = finalH || '<div style="color:#999; text-align:center; padding:40px 0;">일정이 없습니다.</div>';
             document.getElementById('day-modal').classList.add('show');
@@ -552,7 +576,6 @@
         function updateMemo(i, t) { livData.memos.find(m=>m.id===i).text=t; saveData(); }
         function deleteMemo(i) { if(confirm("삭제할까요?")){ livData.memos=livData.memos.filter(m=>m.id!==i); saveData(); changeView('memo'); } }
 
-        /* ★ 새로 추가된 CP List 렌더링 함수 ★ */
         function renderCpList(c) {
             c.innerHTML = `
                 <div class="card" style="margin-bottom: 20px;">
