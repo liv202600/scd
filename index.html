@@ -182,11 +182,11 @@
             .filter-group { flex-wrap: nowrap !important; width: 100%; justify-content: center !important; overflow-x: auto; padding-bottom: 4px; }
             .filter-btn { white-space: nowrap !important; flex-shrink: 0; }
 
-            /* 입력칸 우측 잘림 방지 */
+            /* ★ [오류 수정] 입력칸 투명화 증발 방지 (width: 0 제거) ★ */
             .status-row { width: 100% !important; box-sizing: border-box !important; }
-            .status-row .input-select { flex: 1 !important; min-width: 0 !important; width: 0 !important; }
+            .status-row .input-select { flex: 1 !important; min-width: 0 !important; width: 100% !important; }
             .date-grid-item { min-width: 0 !important; width: 100% !important; }
-            .date-grid-item .input-date { flex: 1 !important; min-width: 0 !important; width: 0 !important; padding: 0 4px !important; }
+            .date-grid-item .input-date { flex: 1 !important; min-width: 0 !important; width: 100% !important; padding: 0 4px !important; }
 
             /* 모바일 테이블 */
             .desktop-only-td, .liv-table td.desktop-only-td { display: none !important; }
@@ -223,6 +223,7 @@
         <div class="logo-area"><h1 class="logo-title">LIV</h1><div class="logo-subtitle">publishing</div></div>
         <div class="nav-group">
             <div class="nav-item active" onclick="changeView('dashboard')">데스크</div>
+            <div class="nav-item" onclick="changeView('progress')">진척도 네비게이터</div>
             <div class="nav-item" onclick="changeView('calendar')">월간 스케줄러</div>
             <div class="nav-item" onclick="changeView('week-calendar')">주간 스케줄러</div>
             <div class="nav-item" onclick="changeView('memo')">메모</div>
@@ -280,7 +281,7 @@
         firebase.initializeApp(firebaseConfig); const db = firebase.firestore();
 
         let livData = { writers: [], extraTasks: [], memos: [] };
-        let currentDate = new Date(), currentWeekStart = new Date(), currentCalFilter = 'all', currentWriterFilter = null, currentSearchText = '', currentViewName = 'dashboard', currentViewParam = null;
+        let currentDate = new Date(), currentWeekStart = new Date(), currentCalFilter = 'all', currentWriterFilter = null, currentSearchText = '', currentViewName = 'dashboard', currentViewParam = null, currentProgressTab = 'ms';
 
         db.collection("config").doc("mainData").onSnapshot((doc) => {
             document.getElementById('firebase-loading').style.display = 'none';
@@ -328,12 +329,13 @@
             currentViewName = v; currentViewParam = p;
             document.querySelectorAll('.nav-item').forEach((el, idx) => {
                 el.classList.remove('active');
-                if((v==='dashboard' && idx===0) || (v==='calendar' && idx===1) || (v==='week-calendar' && idx===2) || (v==='memo' && idx===3) || (v==='writer' && idx===4) || (v==='cp-list' && idx===5)) el.classList.add('active');
+                if((v==='dashboard' && idx===0) || (v==='progress' && idx===1) || (v==='calendar' && idx===2) || (v==='week-calendar' && idx===3) || (v==='memo' && idx===4) || (v==='writer' && idx===5) || (v==='cp-list' && idx===6)) el.classList.add('active');
             });
             const m = document.getElementById('main-view');
             m.className = 'main-container' + (v==='calendar'?' view-calendar':'') + (v==='week-calendar'?' view-week-calendar':'');
             
             if(v==='dashboard') renderDashboard(m);
+            else if(v==='progress') renderProgress(m);
             else if(v==='calendar') renderCalendar(m);
             else if(v==='week-calendar') {
                 if(currentViewName !== 'week-calendar') { currentWeekStart = new Date(); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); }
@@ -399,7 +401,6 @@
             saveData(); changeView(view);
         }
 
-        /* ★ 일정 더블클릭 로직 복원 (취소선 기능) ★ */
         function completeWorkTask(wId, wkId, key, view) {
             if(!confirm('해당 일정을 완료(취소선) 처리하시겠습니까?')) return; 
             const work = livData.writers.find(x => x.id === wId).works.find(x => x.id === wkId);
@@ -491,7 +492,6 @@
             days.forEach(d => updateWeekTasksHtml(d.toISOString().split('T')[0], `week-day-${d.toISOString().split('T')[0]}`));
         }
 
-        /* ★ 달력 내 일정 렌더링 로직 (완료시 취소선 및 회색 표시) ★ */
         function updateTasksHtml(dateStr, containerId, view, filter) {
             const el = document.getElementById(containerId); if(!el) return; 
             let hPub='', hCov='', hPrf1='', hPrf2='', hExt='';
@@ -592,6 +592,78 @@
                     </div>
                 </div>
             `;
+        }
+
+        function switchProgressTab(tab) {
+            currentProgressTab = tab;
+            renderProgress(document.getElementById('main-view'));
+        }
+
+        function renderProgress(c) {
+            let msData = {}; let cvData = {};
+            const msStatuses2 = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
+            const coverStatuses2 = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
+            
+            msStatuses2.forEach(s => msData[s] = []);
+            coverStatuses2.forEach(s => cvData[s] = []);
+
+            livData.writers.forEach(w => {
+                (w.works || []).forEach(wk => {
+                    if (wk.msStatus === '출간 완료') return;
+
+                    if(wk.msStatus && msData[wk.msStatus]) msData[wk.msStatus].push({title: wk.title, writer: w.name, wId: w.id});
+                    if(wk.coverStatus && cvData[wk.coverStatus]) cvData[wk.coverStatus].push({title: wk.title, writer: w.name, wId: w.id});
+                });
+            });
+
+            let html = `<h2 style="margin-bottom: 15px;">작업 진척도 네비게이터</h2>`;
+            
+            html += `<div style="display:flex; gap:10px; margin-bottom:20px;">
+                <button class="btn ${currentProgressTab === 'ms' ? 'btn-black' : 'btn-del'}" onclick="switchProgressTab('ms')">📖 원고 진행 상황</button>
+                <button class="btn ${currentProgressTab === 'cv' ? 'btn-black' : 'btn-del'}" onclick="switchProgressTab('cv')">🎨 표지 진행 상황</button>
+            </div>`;
+            
+            if (currentProgressTab === 'ms') {
+                html += `<div class="card" style="margin-bottom:20px; padding: 20px;">
+                    <h3 style="margin-top:0; border-bottom: 2px solid var(--main-pink); padding-bottom:10px; color:var(--black);">📖 원고 진행 상황</h3>
+                    <div style="display:flex; overflow-x:auto; gap:15px; padding-bottom:10px; align-items:flex-start;">`;
+                let hasMs = false;
+                msStatuses2.forEach(s => {
+                    if(msData[s].length > 0) {
+                        hasMs = true;
+                        html += `<div style="min-width:220px; background:var(--gray-light); padding:15px; border-radius:8px; border-top: 4px solid var(--main-pink);">
+                            <h4 style="margin-top:0; font-size:0.95rem; border-bottom:1px solid #ddd; padding-bottom:8px; color:#333;">${s} <span style="color:var(--main-pink); font-size:0.8rem;">(${msData[s].length})</span></h4>
+                            <div style="display:flex; flex-direction:column; gap:8px;">`;
+                        msData[s].forEach(item => {
+                            html += `<div onclick="changeView('writer', ${item.wId})" style="cursor:pointer; font-size:0.85rem; background:#fff; padding:10px; border-radius:6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: background 0.2s;" onmouseover="this.style.background='var(--soft-pink)'" onmouseout="this.style.background='#fff'"><b>${item.title}</b><br><span style="color:#666; font-size:0.75rem;">${item.writer}</span></div>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                });
+                if(!hasMs) html += `<div style="color:#888; padding:10px;">진행 중인 원고가 없습니다.</div>`;
+                html += `</div></div>`;
+            } else {
+                html += `<div class="card" style="margin-bottom:20px; padding: 20px;">
+                    <h3 style="margin-top:0; border-bottom: 2px solid #ffbba1; padding-bottom:10px; color:var(--black);">🎨 표지 진행 상황</h3>
+                    <div style="display:flex; overflow-x:auto; gap:15px; padding-bottom:10px; align-items:flex-start;">`;
+                let hasCv = false;
+                coverStatuses2.forEach(s => {
+                    if(cvData[s].length > 0) {
+                        hasCv = true;
+                        html += `<div style="min-width:220px; background:var(--gray-light); padding:15px; border-radius:8px; border-top: 4px solid #ffbba1;">
+                            <h4 style="margin-top:0; font-size:0.95rem; border-bottom:1px solid #ddd; padding-bottom:8px; color:#333;">${s} <span style="color:#e07a5f; font-size:0.8rem;">(${cvData[s].length})</span></h4>
+                            <div style="display:flex; flex-direction:column; gap:8px;">`;
+                        cvData[s].forEach(item => {
+                            html += `<div onclick="changeView('writer', ${item.wId})" style="cursor:pointer; font-size:0.85rem; background:#fff; padding:10px; border-radius:6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: background 0.2s;" onmouseover="this.style.background='var(--soft-pink)'" onmouseout="this.style.background='#fff'"><b>${item.title}</b><br><span style="color:#666; font-size:0.75rem;">${item.writer}</span></div>`;
+                        });
+                        html += `</div></div>`;
+                    }
+                });
+                if(!hasCv) html += `<div style="color:#888; padding:10px;">진행 중인 표지가 없습니다.</div>`;
+                html += `</div></div>`;
+            }
+
+            c.innerHTML = html;
         }
 
         function executeTextSearch() { currentSearchText = document.getElementById('search-writer-input').value.toLowerCase(); currentWriterFilter = null; renderWriterDetail(document.getElementById('main-view'), null); }
