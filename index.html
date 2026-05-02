@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIV 시스템</title>
     
+    <!-- ★ 모바일 앱 설정 ★ -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -182,7 +183,7 @@
             .filter-group { flex-wrap: nowrap !important; width: 100%; justify-content: center !important; overflow-x: auto; padding-bottom: 4px; }
             .filter-btn { white-space: nowrap !important; flex-shrink: 0; }
 
-            /* ★ [오류 수정] 입력칸 투명화 증발 방지 (width: 0 제거) ★ */
+            /* 입력칸 우측 잘림 방지 */
             .status-row { width: 100% !important; box-sizing: border-box !important; }
             .status-row .input-select { flex: 1 !important; min-width: 0 !important; width: 100% !important; }
             .date-grid-item { min-width: 0 !important; width: 100% !important; }
@@ -223,7 +224,9 @@
         <div class="logo-area"><h1 class="logo-title">LIV</h1><div class="logo-subtitle">publishing</div></div>
         <div class="nav-group">
             <div class="nav-item active" onclick="changeView('dashboard')">데스크</div>
+            <div class="nav-item" onclick="changeView('upcoming')">출간 일정 네비게이터</div>
             <div class="nav-item" onclick="changeView('progress')">진척도 네비게이터</div>
+            <div class="nav-item" onclick="changeView('published')">출간 완료작 보관소</div>
             <div class="nav-item" onclick="changeView('calendar')">월간 스케줄러</div>
             <div class="nav-item" onclick="changeView('week-calendar')">주간 스케줄러</div>
             <div class="nav-item" onclick="changeView('memo')">메모</div>
@@ -329,13 +332,15 @@
             currentViewName = v; currentViewParam = p;
             document.querySelectorAll('.nav-item').forEach((el, idx) => {
                 el.classList.remove('active');
-                if((v==='dashboard' && idx===0) || (v==='progress' && idx===1) || (v==='calendar' && idx===2) || (v==='week-calendar' && idx===3) || (v==='memo' && idx===4) || (v==='writer' && idx===5) || (v==='cp-list' && idx===6)) el.classList.add('active');
+                if((v==='dashboard' && idx===0) || (v==='upcoming' && idx===1) || (v==='progress' && idx===2) || (v==='published' && idx===3) || (v==='calendar' && idx===4) || (v==='week-calendar' && idx===5) || (v==='memo' && idx===6) || (v==='writer' && idx===7) || (v==='cp-list' && idx===8)) el.classList.add('active');
             });
             const m = document.getElementById('main-view');
             m.className = 'main-container' + (v==='calendar'?' view-calendar':'') + (v==='week-calendar'?' view-week-calendar':'');
             
             if(v==='dashboard') renderDashboard(m);
+            else if(v==='upcoming') renderUpcoming(m); 
             else if(v==='progress') renderProgress(m);
+            else if(v==='published') renderPublished(m); 
             else if(v==='calendar') renderCalendar(m);
             else if(v==='week-calendar') {
                 if(currentViewName !== 'week-calendar') { currentWeekStart = new Date(); currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay()); }
@@ -398,6 +403,22 @@
             if(!title || !date) return; 
             if(!livData.extraTasks) livData.extraTasks = []; 
             livData.extraTasks.push({ id: Date.now(), date, writerId: wId, type, title }); 
+            saveData(); changeView(view);
+        }
+
+        function editExtraTask(e, id, view) {
+            if(e) e.stopPropagation();
+            const task = livData.extraTasks.find(t => t.id === id);
+            if(!task) return;
+            let newTitle = prompt("수정할 내용을 입력하세요.\n(삭제하시려면 내용을 모두 지우고 확인을 누르세요)", task.title);
+            if (newTitle === null) return; 
+            if (newTitle.trim() === '') {
+                if(confirm("해당 일정을 삭제하시겠습니까?")) {
+                    livData.extraTasks = livData.extraTasks.filter(t => t.id !== id);
+                } else return;
+            } else {
+                task.title = newTitle.trim();
+            }
             saveData(); changeView(view);
         }
 
@@ -515,7 +536,7 @@
                     if((filter === 'all' || filter === 'task') && t.date === dateStr) { 
                         const writerObj = t.writerId ? livData.writers.find(x => x.id == t.writerId) : null; 
                         const wTag = writerObj ? `<span class="evt-writer">${writerObj.name}</span>` : ''; 
-                        hExt += `<div class="event-item ${t.type}" style="${t.completed ? cSty : ''}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${view}')"><span class="evt-title">${t.title}</span> ${wTag}</div>`; 
+                        hExt += `<div class="event-item ${t.type}" style="${t.completed ? cSty : ''}" draggable="true" ondragstart="drag(event, 'extraTask', null, ${t.id})" ondblclick="completeExtraTask(${t.id}, '${view}')" onclick="editExtraTask(event, ${t.id}, '${view}')"><span class="evt-title">${t.title}</span> ${wTag}</div>`; 
                     } 
                 }); 
             }
@@ -539,7 +560,7 @@
                 if(wk.proofDate===ds) hPrf1+=`<div class="week-evt-item ev-proof1" style="${isPrf1C ? cSty : ''}"><span class="week-evt-title">[1교] ${wk.title}</span>${wt}</div>`;
                 if(wk.proofDate2===ds) hPrf2+=`<div class="week-evt-item ev-proof2" style="${isPrf2C ? cSty : ''}"><span class="week-evt-title">[2교] ${wk.title}</span>${wt}</div>`;
             }));
-            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="week-evt-item ${t.type}" style="${t.completed ? cSty : ''}"><span class="week-evt-title">${t.title}</span> ${wo?`<span class="week-evt-writer">${wo.name}</span>`:''}</div>`; } });
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="week-evt-item ${t.type}" style="${t.completed ? cSty : ''}" ondblclick="completeExtraTask(${t.id}, '${currentViewName}')" onclick="editExtraTask(event, ${t.id}, '${currentViewName}')"><span class="week-evt-title">${t.title}</span> ${wo?`<span class="week-evt-writer">${wo.name}</span>`:''}</div>`; } });
             el.innerHTML = hPub + hCov + hPrf1 + hPrf2 + hExt;
         }
 
@@ -560,7 +581,7 @@
                 if(wk.proofDate===ds) hPrf1+=`<div class="event-item ev-proof1" style="padding:10px; ${isPrf1C ? cSty : ''}"><b>[1교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
                 if(wk.proofDate2===ds) hPrf2+=`<div class="event-item ev-proof2" style="padding:10px; ${isPrf2C ? cSty : ''}"><b>[2교]</b> ${wk.title} <span class="evt-writer">${w.name}</span></div>`;
             }));
-            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="event-item ${t.type}" style="padding:10px; ${t.completed ? cSty : ''}"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
+            if(livData.extraTasks) livData.extraTasks.forEach(t=>{ if(t.date===ds){ const wo=t.writerId?livData.writers.find(x=>x.id==t.writerId):null; hExt+=`<div class="event-item ${t.type}" style="padding:10px; ${t.completed ? cSty : ''}" ondblclick="completeExtraTask(${t.id}, '${currentViewName}')" onclick="editExtraTask(event, ${t.id}, '${currentViewName}')"><b>[일반]</b> ${t.title} ${wo?`<span class="evt-writer">${wo.name}</span>`:''}</div>`; }});
             let finalH = hPub + hCov + hPrf1 + hPrf2 + hExt;
             document.getElementById('day-modal-list').innerHTML = finalH || '<div style="color:#999; text-align:center; padding:40px 0;">일정이 없습니다.</div>';
             document.getElementById('day-modal').classList.add('show');
@@ -575,6 +596,138 @@
         function addMemo() { const cl=['#fff3b0','#cff0ff','#e2f4c9','#ffdcf4']; livData.memos.push({id:Date.now(), text:'', color:cl[Math.floor(Math.random()*cl.length)], date:new Date(Date.now()-(new Date()).getTimezoneOffset()*60000).toISOString().split('T')[0]}); saveData(); changeView('memo'); }
         function updateMemo(i, t) { livData.memos.find(m=>m.id===i).text=t; saveData(); }
         function deleteMemo(i) { if(confirm("삭제할까요?")){ livData.memos=livData.memos.filter(m=>m.id!==i); saveData(); changeView('memo'); } }
+
+        function renderUpcoming(c) {
+            let upcoming = [];
+            livData.writers.forEach(w => {
+                (w.works || []).forEach(wk => {
+                    if(wk.pubDate && wk.msStatus !== '출간 완료') {
+                        upcoming.push({ ...wk, writerName: w.name, wId: w.id });
+                    }
+                });
+            });
+            
+            upcoming.sort((a, b) => new Date(a.pubDate) - new Date(b.pubDate));
+
+            let html = `<h2 style="margin-bottom: 20px;">출간 일정 네비게이터</h2>`;
+            if (upcoming.length === 0) {
+                html += `<div class="card" style="text-align:center; padding:40px; color:#888;">예정된 출간 일정이 없습니다.</div>`;
+            } else {
+                html += `<div style="display:flex; flex-direction:column; gap:10px;">`;
+                
+                const t1 = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().split('T')[0];
+                const d1 = new Date(t1);
+
+                upcoming.forEach(item => {
+                    const d2 = new Date(item.pubDate);
+                    const diffTime = d2 - d1;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    let ddayStr = diffDays === 0 ? "D-Day" : (diffDays > 0 ? `D-${diffDays}` : `D+${Math.abs(diffDays)}`);
+                    let ddayColor = diffDays < 0 ? "#888" : (diffDays <= 7 ? "#e63946" : (diffDays <= 30 ? "#f4a261" : "#555"));
+
+                    html += `<div class="card" style="display:flex; flex-direction:column; gap:8px; padding:15px; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='var(--soft-pink)'" onmouseout="this.style.background='#fff'" onclick="changeView('writer', ${item.wId})">
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:8px;">
+                            <div style="font-weight:bold; font-size:1.1rem; color:var(--black);"><span style="color:${ddayColor}; margin-right:8px;">${ddayStr}</span> ${item.pubDate}</div>
+                            <div style="font-size:0.85rem; font-weight:bold; background:#f4f6f8; padding:4px 8px; border-radius:4px; color:#555;">${item.writerName}</div>
+                        </div>
+                        <div style="font-size:1.1rem; font-weight:800; color:var(--main-pink);">${item.title}</div>
+                        <div style="display:flex; gap:10px; font-size:0.8rem; color:#666; margin-top:5px; flex-wrap:wrap;">
+                            <span style="background:var(--color-pub); padding:3px 6px; border-radius:4px;">원고: ${item.msStatus}</span>
+                            <span style="background:var(--color-cover); padding:3px 6px; border-radius:4px;">표지: ${item.coverStatus}</span>
+                            ${item.proofDate ? `<span style="background:var(--color-proof); padding:3px 6px; border-radius:4px;">1교: ${item.proofDate}</span>` : ''}
+                            ${item.proofDate2 ? `<span style="background:#ffe3fa; padding:3px 6px; border-radius:4px;">2교: ${item.proofDate2}</span>` : ''}
+                        </div>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+            c.innerHTML = html;
+        }
+
+        /* ★ 출간 완료작 보관소 - 임의 추가 버튼 완벽 삭제 ★ */
+        function renderPublished(c) {
+            c.innerHTML = `<div class="card" style="margin-bottom:20px;"><h2 style="margin-top:0; padding-bottom:10px; border-bottom:2px solid #eee;">출간 완료작 보관소</h2><div style="font-size:0.85rem; color:#666;">출간이 완료된 작품들의 론칭 플랫폼을 한눈에 확인하세요. (모든 플랫폼 론칭 완료 시 맨 하단으로 이동)</div></div><div id="published-container" class="card" style="padding:0; border:none; box-shadow:none; background:transparent;"></div>`;
+            const pc = document.getElementById('published-container');
+            
+            let parentPublished = [];
+            livData.writers.forEach(w => {
+                (w.works || []).forEach(wk => {
+                    if (wk.msStatus === '출간 완료') {
+                        let allChecked = wk.platforms && wk.platforms.length === 10;
+                        if (!wk.parentId) {
+                            parentPublished.push({ writer: w, work: wk, allChecked: allChecked, pubDate: wk.pubDate || '' });
+                        } else {
+                            let parent = w.works.find(p => p.id === wk.parentId && p.msStatus === '출간 완료');
+                            if (!parent) parentPublished.push({ writer: w, work: wk, allChecked: allChecked, pubDate: wk.pubDate || '' });
+                        }
+                    }
+                });
+            });
+
+            parentPublished.sort((a, b) => {
+                if (a.allChecked !== b.allChecked) return a.allChecked ? 1 : -1;
+                return a.pubDate.localeCompare(b.pubDate); 
+            });
+
+            let allPublished = [];
+            parentPublished.forEach(pItem => {
+                allPublished.push({ writer: pItem.writer, work: pItem.work, allChecked: pItem.allChecked, isChild: false });
+                
+                let children = pItem.writer.works.filter(c => c.parentId === pItem.work.id && c.msStatus === '출간 완료');
+                children.sort((a,b) => (a.pubDate||'').localeCompare(b.pubDate||''));
+                children.forEach(c => {
+                    let cChecked = c.platforms && c.platforms.length === 10;
+                    allPublished.push({ writer: pItem.writer, work: c, allChecked: cChecked, isChild: true });
+                });
+            });
+
+            let h = '';
+            if (allPublished.length === 0) {
+                h = `<div class="card" style="text-align:center; padding:40px; color:#888;">출간 완료된 작품이 없습니다.</div>`;
+            } else {
+                h += `<div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:40%;">표지 / 작품명</th><th class="desktop-only-td" style="width:10%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:30%;">상태</th><th class="desktop-only-td" style="width:10%; text-align:center;">관리</th></tr></thead><tbody>`;
+                
+                allPublished.forEach(item => {
+                    let w = item.writer;
+                    let wk = item.work;
+                    let isC = item.isChild;
+                    let opacityStyle = item.allChecked ? 'opacity: 0.6;' : '';
+                    
+                    let rc = isC ? 'row-child' : '';
+                    let px = isC ? `<span class="child-indicator">└</span>` : '';
+                    let bT = wk.title.replace(/\s*\d+권$/,'').replace(/'/g,"\\'");
+                    let sH = `<div class="platform-box" style="margin-top:0; padding:10px;"><div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${w.id}, ${wk.id})">상태 변경</button></div><div class="platform-grid">${platforms.map(p=>`<label><input type="checkbox" ${wk.platforms&&wk.platforms.includes(p)?'checked':''} onchange="togglePlatform(${w.id}, ${wk.id}, '${p}')"> ${p}</label>`).join('')}</div></div>`;
+                    let sqH = !isC ? `<select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${w.id}, ${wk.id}, 'sequel', this.value)"><option value="N" ${wk.sequel==='N'?'selected':''}>N</option><option value="Y" ${wk.sequel==='Y'?'selected':''}>Y</option></select>${wk.sequel==='Y'?`<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${w.id}, ${wk.id}, '${bT}')">생성</button>`:''}` : `<span style="color:#aaa; font-size:0.7rem;">종속</span>`;
+                    
+                    h += `<tr class="${rc}" style="${opacityStyle}">
+                        <td>
+                            <div class="mobile-del-btn"><button class="btn-del" onclick="deleteWork(${w.id}, ${wk.id})">삭제</button></div>
+                            <div style="display:flex; gap:12px; align-items:flex-start;">
+                                <label style="cursor:pointer; flex-shrink:0;" title="표지 등록"><img src="${wk.coverImg||'https://via.placeholder.com/75x105?text=Cover'}" class="cover-thumb" id="thumb-${wk.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${w.id}, ${wk.id})"></label>
+                                <div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;">
+                                    <div style="display:flex; align-items:center; gap:5px;">${px}<span style="font-weight: 800; font-size: 0.95rem; color: #222; word-break: keep-all; padding-top:4px;">${wk.title}</span></div>
+                                    <div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;">
+                                        <span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${wk.royalty}" onchange="updateWork(${w.id}, ${wk.id}, 'royalty', this.value)">%
+                                        <span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${sqH}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="desktop-only-td"><input type="number" class="input-text" value="${wk.royalty}" onchange="updateWork(${w.id}, ${wk.id}, 'royalty', this.value)"></td>
+                        <td class="desktop-only-td"><div style="display:flex; align-items:center; gap:5px;">${sqH}</div></td>
+                        <td>${sH}</td>
+                        <td class="desktop-only-td" style="text-align:center;">
+                            <div style="display:flex; flex-direction:column; gap:5px;">
+                                <button class="btn-del" onclick="deleteWork(${w.id}, ${wk.id})">삭제</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+                h += `</tbody></table></div>`;
+            }
+            pc.innerHTML = h;
+        }
 
         function renderCpList(c) {
             c.innerHTML = `
@@ -736,8 +889,8 @@
         function addWork(wId) { const t=prompt("제목:"); if(!t)return; livData.writers.find(x=>x.id===wId).works.push({id:Date.now(), title:t, royalty:70, sequel:'N', msStatus:'계약 완료', coverStatus:'제안서 입고 전', pubDate:'', coverDate:'', proofDate:'', proofDate2:'', coverImg:'', platforms:[]}); saveData(); changeView('writer', currentWriterFilter); }
         function deleteWork(wId, wkId) { if(!confirm('삭제할까요?'))return; const w=livData.writers.find(x=>x.id===wId); w.works=w.works.filter(x=>x.id!==wkId&&x.parentId!==wkId); saveData(); changeView('writer', currentWriterFilter); }
         function deleteWriter(wId) { if(!confirm('계정을 삭제할까요?'))return; livData.writers=livData.writers.filter(w=>w.id!==wId); saveData(); changeView('dashboard'); }
-        function updateWork(wId, workId, key, val) { const w = livData.writers.find(x => x.id === wId); const work = w.works.find(x => x.id === workId); work[key] = val; saveData(); if (['msStatus', 'coverStatus', 'sequel'].includes(key)) { changeView('writer', currentWriterFilter); } }
-        function togglePlatform(wId, workId, p) { const wk=livData.writers.find(x=>x.id===wId).works.find(x=>x.id===workId); if(!wk.platforms)wk.platforms=[]; if(wk.platforms.includes(p))wk.platforms=wk.platforms.filter(x=>x!==p); else wk.platforms.push(p); saveData(); }
+        function updateWork(wId, workId, key, val) { const w = livData.writers.find(x => x.id === wId); const work = w.works.find(x => x.id === workId); work[key] = val; saveData(); if (['msStatus', 'coverStatus', 'sequel'].includes(key)) { changeView(currentViewName, currentViewParam); } }
+        function togglePlatform(wId, workId, p) { const wk=livData.writers.find(x=>x.id===wId).works.find(x=>x.id===workId); if(!wk.platforms)wk.platforms=[]; if(wk.platforms.includes(p))wk.platforms=wk.platforms.filter(x=>x!==p); else wk.platforms.push(p); saveData(); changeView(currentViewName, currentViewParam); }
         function revertStatus(wId, workId) { updateWork(wId, workId, 'msStatus', '출간 대기'); }
         function openWriterModal() { document.getElementById('writer-modal').classList.add('show'); closeSidebarMobile(); }
         function closeWriterModal() { document.getElementById('writer-modal').classList.remove('show'); document.getElementById('new-writer-name').value = ''; }
