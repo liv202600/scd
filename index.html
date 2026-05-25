@@ -3760,5 +3760,188 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 
+
+<script>
+/* ===== LIV exact fix: work cover upload stability only ===== */
+(function(){
+  const PENDING_KEY = 'liv_pending_work_covers';
+
+  function readPendingCovers() {
+    try {
+      const raw = localStorage.getItem(PENDING_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) {
+      return {};
+    }
+  }
+
+  function writePendingCovers(map) {
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify(map));
+    } catch(e) {}
+  }
+
+  function coverKey(writerId, workId) {
+    return `${writerId}|${workId}`;
+  }
+
+  function findWorkCoverTarget(writerId, workId) {
+    const writer = (livData.writers || []).find(w => String(w.id) === String(writerId));
+    if (!writer) return { writer:null, work:null };
+    const work = (writer.works || []).find(w => String(w.id) === String(workId));
+    return { writer, work };
+  }
+
+  function dataUrlBytes(dataUrl) {
+    const comma = dataUrl.indexOf(',');
+    const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+    return Math.ceil(base64.length * 3 / 4);
+  }
+
+  async function makeStableWorkCover(file) {
+    const original = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const img = await new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = original;
+    });
+
+    if (!img) return original;
+
+    const sourceW = img.naturalWidth || img.width;
+    const sourceH = img.naturalHeight || img.height;
+    if (!sourceW || !sourceH) return original;
+
+    const maxBytes = 180 * 1024;
+    let targetW = Math.min(300, sourceW);
+    let quality = 0.9;
+    let best = original;
+
+    for (let i = 0; i < 14; i++) {
+      const targetH = Math.max(1, Math.round(sourceH * (targetW / sourceW)));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(targetW));
+      canvas.height = targetH;
+
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      best = dataUrl;
+
+      if (dataUrlBytes(dataUrl) <= maxBytes) return dataUrl;
+
+      if (quality > 0.72) quality -= 0.07;
+      else {
+        targetW = Math.max(180, Math.round(targetW * 0.88));
+        quality = 0.82;
+      }
+    }
+
+    return best;
+  }
+
+  function backupWorkCoverData() {
+    try {
+      const payload = JSON.stringify(livData);
+      localStorage.setItem('liv_auto_backup', payload);
+      localStorage.setItem('livDataFinal_v21', payload);
+      localStorage.setItem('liv_stability_backup_latest', payload);
+      localStorage.setItem('liv_emergency_backup_latest', payload);
+    } catch(e) {}
+  }
+
+  function persistWorkCoverData() {
+    backupWorkCoverData();
+
+    if (typeof db !== 'undefined') {
+      try {
+        const result = db.collection("config").doc("mainData").set(livData);
+        if (result && typeof result.catch === 'function') {
+          result.catch((err) => {
+            console.error('work cover save failed', err);
+            alert('표지 이미지 저장 중 오류가 발생했습니다. 이미지 용량을 더 줄여 다시 저장해 주세요.');
+          });
+        }
+      } catch(err) {
+        console.error('work cover save failed', err);
+        alert('표지 이미지 저장 중 오류가 발생했습니다. 이미지 용량을 더 줄여 다시 저장해 주세요.');
+      }
+    }
+
+    if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+  }
+
+  function applyPendingWorkCovers() {
+    const pending = readPendingCovers();
+    let changed = false;
+    const now = Date.now();
+    const maxAge = 30 * 24 * 60 * 60 * 1000;
+
+    Object.keys(pending).forEach(key => {
+      const item = pending[key];
+      if (!item || !item.dataUrl || (item.updatedAt && now - item.updatedAt > maxAge)) return;
+
+      const parts = key.split('|');
+      const target = findWorkCoverTarget(parts[0], parts[1]);
+      if (!target.work) return;
+
+      if (target.work.coverImg !== item.dataUrl) {
+        target.work.coverImg = item.dataUrl;
+        changed = true;
+      }
+
+      const thumb = document.getElementById(`thumb-${parts[1]}`);
+      if (thumb && thumb.src !== item.dataUrl) thumb.src = item.dataUrl;
+    });
+
+    if (changed) persistWorkCoverData();
+  }
+
+  window.uploadWorkCover = async function(inp, writerId, workId) {
+    if (!inp.files || !inp.files[0]) return;
+
+    const target = findWorkCoverTarget(writerId, workId);
+    if (!target.work) {
+      alert('작품 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    try {
+      const dataUrl = await makeStableWorkCover(inp.files[0]);
+
+      target.work.coverImg = dataUrl;
+
+      const thumb = document.getElementById(`thumb-${workId}`);
+      if (thumb) thumb.src = dataUrl;
+
+      const pending = readPendingCovers();
+      pending[coverKey(writerId, workId)] = { dataUrl, updatedAt: Date.now() };
+      writePendingCovers(pending);
+
+      persistWorkCoverData();
+    } catch(err) {
+      console.error('work cover upload failed', err);
+      alert('표지 이미지를 등록하는 중 오류가 발생했습니다. 다른 이미지 파일로 다시 시도해 주세요.');
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(applyPendingWorkCovers, 300);
+    setTimeout(applyPendingWorkCovers, 1200);
+    setTimeout(applyPendingWorkCovers, 3000);
+  });
+})();
+</script>
+
 </body>
 </html>
