@@ -3428,5 +3428,48 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 
+
+<script>
+/* ===== LIV exact fix: monthly calendar work-click behavior only ===== */
+(function(){
+  window.updateTasksHtml = function(dateStr, containerId, view, filter) {
+    ensureMonthlySettlementTasks();
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    let hSys='', hPub='', hCov='', hPrf1='', hPrf2='', hExt='';
+    const done = 'text-decoration:line-through; background-color:#f0f0f0 !important; border-left-color:#ccc !important; color:#888 !important; opacity:0.6;';
+    const isMonthlyCalendar = view === 'calendar';
+
+    (livData.extraTasks || [])
+      .filter(t => t.date === dateStr && (filter === 'all' || filter === 'task'))
+      .sort((a,b)=>(b.fixed?1:0)-(a.fixed?1:0))
+      .forEach(t => {
+        const writerObj = t.writerId ? livData.writers.find(x=>x.id==t.writerId) : null;
+        const item = `<div class="event-item ${t.type}" style="${t.completed?done:''}" draggable="${t.fixed?'false':'true'}" ${t.fixed?'':`ondragstart="drag(event, 'extraTask', null, '${t.id}')"`} ondblclick="handleExtraTaskDblClick(event, '${t.id}', '${view}')" onclick="handleExtraTaskClick(event, '${t.id}', '${view}')" ${!t.fixed?`oncontextmenu="copyExtraTask(event, '${t.id}')"`:''}><span class="evt-title">[${extraTaskLabel(t.type)}] ${escapeHtml(t.title)}</span>${writerObj?`<span class="evt-writer">${escapeHtml(writerObj.name)}</span>`:''}</div>`;
+        if(t.fixed || t.systemSettlement) hSys += item;
+        else hExt += item;
+      });
+
+    livData.writers.forEach(w => (w.works || []).forEach(work => {
+      const tag = `<span class="evt-writer">${escapeHtml(w.name)}</span>`;
+      const clickAction = isMonthlyCalendar
+        ? `event.stopPropagation()`
+        : `event.stopPropagation(); openWorkPage(${w.id}, ${work.id})`;
+
+      const item = (cls, key, label) =>
+        `<div class="event-item ${cls}" style="${work.completedDates&&work.completedDates[key]?done:''}" draggable="true" ondragstart="drag(event, '${key}', ${w.id}, ${work.id})" ondblclick="completeWorkTask(${w.id}, ${work.id}, '${key}', '${view}')" onclick="${clickAction}"><span class="evt-title">[${label}] ${escapeHtml(work.title)}</span>${tag}</div>`;
+
+      if((filter==='all'||filter==='pub') && work.pubDate===dateStr) hPub += item('ev-pub','pubDate','출간');
+      if((filter==='all'||filter==='cover') && work.coverDate===dateStr) hCov += item('ev-cover','coverDate','표지');
+      if((filter==='all'||filter==='proof') && work.proofDate===dateStr) hPrf1 += item('ev-proof1','proofDate','1교');
+      if((filter==='all'||filter==='proof') && work.proofDate2===dateStr) hPrf2 += item('ev-proof2','proofDate2','2교');
+    }));
+
+    el.innerHTML = hSys + hPub + hCov + hPrf1 + hPrf2 + hExt;
+  };
+})();
+</script>
+
 </body>
 </html>
