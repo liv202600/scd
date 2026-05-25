@@ -3331,5 +3331,102 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 
+
+<script>
+/* ===== LIV exact fix: remove duplicate settlement schedules only ===== */
+(function(){
+  const SETTLEMENT_TITLES = new Set(['정산서 발송', '작가 인세 지급']);
+
+  function settlementIsSystemTask(task) {
+    if (!task || task.type !== 'ev-settlement' || !SETTLEMENT_TITLES.has(task.title)) return false;
+    const id = String(task.id || '');
+    return !!task.fixed || !!task.systemSettlement || id.startsWith('sys-') || id.startsWith('system-settlement-');
+  }
+
+  function cleanupDuplicateSettlementTasks() {
+    if (!Array.isArray(livData.extraTasks)) livData.extraTasks = [];
+    const kept = new Map();
+
+    livData.extraTasks = livData.extraTasks.filter(task => {
+      if (!settlementIsSystemTask(task)) return true;
+
+      const key = `${task.date}|${task.title}`;
+      if (!kept.has(key)) {
+        const canonical = `system-settlement-${task.title}-${task.date}`;
+        task.id = canonical;
+        task.type = 'ev-settlement';
+        task.fixed = true;
+        task.systemSettlement = true;
+        kept.set(key, task);
+        return true;
+      }
+
+      const first = kept.get(key);
+      first.completed = !!first.completed || !!task.completed;
+      return false;
+    });
+  }
+
+  window.initMonthlySystemTasks = function() {
+    cleanupDuplicateSettlementTasks();
+  };
+
+  window.ensureMonthlySettlementTasks = function() {
+    if (!Array.isArray(livData.extraTasks)) livData.extraTasks = [];
+
+    const currentYear = new Date().getFullYear();
+    const years = [...new Set([currentYear - 1, currentYear, currentYear + 1, 2026, 2027])];
+
+    function isBizDay(ds) {
+      const d = parseDateString(ds);
+      return d.getDay() !== 0 && d.getDay() !== 6 && !getHolidayName(ds);
+    }
+
+    function adjustedDate(year, month, day) {
+      const d = new Date(year, month - 1, day);
+      while (true) {
+        const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if (isBizDay(ds)) return ds;
+        d.setDate(d.getDate() - 1);
+      }
+    }
+
+    years.forEach(year => {
+      for (let month = 1; month <= 12; month++) {
+        [
+          [adjustedDate(year, month, 25), '정산서 발송'],
+          [adjustedDate(year, month, new Date(year, month, 0).getDate()), '작가 인세 지급']
+        ].forEach(([date, title]) => {
+          const id = `system-settlement-${title}-${date}`;
+          let task = livData.extraTasks.find(t => String(t.id) === id);
+          if (!task) {
+            task = livData.extraTasks.find(t => t.date === date && t.title === title && settlementIsSystemTask(t));
+          }
+
+          if (task) {
+            const completed = !!task.completed;
+            Object.assign(task, { id, date, title, type:'ev-settlement', fixed:true, systemSettlement:true, completed });
+          } else {
+            livData.extraTasks.push({ id, date, title, type:'ev-settlement', fixed:true, systemSettlement:true, completed:false });
+          }
+        });
+      }
+    });
+
+    cleanupDuplicateSettlementTasks();
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      cleanupDuplicateSettlementTasks();
+      if (typeof saveData === 'function') saveData();
+      if (currentViewName === 'dashboard') renderDashboard(document.getElementById('main-view'));
+      if (currentViewName === 'calendar') renderCalendar(document.getElementById('main-view'));
+      if (currentViewName === 'week-calendar') renderWeekCalendar(document.getElementById('main-view'));
+    }, 300);
+  });
+})();
+</script>
+
 </body>
 </html>
