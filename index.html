@@ -3689,5 +3689,76 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 
+
+<script>
+/* ===== LIV exact fix: work cover upload only ===== */
+(function(){
+  function findWorkForCoverUpload(writerId, workId) {
+    const writer = (livData.writers || []).find(w => String(w.id) === String(writerId));
+    if (!writer) return { writer:null, work:null };
+    const work = (writer.works || []).find(w => String(w.id) === String(workId));
+    return { writer, work };
+  }
+
+  async function makeWorkCoverDataUrl(file) {
+    const originalDataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.readAsDataURL(file);
+    });
+
+    const img = await new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = originalDataUrl;
+    });
+
+    if (!img) return originalDataUrl;
+
+    const sourceW = img.naturalWidth || img.width;
+    const sourceH = img.naturalHeight || img.height;
+    if (!sourceW || !sourceH) return originalDataUrl;
+
+    const targetW = 300;
+    const targetH = Math.max(1, Math.round(sourceH * (targetW / sourceW)));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    return canvas.toDataURL('image/jpeg', 0.9);
+  }
+
+  window.uploadWorkCover = async function(inp, writerId, workId) {
+    if (!inp.files || !inp.files[0]) return;
+
+    const { work } = findWorkForCoverUpload(writerId, workId);
+    if (!work) {
+      alert('작품 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    const dataUrl = await makeWorkCoverDataUrl(inp.files[0]);
+    work.coverImg = dataUrl;
+
+    const thumb = document.getElementById(`thumb-${workId}`);
+    if (thumb) thumb.src = dataUrl;
+
+    try {
+      localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+      localStorage.setItem('livDataFinal_v21', JSON.stringify(livData));
+    } catch(e) {}
+
+    if (typeof saveData === 'function') saveData();
+  };
+})();
+</script>
+
 </body>
 </html>
