@@ -3471,5 +3471,223 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 
+
+<script>
+/* ===== LIV exact fix: mobile webtoon display + data wipe guard only ===== */
+(function(){
+  const STABILITY_BACKUP_KEYS = [
+    'liv_auto_backup',
+    'livDataFinal_v21',
+    'liv_stability_backup_latest',
+    'liv_emergency_backup_latest'
+  ];
+
+  function isMobileAppMode() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+  }
+
+  function isSystemSettlementTask(t) {
+    if (!t) return false;
+    const id = String(t.id || '');
+    return t.type === 'ev-settlement'
+      && (t.title === '정산서 발송' || t.title === '작가 인세 지급')
+      && (t.fixed || t.systemSettlement || id.startsWith('sys-') || id.startsWith('system-settlement-'));
+  }
+
+  function countBusinessItems(data) {
+    if (!data) return 0;
+    const writerCount = Array.isArray(data.writers) ? data.writers.length : 0;
+    const memoCount = Array.isArray(data.memos) ? data.memos.length : 0;
+    const webtoonCount = Array.isArray(data.webtoons) ? data.webtoons.length : 0;
+    const salesCount = Array.isArray(data.salesRecords) ? data.salesRecords.length : 0;
+    const realTaskCount = Array.isArray(data.extraTasks) ? data.extraTasks.filter(t => !isSystemSettlementTask(t)).length : 0;
+    return writerCount + memoCount + webtoonCount + salesCount + realTaskCount;
+  }
+
+  function normalizeDataShape(data) {
+    if (!data) return null;
+    if (!Array.isArray(data.writers)) data.writers = [];
+    if (!Array.isArray(data.extraTasks)) data.extraTasks = [];
+    if (!Array.isArray(data.memos)) data.memos = [];
+    if (!Array.isArray(data.webtoons)) data.webtoons = [];
+    if (!Array.isArray(data.salesRecords)) data.salesRecords = [];
+    return data;
+  }
+
+  function readBackup(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      return normalizeDataShape(JSON.parse(raw));
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function getBestLocalBackup() {
+    let best = null;
+    let bestScore = -1;
+
+    STABILITY_BACKUP_KEYS.forEach(key => {
+      const data = readBackup(key);
+      const score = countBusinessItems(data);
+      if (score > bestScore) {
+        best = data;
+        bestScore = score;
+      }
+    });
+
+    try {
+      const webtoonsOnly = JSON.parse(localStorage.getItem('liv_webtoons_backup') || '[]');
+      if (Array.isArray(webtoonsOnly) && webtoonsOnly.length) {
+        const currentBestWebtoons = best && Array.isArray(best.webtoons) ? best.webtoons.length : 0;
+        if (!best || webtoonsOnly.length > currentBestWebtoons) {
+          best = normalizeDataShape(best || {});
+          best.webtoons = webtoonsOnly;
+          bestScore = countBusinessItems(best);
+        }
+      }
+    } catch(e) {}
+
+    return bestScore > 0 ? best : null;
+  }
+
+  function writeStableBackups(data) {
+    if (countBusinessItems(data) <= 0) return;
+    try {
+      const payload = JSON.stringify(data);
+      localStorage.setItem('liv_auto_backup', payload);
+      localStorage.setItem('livDataFinal_v21', payload);
+      localStorage.setItem('liv_stability_backup_latest', payload);
+      localStorage.setItem('liv_emergency_backup_latest', payload);
+      if (Array.isArray(data.webtoons)) {
+        localStorage.setItem('liv_webtoons_backup', JSON.stringify(data.webtoons));
+      }
+    } catch(e) {}
+  }
+
+  function restoreIfCurrentLooksWiped() {
+    normalizeDataShape(livData);
+    const currentScore = countBusinessItems(livData);
+    const backup = getBestLocalBackup();
+    const backupScore = countBusinessItems(backup);
+
+    if (backup && backupScore > currentScore && currentScore === 0) {
+      const currentTasks = Array.isArray(livData.extraTasks) ? livData.extraTasks.filter(isSystemSettlementTask) : [];
+      livData = normalizeDataShape(backup);
+      const existingKeys = new Set((livData.extraTasks || []).map(t => `${t.date}|${t.title}|${t.id}`));
+      currentTasks.forEach(t => {
+        const key = `${t.date}|${t.title}|${t.id}`;
+        if (!existingKeys.has(key)) livData.extraTasks.push(t);
+      });
+      writeStableBackups(livData);
+      return true;
+    }
+
+    if (backup && Array.isArray(backup.webtoons) && backup.webtoons.length && (!Array.isArray(livData.webtoons) || livData.webtoons.length === 0)) {
+      livData.webtoons = backup.webtoons;
+      writeStableBackups(livData);
+      return true;
+    }
+
+    return false;
+  }
+
+  const previousSaveData = window.saveData;
+  window.saveData = function() {
+    normalizeDataShape(livData);
+
+    if (countBusinessItems(livData) <= 0) {
+      const restored = restoreIfCurrentLooksWiped();
+      if (!restored && countBusinessItems(livData) <= 0) {
+        alert('데이터 보호를 위해 빈 데이터 저장을 차단했습니다. 자동 백업이 있으면 복구 버튼을 사용해 주세요.');
+        return;
+      }
+    }
+
+    writeStableBackups(livData);
+
+    if (typeof db !== 'undefined') {
+      db.collection("config").doc("mainData").set(livData);
+    }
+    if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+  };
+
+  const previousRestore = window.restoreFromAutoBackup;
+  window.restoreFromAutoBackup = function() {
+    const backup = getBestLocalBackup();
+    if (!backup) {
+      if (typeof previousRestore === 'function') return previousRestore();
+      alert("백업본이 없습니다.");
+      return;
+    }
+
+    if (confirm("자동 백업본을 불러올까요?")) {
+      livData = normalizeDataShape(backup);
+      writeStableBackups(livData);
+      saveData();
+      changeView('dashboard');
+      alert('복구되었습니다.');
+    }
+  };
+
+  function getWebtoonListForMobile() {
+    normalizeDataShape(livData);
+
+    if (!livData.webtoons.length) {
+      restoreIfCurrentLooksWiped();
+    }
+
+    if (!livData.webtoons.length) {
+      try {
+        const backup = JSON.parse(localStorage.getItem('liv_webtoons_backup') || '[]');
+        if (Array.isArray(backup) && backup.length) {
+          livData.webtoons = backup;
+          writeStableBackups(livData);
+        }
+      } catch(e) {}
+    }
+
+    return livData.webtoons || [];
+  }
+
+  function getWebtoonTitle(item) {
+    const ref = typeof getWorkRef === 'function' ? getWorkRef(item.writerId, item.workId) : {};
+    return ref && ref.work ? ref.work.title : (item.title || '미지정 작품');
+  }
+
+  const previousRenderWebtoon = window.renderWebtoon;
+  window.renderWebtoon = function(c) {
+    if (!isMobileAppMode()) {
+      if (typeof previousRenderWebtoon === 'function') return previousRenderWebtoon(c);
+    }
+
+    if (typeof gwSetupUi === 'function') gwSetupUi();
+
+    const list = getWebtoonListForMobile();
+    c.innerHTML = `<div class="card" style="margin-bottom:14px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><h2 style="margin:0;">웹툰</h2><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-mobile-list" class="webtoon-mobile-list"></div>`;
+
+    const box = document.getElementById('webtoon-mobile-list');
+    if (!list.length) {
+      box.innerHTML = `<div class="card" style="text-align:center; padding:36px; color:#888; width:100%;">등록된 웹툰 계약 작품이 없습니다.</div>`;
+      return;
+    }
+
+    box.innerHTML = list.map(item => `<div class="webtoon-mobile-title" onclick="openWebtoonMobileInfoModal(${item.id})">${escapeHtml(getWebtoonTitle(item))}</div>`).join('');
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const restored = restoreIfCurrentLooksWiped();
+      if (countBusinessItems(livData) > 0) writeStableBackups(livData);
+      if (restored && typeof currentViewName !== 'undefined') {
+        if (currentViewName === 'webtoon') renderWebtoon(document.getElementById('main-view'));
+        else if (typeof changeView === 'function') changeView(currentViewName, currentViewParam);
+      }
+    }, 700);
+  });
+})();
+</script>
+
 </body>
 </html>
