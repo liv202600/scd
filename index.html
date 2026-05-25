@@ -546,7 +546,7 @@
             
             let h = `<div class="week-cal-wrapper"><div class="week-grid">`;
             for(let i=0; i<7; i++) {
-                let ds = days[i].toISOString().split('T')[0];
+                let ds = `${days[i].getFullYear()}-${String(days[i].getMonth()+1).padStart(2,'0')}-${String(days[i].getDate()).padStart(2,'0')}`;
                 h += `<div class="week-day-box ${ds===td?'today':''}" onclick="openDayModal(event, '${ds}')"><div class="week-day-header">${formatShortDateHtml(ds)} (${dn[i]})</div><div id="week-day-${ds}"></div></div>`;
             }
             
@@ -566,7 +566,7 @@
             }
             h += `</div><div style="font-size:0.6rem; text-align:center; margin-top:5px; color:#ff85a2; font-weight:bold;">WEEKLY NAV</div></div></div></div>`;
             c.innerHTML = h;
-            days.forEach(d => updateWeekTasksHtml(d.toISOString().split('T')[0], `week-day-${d.toISOString().split('T')[0]}`));
+            days.forEach(d => { const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; updateWeekTasksHtml(ds, `week-day-${ds}`); });
         }
 
         function updateTasksHtml(dateStr, containerId, view, filter) {
