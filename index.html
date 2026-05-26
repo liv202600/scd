@@ -313,30 +313,134 @@
         let currentDate = parseDateString(getKstDateString()), currentWeekStart = parseDateString(getKstDateString()), currentCalFilter = 'all', currentWriterFilter = null, currentSearchText = '', currentViewName = 'dashboard', currentViewParam = null, currentProgressTab = 'ms';
         let extraTaskClickTimer = null;
 
-        db.collection("config").doc("mainData").onSnapshot((doc) => {
-            document.getElementById('firebase-loading').style.display = 'none';
-            if (doc.metadata.hasPendingWrites) return;
-            if (doc.exists) {
-                livData = doc.data();
-                if(!livData.writers) livData.writers = []; if(!livData.extraTasks) livData.extraTasks = []; if(!livData.memos) livData.memos = []; if(!livData.webtoons) livData.webtoons = []; if(!livData.salesRecords) livData.salesRecords = [];
-                livData.writers.forEach(w => (w.works || []).forEach(work => { if(work.platforms) work.platforms = work.platforms.filter(p => p !== '구글북스'); }));
-                
-                if (livData.writers.length > 0 || livData.memos.length > 0 || livData.extraTasks.length > 0) {
-                    livData.lastBackupTime = new Date().toLocaleString(); localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+        // 저장/동기화 보호 장치: 로컬에서 방금 저장한 내용을 이전 Firebase 스냅샷이나 오래된 백업이 덮어쓰지 못하게 막는다.
+        let livSaveInFlight = false;
+        let livPendingSaveJson = '';
+        let livLastLocalSaveAt = 0;
+        window.__livRemoteReady = false;
+
+        function normalizeLivDataShape(data) {
+            data = data || {};
+            if(!Array.isArray(data.writers)) data.writers = [];
+            if(!Array.isArray(data.extraTasks)) data.extraTasks = [];
+            if(!Array.isArray(data.memos)) data.memos = [];
+            if(!Array.isArray(data.webtoons)) data.webtoons = [];
+            if(!Array.isArray(data.salesRecords)) data.salesRecords = [];
+            data.writers.forEach(w => { if(!Array.isArray(w.works)) w.works = []; });
+            return data;
+        }
+
+        function stableLivStringify(value) {
+            const seen = new WeakSet();
+            return JSON.stringify(value, function(key, val) {
+                if (val && typeof val === 'object') {
+                    if (seen.has(val)) return;
+                    seen.add(val);
+                    if (!Array.isArray(val)) {
+                        return Object.keys(val).sort().reduce((acc, k) => { acc[k] = val[k]; return acc; }, {});
+                    }
                 }
-                renderSidebarWriters(); changeView(currentViewName, currentViewParam);
+                return val;
+            });
+        }
+
+        function livDataHasUserContent(data) {
+            data = normalizeLivDataShape(data);
+            return data.writers.length > 0 || data.memos.length > 0 || data.extraTasks.length > 0 || data.webtoons.length > 0 || data.salesRecords.length > 0;
+        }
+
+        function writeLivLocalBackups(data) {
+            if (!livDataHasUserContent(data)) return;
+            try {
+                data.lastBackupTime = new Date().toLocaleString();
+                const payload = JSON.stringify(data);
+                localStorage.setItem('liv_auto_backup', payload);
+                localStorage.setItem('livDataFinal_v21', payload);
+                localStorage.setItem('liv_stability_backup_latest', payload);
+                localStorage.setItem('liv_emergency_backup_latest', payload);
+                if (Array.isArray(data.webtoons)) localStorage.setItem('liv_webtoons_backup', JSON.stringify(data.webtoons));
+            } catch(e) {}
+        }
+
+        db.collection("config").doc("mainData").onSnapshot((doc) => {
+            const loading = document.getElementById('firebase-loading');
+            if (loading) loading.style.display = 'none';
+            if (doc.metadata.hasPendingWrites) return;
+
+            if (doc.exists) {
+                const incoming = normalizeLivDataShape(doc.data());
+                incoming.writers.forEach(w => (w.works || []).forEach(work => { if(work.platforms) work.platforms = work.platforms.filter(p => p !== '구글북스'); }));
+                const incomingJson = stableLivStringify(incoming);
+
+                // 방금 로컬 저장을 눌렀는데, 이전 서버 스냅샷이 늦게 도착하면 입력값이 되돌아가 보인다.
+                // 저장 직후 15초 동안은 pending 저장본과 다른 낡은 스냅샷을 화면에 반영하지 않는다.
+                if (livSaveInFlight && livPendingSaveJson && incomingJson !== livPendingSaveJson && Date.now() - livLastLocalSaveAt < 15000) {
+                    console.warn('LIV: stale Firebase snapshot ignored to protect local input.');
+                    return;
+                }
+
+                livData = incoming;
+                if (typeof window.livRestoreDetachedImagesToData === 'function') window.livRestoreDetachedImagesToData();
+                window.__livRemoteReady = true;
+                if (livPendingSaveJson && incomingJson === livPendingSaveJson) {
+                    livSaveInFlight = false;
+                    livPendingSaveJson = '';
+                }
+
+                writeLivLocalBackups(livData);
+                renderSidebarWriters();
+
+                // 모달 입력 중 원격 스냅샷으로 화면이 리렌더링되면 작성 중인 값이 사라지므로 막는다.
+                if (!document.querySelector('.modal-overlay.show')) {
+                    changeView(currentViewName, currentViewParam);
+                }
             } else {
-                const sv = localStorage.getItem('livDataFinal_v21'); if (sv) { livData = JSON.parse(sv); saveData(); }
+                window.__livRemoteReady = true;
+                const sv = localStorage.getItem('livDataFinal_v21');
+                if (sv && !livSaveInFlight) { livData = normalizeLivDataShape(JSON.parse(sv)); writeLivLocalBackups(livData); renderSidebarWriters(); changeView(currentViewName, currentViewParam); }
             }
+        }, (err) => {
+            const loading = document.getElementById('firebase-loading');
+            if (loading) loading.style.display = 'none';
+            console.error('Firebase load failed:', err);
+            try {
+                const sv = localStorage.getItem('livDataFinal_v21') || localStorage.getItem('liv_auto_backup');
+                if (sv) {
+                    livData = normalizeLivDataShape(JSON.parse(sv));
+                    if (typeof window.livRestoreDetachedImagesToData === 'function') window.livRestoreDetachedImagesToData();
+                    renderSidebarWriters();
+                    changeView(currentViewName, currentViewParam);
+                }
+            } catch(e) { console.error('Local fallback load failed:', e); }
         });
 
         function saveData() {
-            if (!livData || (livData.writers.length === 0 && livData.memos.length === 0 && livData.extraTasks.length === 0)) {
-                if(!confirm("🚨 데이터가 비어있습니다! 보호하시려면 '취소'를 누르세요.")) return;
-            } else {
-                livData.lastBackupTime = new Date().toLocaleString(); localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+            livData = normalizeLivDataShape(livData);
+            if (!livDataHasUserContent(livData)) {
+                if(!confirm("🚨 저장할 데이터가 비어 있습니다. 정말 빈 데이터로 저장할까요?")) return Promise.resolve(false);
             }
-            db.collection("config").doc("mainData").set(livData); renderSidebarWriters();
+
+            writeLivLocalBackups(livData);
+            const payload = JSON.parse(JSON.stringify(livData));
+            const payloadJson = stableLivStringify(payload);
+            livSaveInFlight = true;
+            livPendingSaveJson = payloadJson;
+            livLastLocalSaveAt = Date.now();
+
+            if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+
+            return db.collection("config").doc("mainData").set(payload).then(() => {
+                livSaveInFlight = false;
+                livPendingSaveJson = '';
+                window.__livRemoteReady = true;
+                writeLivLocalBackups(livData);
+                return true;
+            }).catch((err) => {
+                livSaveInFlight = false;
+                console.error('Firebase save failed:', err);
+                alert('저장에 실패했습니다. Firebase 보안 규칙이 만료되었거나 쓰기 권한이 막혀 있을 수 있습니다. 콘솔의 permission-denied 오류를 확인해 주세요.');
+                return false;
+            });
         }
 
         function restoreFromAutoBackup() {
@@ -3081,15 +3185,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     if (typeof gwSetupUi === 'function') gwSetupUi();
     let list = ensureWebtoonListDesktopFix();
 
-    if (!list.length) {
-      try {
-        const backup = JSON.parse(localStorage.getItem('liv_webtoons_backup') || '[]');
-        if (Array.isArray(backup) && backup.length) {
-          livData.webtoons = backup;
-          list = livData.webtoons;
-        }
-      } catch(e) {}
-    }
+    // 자동 백업을 화면 렌더링 중 끼워 넣으면 삭제/신규 입력이 예전 백업으로 되돌아갈 수 있으므로 사용하지 않는다.
 
     if (isPhoneAppModeDesktopFix()) {
       c.innerHTML = `<div class="card" style="margin-bottom:14px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><h2 style="margin:0;">웹툰</h2><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-mobile-list" class="webtoon-mobile-list"></div>`;
@@ -3419,7 +3515,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       cleanupDuplicateSettlementTasks();
-      if (typeof saveData === 'function') saveData();
+      /* 초기 로딩 중 자동 원격 저장 금지: 사용자가 누른 저장만 Firebase에 쓴다. */
       if (currentViewName === 'dashboard') renderDashboard(document.getElementById('main-view'));
       if (currentViewName === 'calendar') renderCalendar(document.getElementById('main-view'));
       if (currentViewName === 'week-calendar') renderWeekCalendar(document.getElementById('main-view'));
@@ -3597,20 +3693,16 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   window.saveData = function() {
     normalizeDataShape(livData);
 
+    // 자동 백업이 현재 입력값을 덮어쓰는 문제가 있어, 빈 데이터 자동 복구/자동 저장은 하지 않는다.
+    // 수동 복구는 restoreFromAutoBackup()에서만 수행한다.
     if (countBusinessItems(livData) <= 0) {
-      const restored = restoreIfCurrentLooksWiped();
-      if (!restored && countBusinessItems(livData) <= 0) {
-        alert('데이터 보호를 위해 빈 데이터 저장을 차단했습니다. 자동 백업이 있으면 복구 버튼을 사용해 주세요.');
-        return;
-      }
+      alert('데이터 보호를 위해 빈 데이터 저장을 차단했습니다. 자동 백업이 있으면 복구 버튼을 사용해 주세요.');
+      return Promise.resolve(false);
     }
 
     writeStableBackups(livData);
-
-    if (typeof db !== 'undefined') {
-      db.collection("config").doc("mainData").set(livData);
-    }
-    if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+    if (typeof previousSaveData === 'function') return previousSaveData.apply(this, arguments);
+    return Promise.resolve(false);
   };
 
   const previousRestore = window.restoreFromAutoBackup;
@@ -3634,19 +3726,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   function getWebtoonListForMobile() {
     normalizeDataShape(livData);
 
-    if (!livData.webtoons.length) {
-      restoreIfCurrentLooksWiped();
-    }
-
-    if (!livData.webtoons.length) {
-      try {
-        const backup = JSON.parse(localStorage.getItem('liv_webtoons_backup') || '[]');
-        if (Array.isArray(backup) && backup.length) {
-          livData.webtoons = backup;
-          writeStableBackups(livData);
-        }
-      } catch(e) {}
-    }
+    // 자동 복구는 현재 입력값을 오래된 백업으로 덮어쓸 수 있어 렌더링 과정에서는 수행하지 않는다.
 
     return livData.webtoons || [];
   }
@@ -3678,106 +3758,31 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-      const restored = restoreIfCurrentLooksWiped();
-      if (countBusinessItems(livData) > 0) writeStableBackups(livData);
-      if (restored && typeof currentViewName !== 'undefined') {
-        if (currentViewName === 'webtoon') renderWebtoon(document.getElementById('main-view'));
-        else if (typeof changeView === 'function') changeView(currentViewName, currentViewParam);
-      }
+      if (window.__livRemoteReady && countBusinessItems(livData) > 0) writeStableBackups(livData);
     }, 700);
   });
 })();
 </script>
 
 
-<script>
-/* ===== LIV exact fix: work cover upload only ===== */
-(function(){
-  function findWorkForCoverUpload(writerId, workId) {
-    const writer = (livData.writers || []).find(w => String(w.id) === String(writerId));
-    if (!writer) return { writer:null, work:null };
-    const work = (writer.works || []).find(w => String(w.id) === String(workId));
-    return { writer, work };
-  }
-
-  async function makeWorkCoverDataUrl(file) {
-    const originalDataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.readAsDataURL(file);
-    });
-
-    const img = await new Promise((resolve) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => resolve(null);
-      image.src = originalDataUrl;
-    });
-
-    if (!img) return originalDataUrl;
-
-    const sourceW = img.naturalWidth || img.width;
-    const sourceH = img.naturalHeight || img.height;
-    if (!sourceW || !sourceH) return originalDataUrl;
-
-    const targetW = 300;
-    const targetH = Math.max(1, Math.round(sourceH * (targetW / sourceW)));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
-
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, targetW, targetH);
-
-    return canvas.toDataURL('image/jpeg', 0.9);
-  }
-
-  window.uploadWorkCover = async function(inp, writerId, workId) {
-    if (!inp.files || !inp.files[0]) return;
-
-    const { work } = findWorkForCoverUpload(writerId, workId);
-    if (!work) {
-      alert('작품 정보를 찾을 수 없습니다.');
-      return;
-    }
-
-    const dataUrl = await makeWorkCoverDataUrl(inp.files[0]);
-    work.coverImg = dataUrl;
-
-    const thumb = document.getElementById(`thumb-${workId}`);
-    if (thumb) thumb.src = dataUrl;
-
-    try {
-      localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
-      localStorage.setItem('livDataFinal_v21', JSON.stringify(livData));
-    } catch(e) {}
-
-    if (typeof saveData === 'function') saveData();
-  };
-})();
-</script>
-
 
 <script>
-/* ===== LIV exact fix: work cover upload stability only ===== */
+/* ===== LIV exact fix: work cover upload final only ===== */
 (function(){
-  const PENDING_KEY = 'liv_pending_work_covers';
+  const COVER_STORE_KEY = 'liv_work_cover_store_v1';
+  let coverSaveTimer = null;
 
-  function readPendingCovers() {
+  function readCoverStore() {
     try {
-      const raw = localStorage.getItem(PENDING_KEY);
-      return raw ? JSON.parse(raw) : {};
+      return JSON.parse(localStorage.getItem(COVER_STORE_KEY) || '{}');
     } catch(e) {
       return {};
     }
   }
 
-  function writePendingCovers(map) {
+  function writeCoverStore(store) {
     try {
-      localStorage.setItem(PENDING_KEY, JSON.stringify(map));
+      localStorage.setItem(COVER_STORE_KEY, JSON.stringify(store || {}));
     } catch(e) {}
   }
 
@@ -3785,20 +3790,14 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     return `${writerId}|${workId}`;
   }
 
-  function findWorkCoverTarget(writerId, workId) {
+  function findCoverTarget(writerId, workId) {
     const writer = (livData.writers || []).find(w => String(w.id) === String(writerId));
     if (!writer) return { writer:null, work:null };
     const work = (writer.works || []).find(w => String(w.id) === String(workId));
     return { writer, work };
   }
 
-  function dataUrlBytes(dataUrl) {
-    const comma = dataUrl.indexOf(',');
-    const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    return Math.ceil(base64.length * 3 / 4);
-  }
-
-  async function makeStableWorkCover(file) {
+  async function make300pxCover(file) {
     const original = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = e => resolve(e.target.result);
@@ -3819,38 +3818,22 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     const sourceH = img.naturalHeight || img.height;
     if (!sourceW || !sourceH) return original;
 
-    const maxBytes = 180 * 1024;
-    let targetW = Math.min(300, sourceW);
-    let quality = 0.9;
-    let best = original;
+    const targetW = 300;
+    const targetH = Math.max(1, Math.round(sourceH * (targetW / sourceW)));
 
-    for (let i = 0; i < 14; i++) {
-      const targetH = Math.max(1, Math.round(sourceH * (targetW / sourceW)));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(targetW));
-      canvas.height = targetH;
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
 
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, targetW, targetH);
 
-      const dataUrl = canvas.toDataURL('image/jpeg', quality);
-      best = dataUrl;
-
-      if (dataUrlBytes(dataUrl) <= maxBytes) return dataUrl;
-
-      if (quality > 0.72) quality -= 0.07;
-      else {
-        targetW = Math.max(180, Math.round(targetW * 0.88));
-        quality = 0.82;
-      }
-    }
-
-    return best;
+    return canvas.toDataURL('image/jpeg', 0.92);
   }
 
-  function backupWorkCoverData() {
+  function backupAllDataQuietly() {
     try {
       const payload = JSON.stringify(livData);
       localStorage.setItem('liv_auto_backup', payload);
@@ -3860,39 +3843,50 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     } catch(e) {}
   }
 
-  function persistWorkCoverData() {
-    backupWorkCoverData();
-
-    if (typeof db !== 'undefined') {
-      try {
-        const result = db.collection("config").doc("mainData").set(livData);
-        if (result && typeof result.catch === 'function') {
-          result.catch((err) => {
-            console.error('work cover save failed', err);
-            alert('표지 이미지 저장 중 오류가 발생했습니다. 이미지 용량을 더 줄여 다시 저장해 주세요.');
-          });
-        }
-      } catch(err) {
-        console.error('work cover save failed', err);
-        alert('표지 이미지 저장 중 오류가 발생했습니다. 이미지 용량을 더 줄여 다시 저장해 주세요.');
+  function scheduleRemoteCoverSave() {
+    clearTimeout(coverSaveTimer);
+    coverSaveTimer = setTimeout(() => {
+      backupAllDataQuietly();
+      if (typeof saveData === 'function') {
+        try { saveData(); } catch(err) { console.error('work cover remote save failed', err); }
       }
-    }
-
-    if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+      if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+    }, 250);
   }
 
-  function applyPendingWorkCovers() {
-    const pending = readPendingCovers();
-    let changed = false;
-    const now = Date.now();
-    const maxAge = 30 * 24 * 60 * 60 * 1000;
+  function setCover(writerId, workId, dataUrl, shouldSave=true) {
+    const target = findCoverTarget(writerId, workId);
+    if (!target.work) return false;
 
-    Object.keys(pending).forEach(key => {
-      const item = pending[key];
-      if (!item || !item.dataUrl || (item.updatedAt && now - item.updatedAt > maxAge)) return;
+    target.work.coverImg = dataUrl;
+
+    const thumb = document.getElementById(`thumb-${workId}`);
+    if (thumb) thumb.src = dataUrl;
+
+    const store = readCoverStore();
+    store[coverKey(writerId, workId)] = {
+      dataUrl,
+      updatedAt: Date.now()
+    };
+    writeCoverStore(store);
+
+    backupAllDataQuietly();
+    if (shouldSave) scheduleRemoteCoverSave();
+    return true;
+  }
+
+  function applyStoredCoversToData() {
+    const store = readCoverStore();
+    let changed = false;
+
+    Object.keys(store).forEach(key => {
+      const item = store[key];
+      if (!item || !item.dataUrl) return;
 
       const parts = key.split('|');
-      const target = findWorkCoverTarget(parts[0], parts[1]);
+      const writerId = parts[0];
+      const workId = parts[1];
+      const target = findCoverTarget(writerId, workId);
       if (!target.work) return;
 
       if (target.work.coverImg !== item.dataUrl) {
@@ -3900,45 +3894,355 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         changed = true;
       }
 
-      const thumb = document.getElementById(`thumb-${parts[1]}`);
+      const thumb = document.getElementById(`thumb-${workId}`);
       if (thumb && thumb.src !== item.dataUrl) thumb.src = item.dataUrl;
     });
 
-    if (changed) persistWorkCoverData();
+    if (changed) backupAllDataQuietly();
+    return changed;
   }
 
-  window.uploadWorkCover = async function(inp, writerId, workId) {
-    if (!inp.files || !inp.files[0]) return;
+  window.uploadWorkCover = async function(input, writerId, workId) {
+    if (!input.files || !input.files[0]) return;
 
-    const target = findWorkCoverTarget(writerId, workId);
+    const target = findCoverTarget(writerId, workId);
     if (!target.work) {
       alert('작품 정보를 찾을 수 없습니다.');
       return;
     }
 
     try {
-      const dataUrl = await makeStableWorkCover(inp.files[0]);
-
-      target.work.coverImg = dataUrl;
-
-      const thumb = document.getElementById(`thumb-${workId}`);
-      if (thumb) thumb.src = dataUrl;
-
-      const pending = readPendingCovers();
-      pending[coverKey(writerId, workId)] = { dataUrl, updatedAt: Date.now() };
-      writePendingCovers(pending);
-
-      persistWorkCoverData();
+      const dataUrl = await make300pxCover(input.files[0]);
+      setCover(writerId, workId, dataUrl, true);
+      input.value = '';
     } catch(err) {
       console.error('work cover upload failed', err);
-      alert('표지 이미지를 등록하는 중 오류가 발생했습니다. 다른 이미지 파일로 다시 시도해 주세요.');
+      alert('표지 이미지를 등록하는 중 오류가 발생했습니다. 파일 형식을 확인한 뒤 다시 시도해 주세요.');
+    }
+  };
+
+  window.handleWorkEditFile = async function(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !currentEditingWork) return;
+
+    try {
+      const dataUrl = await make300pxCover(file);
+      currentEditingWork.tempCover = dataUrl;
+      const preview = document.getElementById('work-edit-preview');
+      if (preview) preview.src = dataUrl;
+      e.target.value = '';
+    } catch(err) {
+      console.error('work edit cover upload failed', err);
+      alert('표지 이미지를 등록하는 중 오류가 발생했습니다. 파일 형식을 확인한 뒤 다시 시도해 주세요.');
+    }
+  };
+
+  const originalSaveWorkEditModal = window.saveWorkEditModal;
+  window.saveWorkEditModal = function() {
+    const editing = currentEditingWork ? {
+      wId: currentEditingWork.wId,
+      workId: currentEditingWork.workId,
+      tempCover: currentEditingWork.tempCover
+    } : null;
+
+    if (typeof originalSaveWorkEditModal === 'function') {
+      originalSaveWorkEditModal();
+    }
+
+    if (editing && editing.tempCover) {
+      setCover(editing.wId, editing.workId, editing.tempCover, true);
+    }
+  };
+
+  const originalSaveData = window.saveData;
+  window.saveData = function() {
+    applyStoredCoversToData();
+    if (typeof originalSaveData === 'function') {
+      return originalSaveData.apply(this, arguments);
+    }
+    scheduleRemoteCoverSave();
+  };
+
+  const originalRenderFilteredWriters = window.renderFilteredWriters;
+  window.renderFilteredWriters = function() {
+    const result = typeof originalRenderFilteredWriters === 'function'
+      ? originalRenderFilteredWriters.apply(this, arguments)
+      : undefined;
+    setTimeout(applyStoredCoversToData, 0);
+    setTimeout(applyStoredCoversToData, 250);
+    return result;
+  };
+
+  const originalRenderWriterDetail = window.renderWriterDetail;
+  window.renderWriterDetail = function() {
+    const result = typeof originalRenderWriterDetail === 'function'
+      ? originalRenderWriterDetail.apply(this, arguments)
+      : undefined;
+    setTimeout(applyStoredCoversToData, 0);
+    setTimeout(applyStoredCoversToData, 250);
+    return result;
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(applyStoredCoversToData, 300);
+    setTimeout(applyStoredCoversToData, 1200);
+    setTimeout(applyStoredCoversToData, 3000);
+  });
+})();
+</script>
+
+
+
+<script>
+/* ===== LIV final fix: Firebase save without startup autosave / without image-overflow blocking text data ===== */
+(function(){
+  const LOCAL_KEYS = [
+    'liv_auto_backup',
+    'livDataFinal_v21',
+    'liv_stability_backup_latest',
+    'liv_emergency_backup_latest'
+  ];
+  const WORK_COVER_STORE_KEY = 'liv_work_cover_store_v1';
+  const WEBTOON_IMAGE_STORE_KEY = 'liv_webtoon_image_store_v1';
+  let lastFirebaseAlertAt = 0;
+
+  function safeClone(obj) {
+    return JSON.parse(JSON.stringify(obj || {}));
+  }
+
+  function isDataUrl(v) {
+    return typeof v === 'string' && /^data:image\//.test(v);
+  }
+
+  function readJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch(e) {
+      return fallback;
+    }
+  }
+
+  function writeJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch(e) {
+      console.warn('LIV localStorage write failed:', key, e);
+      return false;
+    }
+  }
+
+  function normalize(data) {
+    if (typeof normalizeLivDataShape === 'function') return normalizeLivDataShape(data || {});
+    data = data || {};
+    if (!Array.isArray(data.writers)) data.writers = [];
+    if (!Array.isArray(data.extraTasks)) data.extraTasks = [];
+    if (!Array.isArray(data.memos)) data.memos = [];
+    if (!Array.isArray(data.webtoons)) data.webtoons = [];
+    if (!Array.isArray(data.salesRecords)) data.salesRecords = [];
+    data.writers.forEach(w => { if (!Array.isArray(w.works)) w.works = []; });
+    return data;
+  }
+
+  function countRealItems(data) {
+    data = normalize(data || {});
+    const taskCount = (data.extraTasks || []).filter(t => !(t && (t.fixed || t.systemSettlement) && String(t.id || '').startsWith('sys-'))).length;
+    return (data.writers || []).length + (data.memos || []).length + (data.webtoons || []).length + (data.salesRecords || []).length + taskCount;
+  }
+
+  function workCoverKey(writerId, workId) {
+    return `${writerId}|${workId}`;
+  }
+
+  function webtoonImageKey(item) {
+    if (!item) return '';
+    return String(item.id || `${item.writerId || ''}|${item.workId || ''}|${item.title || ''}`);
+  }
+
+  function detachImagesFromPayload(fullData) {
+    const payload = safeClone(normalize(fullData));
+    const coverStore = readJson(WORK_COVER_STORE_KEY, {});
+    const webtoonStore = readJson(WEBTOON_IMAGE_STORE_KEY, {});
+
+    (payload.writers || []).forEach(writer => {
+      (writer.works || []).forEach(work => {
+        if (isDataUrl(work.coverImg)) {
+          coverStore[workCoverKey(writer.id, work.id)] = { dataUrl: work.coverImg, updatedAt: Date.now() };
+          work.coverImg = '';
+          work.coverLocalKey = workCoverKey(writer.id, work.id);
+        }
+      });
+    });
+
+    (payload.webtoons || []).forEach(item => {
+      if (isDataUrl(item.image)) {
+        const key = webtoonImageKey(item);
+        webtoonStore[key] = { dataUrl: item.image, updatedAt: Date.now() };
+        item.image = '';
+        item.imageLocalKey = key;
+      }
+    });
+
+    writeJson(WORK_COVER_STORE_KEY, coverStore);
+    writeJson(WEBTOON_IMAGE_STORE_KEY, webtoonStore);
+    payload.lastSavedAt = new Date().toISOString();
+    payload.imageStorageMode = 'local-detached-v2';
+    return payload;
+  }
+
+  window.livRestoreDetachedImagesToData = function() {
+    try {
+      normalize(livData);
+      const coverStore = readJson(WORK_COVER_STORE_KEY, {});
+      const webtoonStore = readJson(WEBTOON_IMAGE_STORE_KEY, {});
+
+      (livData.writers || []).forEach(writer => {
+        (writer.works || []).forEach(work => {
+          const key = work.coverLocalKey || workCoverKey(writer.id, work.id);
+          const stored = coverStore[key];
+          if ((!work.coverImg || !isDataUrl(work.coverImg)) && stored && stored.dataUrl) {
+            work.coverImg = stored.dataUrl;
+          }
+        });
+      });
+
+      (livData.webtoons || []).forEach(item => {
+        const key = item.imageLocalKey || webtoonImageKey(item);
+        const stored = webtoonStore[key];
+        if ((!item.image || !isDataUrl(item.image)) && stored && stored.dataUrl) {
+          item.image = stored.dataUrl;
+        }
+      });
+      return true;
+    } catch(e) {
+      console.warn('LIV detached image restore failed:', e);
+      return false;
+    }
+  };
+
+  function writeLocalBackupsFullAndSafe() {
+    normalize(livData);
+    window.livRestoreDetachedImagesToData();
+
+    // 먼저 전체 백업을 시도한다. 이미지가 너무 많아 quota가 넘으면 이미지 분리본만 저장한다.
+    let fullOk = false;
+    try {
+      const full = JSON.stringify(livData);
+      LOCAL_KEYS.forEach(key => localStorage.setItem(key, full));
+      fullOk = true;
+    } catch(e) {
+      console.warn('LIV full local backup too large; writing detached backup instead.', e);
+    }
+
+    const detached = detachImagesFromPayload(livData);
+    try {
+      const slim = JSON.stringify(detached);
+      LOCAL_KEYS.forEach(key => localStorage.setItem(key, slim));
+    } catch(e) {
+      console.warn('LIV detached local backup failed:', e);
+    }
+
+    try {
+      if (Array.isArray(livData.webtoons)) localStorage.setItem('liv_webtoons_backup', JSON.stringify(livData.webtoons));
+    } catch(e) {}
+
+    return fullOk;
+  }
+
+  function showFirebaseSaveError(err) {
+    const now = Date.now();
+    if (now - lastFirebaseAlertAt < 2500) return;
+    lastFirebaseAlertAt = now;
+
+    const code = err && err.code ? String(err.code) : '';
+    const message = err && err.message ? String(err.message) : '';
+    let hint = '이 기기의 로컬 백업에는 먼저 저장했습니다.';
+
+    if (code.includes('permission-denied')) {
+      hint += '\nFirebase Rules가 실제로 배포되었는지, /config/mainData 경로에 read/write가 허용되어 있는지 확인해 주세요.';
+    } else if (code.includes('resource-exhausted') || code.includes('invalid-argument') || /too large|maximum|larger than/i.test(message)) {
+      hint += '\n이미지 용량 때문에 Firestore 문서 한도에 걸렸을 가능성이 있어, 이 버전은 이미지를 로컬 분리 저장하고 텍스트 데이터만 Firebase에 저장합니다.';
+    } else if (code) {
+      hint += `\nFirebase 오류 코드: ${code}`;
+    }
+
+    alert('Firebase 원격 저장은 실패했지만, 입력 내용은 이 기기에 임시 저장했습니다.\n\n' + hint);
+  }
+
+  window.saveData = function(options) {
+    options = options || {};
+    normalize(livData);
+
+    if (countRealItems(livData) <= 0) {
+      console.warn('LIV: empty save blocked.');
+      return Promise.resolve(false);
+    }
+
+    writeLocalBackupsFullAndSafe();
+
+    const remotePayload = detachImagesFromPayload(livData);
+    const remoteJson = typeof stableLivStringify === 'function' ? stableLivStringify(remotePayload) : JSON.stringify(remotePayload);
+
+    try {
+      livSaveInFlight = true;
+      livPendingSaveJson = remoteJson;
+      livLastLocalSaveAt = Date.now();
+    } catch(e) {}
+
+    if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+
+    if (!window.__livRemoteReady && options.allowBeforeRemoteReady !== true) {
+      console.warn('LIV: remote is not ready yet; saved locally only.');
+      return Promise.resolve(true);
+    }
+
+    return db.collection('config').doc('mainData').set(remotePayload).then(() => {
+      try {
+        livSaveInFlight = false;
+        livPendingSaveJson = '';
+        window.__livRemoteReady = true;
+      } catch(e) {}
+      return true;
+    }).catch(err => {
+      try { livSaveInFlight = false; } catch(e) {}
+      console.error('Firebase save failed:', err);
+      if (!options.silent) showFirebaseSaveError(err);
+      return false;
+    });
+  };
+
+  const originalRestoreFromAutoBackup = window.restoreFromAutoBackup;
+  window.restoreFromAutoBackup = function() {
+    try {
+      const raw = localStorage.getItem('livDataFinal_v21') || localStorage.getItem('liv_auto_backup');
+      if (!raw) {
+        if (typeof originalRestoreFromAutoBackup === 'function') return originalRestoreFromAutoBackup();
+        alert('백업본이 없습니다.');
+        return;
+      }
+      if (!confirm('자동 백업본을 불러올까요?')) return;
+      livData = normalize(JSON.parse(raw));
+      window.livRestoreDetachedImagesToData();
+      writeLocalBackupsFullAndSafe();
+      if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+      if (typeof changeView === 'function') changeView('dashboard');
+      saveData({ silent:true });
+      alert('복구되었습니다.');
+    } catch(e) {
+      console.error('backup restore failed:', e);
+      alert('백업 복구 중 오류가 발생했습니다.');
     }
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(applyPendingWorkCovers, 300);
-    setTimeout(applyPendingWorkCovers, 1200);
-    setTimeout(applyPendingWorkCovers, 3000);
+    setTimeout(() => {
+      window.livRestoreDetachedImagesToData();
+      if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+      if (currentViewName === 'writer' || currentViewName === 'work-detail' || currentViewName === 'webtoon') {
+        if (typeof changeView === 'function') changeView(currentViewName, currentViewParam);
+      }
+    }, 500);
   });
 })();
 </script>
