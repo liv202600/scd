@@ -15,6 +15,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <style>
@@ -4244,6 +4245,398 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
       }
     }, 500);
   });
+})();
+</script>
+
+
+<script>
+/* ===== LIV cloud-safe sync patch: Firestore text data + Firebase Storage images ===== */
+(function(){
+  const LIV_SYNC_PATCH_VERSION = '2026-05-26-storage-safe-v1';
+  const IMAGE_ROOT = 'liv-images';
+  const FALLBACK_COVER = (typeof DEFAULT_WORK_COVER !== 'undefined') ? DEFAULT_WORK_COVER : 'https://via.placeholder.com/160x224?text=Cover';
+  let storage = null;
+
+  try {
+    if (window.firebase && firebase.storage) storage = firebase.storage();
+  } catch (err) {
+    console.warn('LIV: Firebase Storage 초기화 실패', err);
+  }
+
+  function isDataImage(value) {
+    return typeof value === 'string' && value.indexOf('data:image/') === 0;
+  }
+
+  function isRemoteImage(value) {
+    return typeof value === 'string' && (/^https?:\/\//.test(value) || value.indexOf('gs://') === 0);
+  }
+
+  function normalizeForSafeSync(data) {
+    const d = JSON.parse(JSON.stringify(data || {}));
+    if (!Array.isArray(d.writers)) d.writers = [];
+    if (!Array.isArray(d.extraTasks)) d.extraTasks = [];
+    if (!Array.isArray(d.memos)) d.memos = [];
+    if (!Array.isArray(d.webtoons)) d.webtoons = [];
+    if (!Array.isArray(d.salesRecords)) d.salesRecords = [];
+
+    d.writers.forEach(writer => {
+      if (!Array.isArray(writer.works)) writer.works = [];
+      writer.works.forEach(work => {
+        if (work.coverUrl) {
+          work.coverImg = work.coverUrl;
+        } else if (isRemoteImage(work.coverImg)) {
+          work.coverUrl = work.coverImg;
+        } else if (isDataImage(work.coverImg)) {
+          // Firestore 문서 용량 초과 방지를 위해 Base64 원본은 원격 문서에서 제거한다.
+          work.coverImg = '';
+          work.coverLocalOnly = true;
+        }
+      });
+    });
+
+    d.webtoons.forEach(item => {
+      if (item.imageUrl) {
+        item.image = item.imageUrl;
+      } else if (isRemoteImage(item.image)) {
+        item.imageUrl = item.image;
+      } else if (isDataImage(item.image)) {
+        item.image = '';
+        item.imageLocalOnly = true;
+      }
+    });
+
+    d.syncPatchVersion = LIV_SYNC_PATCH_VERSION;
+    d.updatedAtMs = Date.now();
+    return d;
+  }
+
+  function mergeArrayById(remoteArr, localArr, deepMergeFn) {
+    const map = new Map();
+    (Array.isArray(remoteArr) ? remoteArr : []).forEach(item => {
+      if (item && item.id !== undefined && item.id !== null) map.set(String(item.id), JSON.parse(JSON.stringify(item)));
+    });
+    (Array.isArray(localArr) ? localArr : []).forEach(item => {
+      if (!item) return;
+      if (item.id === undefined || item.id === null) {
+        item.id = Date.now() + Math.floor(Math.random() * 1000000);
+      }
+      const key = String(item.id);
+      const old = map.get(key);
+      map.set(key, deepMergeFn && old ? deepMergeFn(old, item) : JSON.parse(JSON.stringify(item)));
+    });
+    return Array.from(map.values());
+  }
+
+  function mergeWriter(remoteWriter, localWriter) {
+    const merged = Object.assign({}, remoteWriter || {}, localWriter || {});
+    merged.works = mergeArrayById((remoteWriter || {}).works, (localWriter || {}).works, (r, l) => Object.assign({}, r, l));
+    return merged;
+  }
+
+  function mergeRemoteAndLocal(remote, local) {
+    const r = normalizeForSafeSync(remote || {});
+    const l = normalizeForSafeSync(local || {});
+    const merged = Object.assign({}, r, l);
+    merged.writers = mergeArrayById(r.writers, l.writers, mergeWriter);
+    merged.extraTasks = mergeArrayById(r.extraTasks, l.extraTasks, (a, b) => Object.assign({}, a, b));
+    merged.memos = mergeArrayById(r.memos, l.memos, (a, b) => Object.assign({}, a, b));
+    merged.webtoons = mergeArrayById(r.webtoons, l.webtoons, (a, b) => Object.assign({}, a, b));
+    merged.salesRecords = mergeArrayById(r.salesRecords, l.salesRecords, (a, b) => Object.assign({}, a, b));
+    merged.syncPatchVersion = LIV_SYNC_PATCH_VERSION;
+    merged.updatedAtMs = Date.now();
+    return merged;
+  }
+
+  function writeSafeLocalBackup(data) {
+    try {
+      const safe = normalizeForSafeSync(data || livData || {});
+      const payload = JSON.stringify(safe);
+      localStorage.setItem('liv_auto_backup', payload);
+      localStorage.setItem('livDataFinal_v21', payload);
+      localStorage.setItem('liv_stability_backup_latest', payload);
+      localStorage.setItem('liv_emergency_backup_latest', payload);
+    } catch (err) {
+      console.warn('LIV: 로컬 백업 저장 실패', err);
+    }
+  }
+
+  async function saveSafeDataToFirebase() {
+    const docRef = db.collection('config').doc('mainData');
+    const localSafe = normalizeForSafeSync(livData || {});
+    writeSafeLocalBackup(localSafe);
+
+    try {
+      const remoteSnap = await docRef.get();
+      const remote = remoteSnap.exists ? remoteSnap.data() : {};
+      const merged = mergeRemoteAndLocal(remote, localSafe);
+      await docRef.set(merged);
+      livData = merged;
+      writeSafeLocalBackup(livData);
+      if (typeof renderSidebarWriters === 'function') renderSidebarWriters();
+      return true;
+    } catch (err) {
+      console.error('LIV: Firebase save failed', err);
+      writeSafeLocalBackup(localSafe);
+      const code = err && err.code ? err.code : 'unknown-error';
+      alert('원격 저장에 실패했습니다. 그래도 현재 입력 내용은 이 기기의 로컬 백업에 먼저 보존했습니다.\n\n오류 코드: ' + code + '\nFirebase Firestore/Storage 규칙과 콘솔 오류를 확인해 주세요.');
+      return false;
+    }
+  }
+
+  window.saveData = function() {
+    return saveSafeDataToFirebase();
+  };
+
+  function safeFileName(name) {
+    return String(name || 'image')
+      .replace(/[\\/#?%*:|"<>]/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 80);
+  }
+
+  async function uploadImageFile(file, folder, idPart) {
+    if (!storage) {
+      throw new Error('firebase-storage-sdk-missing');
+    }
+    const cleanFolder = String(folder || 'misc').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanId = String(idPart || 'item').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const path = `${IMAGE_ROOT}/${cleanFolder}/${cleanId}/${Date.now()}_${safeFileName(file.name)}`;
+    const ref = storage.ref().child(path);
+    await ref.put(file, {
+      contentType: file.type || 'image/jpeg',
+      cacheControl: 'public,max-age=31536000'
+    });
+    const url = await ref.getDownloadURL();
+    return { path, url };
+  }
+
+  function readPreview(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function findWork(writerId, workId) {
+    const writer = (livData.writers || []).find(w => String(w.id) === String(writerId));
+    const work = writer && Array.isArray(writer.works) ? writer.works.find(w => String(w.id) === String(workId)) : null;
+    return { writer, work };
+  }
+
+  window.getWorkCoverSrc = function(work) {
+    if (!work) return FALLBACK_COVER;
+    return work.coverUrl || (isRemoteImage(work.coverImg) ? work.coverImg : '') || (isDataImage(work.coverImg) ? work.coverImg : '') || FALLBACK_COVER;
+  };
+
+  window.getWebtoonCoverSrc = function(item) {
+    if (item) {
+      if (item.imageUrl) return item.imageUrl;
+      if (isRemoteImage(item.image) || isDataImage(item.image)) return item.image;
+      const ref = typeof getWorkRef === 'function' ? getWorkRef(item.writerId, item.workId) : findWork(item.writerId, item.workId);
+      if (ref && ref.work) return window.getWorkCoverSrc(ref.work);
+    }
+    return FALLBACK_COVER;
+  };
+
+  window.uploadWorkCover = async function(input, writerId, workId) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const target = findWork(writerId, workId);
+    if (!target.work) {
+      alert('작품 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    const thumb = document.getElementById(`thumb-${workId}`);
+    try {
+      if (thumb) thumb.src = await readPreview(file);
+      const uploaded = await uploadImageFile(file, 'work-covers', `${writerId}_${workId}`);
+      target.work.coverUrl = uploaded.url;
+      target.work.coverPath = uploaded.path;
+      target.work.coverImg = uploaded.url;
+      delete target.work.coverLocalOnly;
+      await window.saveData();
+      if (typeof changeView === 'function') changeView(currentViewName, currentViewParam);
+    } catch (err) {
+      console.error('LIV: 표지 이미지 원격 업로드 실패', err);
+      alert('표지 이미지 원격 업로드에 실패했습니다. Firebase Storage 규칙/권한을 확인해 주세요. 텍스트 데이터는 별도로 저장됩니다.');
+    } finally {
+      input.value = '';
+    }
+  };
+
+  window.handleWorkEditFile = async function(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !window.currentEditingWork && typeof currentEditingWork === 'undefined') return;
+    try {
+      const preview = await readPreview(file);
+      currentEditingWork.pendingCoverFile = file;
+      currentEditingWork.tempCover = '';
+      const img = document.getElementById('work-edit-preview');
+      if (img) img.src = preview;
+    } catch (err) {
+      console.error('LIV: 표지 미리보기 실패', err);
+      alert('표지 이미지를 읽는 중 오류가 발생했습니다.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  window.saveWorkEditModal = async function() {
+    if (!currentEditingWork) return;
+    const ref = typeof getWorkRef === 'function' ? getWorkRef(currentEditingWork.wId, currentEditingWork.workId) : findWork(currentEditingWork.wId, currentEditingWork.workId);
+    const writer = ref.writer, work = ref.work;
+    if (!writer || !work) {
+      alert('작품 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    work.title = document.getElementById('work-edit-title').value.trim() || work.title;
+    work.royalty = Number(document.getElementById('work-edit-royalty').value || work.royalty || 0);
+    work.sequel = document.getElementById('work-edit-sequel').value;
+    work.msStatus = document.getElementById('work-edit-ms').value;
+    work.coverStatus = document.getElementById('work-edit-coverstatus').value;
+    work.pubDate = document.getElementById('work-edit-pub').value;
+    work.coverDate = document.getElementById('work-edit-cover').value;
+    work.proofDate = document.getElementById('work-edit-proof1').value;
+    work.proofDate2 = document.getElementById('work-edit-proof2').value;
+    work.platforms = [...document.querySelectorAll('#work-edit-platforms input:checked')].map(el => el.value);
+
+    try {
+      if (currentEditingWork.pendingCoverFile) {
+        const uploaded = await uploadImageFile(currentEditingWork.pendingCoverFile, 'work-covers', `${writer.id}_${work.id}`);
+        work.coverUrl = uploaded.url;
+        work.coverPath = uploaded.path;
+        work.coverImg = uploaded.url;
+        delete work.coverLocalOnly;
+      }
+      await window.saveData();
+      if (typeof closeWorkEditModal === 'function') closeWorkEditModal();
+      if (typeof changeView === 'function') changeView('writer', writer.id);
+    } catch (err) {
+      console.error('LIV: 작품 수정 저장 실패', err);
+      alert('작품 정보를 저장하는 중 오류가 발생했습니다. 콘솔 오류를 확인해 주세요.');
+    }
+  };
+
+  let pendingWebtoonFile = null;
+
+  window.handleWebtoonModalFile = async function(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    pendingWebtoonFile = file;
+    try {
+      const preview = await readPreview(file);
+      const img = document.getElementById('wt-modal-preview');
+      if (img) img.src = preview;
+      const modal = document.getElementById('webtoon-modal');
+      if (modal) modal.dataset.tempImage = '';
+    } catch (err) {
+      console.error('LIV: 웹툰 이미지 미리보기 실패', err);
+      alert('이미지를 읽는 중 오류가 발생했습니다.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  window.openWebtoonModal = function(id=null) {
+    if (typeof gwEnsureModals === 'function') gwEnsureModals();
+    pendingWebtoonFile = null;
+    currentEditingWebtoon = id;
+    const item = id ? (livData.webtoons || []).find(x => x.id === id) : null;
+    const statusList = (typeof WT_STEPS_EXACT !== 'undefined') ? WT_STEPS_EXACT : (typeof webtoonStatuses !== 'undefined' ? webtoonStatuses : ['구두 확정', '계약서 작성 완료', '캐시트 전달 완료', '론칭 완료']);
+
+    document.getElementById('webtoon-modal-title').innerText = item ? '웹툰 계약 수정' : '웹툰 계약 등록';
+    document.getElementById('wt-modal-work').innerHTML = typeof getAllWorkOptions === 'function' ? getAllWorkOptions() : '';
+    document.getElementById('wt-modal-status').innerHTML = statusList.map(s => `<option>${escapeHtml(s)}</option>`).join('');
+    document.getElementById('wt-modal-work').value = item ? `${item.writerId}|${item.workId}` : '';
+    document.getElementById('wt-modal-agency').value = item?.agency || '';
+    document.getElementById('wt-modal-ratio').value = item?.ratio || '';
+    document.getElementById('wt-modal-status').value = item?.status || statusList[0];
+    document.getElementById('wt-modal-mgdate').value = item?.mgDate || '';
+    document.getElementById('wt-modal-mgamount').value = item?.mgAmount || '';
+    document.getElementById('wt-modal-preview').src = item ? window.getWebtoonCoverSrc(item) : FALLBACK_COVER;
+    const modal = document.getElementById('webtoon-modal');
+    if (modal) {
+      modal.dataset.tempImage = '';
+      modal.classList.add('show');
+    }
+  };
+
+  window.saveWebtoonModal = async function() {
+    const val = document.getElementById('wt-modal-work').value;
+    if (!val) return alert('작품을 선택하세요.');
+    const [writerId, workId] = val.split('|').map(Number);
+    const ref = typeof getWorkRef === 'function' ? getWorkRef(writerId, workId) : findWork(writerId, workId);
+    if (!ref.writer || !ref.work) return alert('작품 정보를 찾을 수 없습니다.');
+    if (!livData.webtoons) livData.webtoons = [];
+
+    const id = currentEditingWebtoon || Date.now();
+    const payload = {
+      id,
+      writerId,
+      workId,
+      writerName: ref.writer.name,
+      title: ref.work.title,
+      agency: document.getElementById('wt-modal-agency').value.trim(),
+      ratio: document.getElementById('wt-modal-ratio').value.trim(),
+      status: document.getElementById('wt-modal-status').value,
+      mgDate: document.getElementById('wt-modal-mgdate').value,
+      mgAmount: document.getElementById('wt-modal-mgamount').value
+    };
+
+    try {
+      const existing = livData.webtoons.find(x => String(x.id) === String(id));
+      if (pendingWebtoonFile) {
+        const uploaded = await uploadImageFile(pendingWebtoonFile, 'webtoons', String(id));
+        payload.imageUrl = uploaded.url;
+        payload.imagePath = uploaded.path;
+        payload.image = uploaded.url;
+      } else if (existing) {
+        payload.imageUrl = existing.imageUrl || (isRemoteImage(existing.image) ? existing.image : '');
+        payload.imagePath = existing.imagePath || '';
+        payload.image = payload.imageUrl || '';
+      }
+
+      if (existing) Object.assign(existing, payload);
+      else livData.webtoons.push(payload);
+
+      pendingWebtoonFile = null;
+      await window.saveData();
+      if (typeof closeWebtoonModal === 'function') closeWebtoonModal();
+      if (typeof changeView === 'function') changeView('webtoon');
+    } catch (err) {
+      console.error('LIV: 웹툰 저장 실패', err);
+      alert('웹툰 정보를 저장하는 중 오류가 발생했습니다. Firebase Storage/Firestore 권한을 확인해 주세요.');
+    }
+  };
+
+  window.uploadWebtoonImage = async function(input, id) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const item = (livData.webtoons || []).find(x => String(x.id) === String(id));
+    if (!item) return alert('웹툰 정보를 찾을 수 없습니다.');
+
+    try {
+      const uploaded = await uploadImageFile(file, 'webtoons', String(id));
+      item.imageUrl = uploaded.url;
+      item.imagePath = uploaded.path;
+      item.image = uploaded.url;
+      delete item.imageLocalOnly;
+      await window.saveData();
+      if (typeof changeView === 'function') changeView('webtoon');
+    } catch (err) {
+      console.error('LIV: 웹툰 이미지 업로드 실패', err);
+      alert('웹툰 이미지 원격 업로드에 실패했습니다. Firebase Storage 규칙/권한을 확인해 주세요.');
+    } finally {
+      input.value = '';
+    }
+  };
+
+  console.log('LIV safe sync patch loaded:', LIV_SYNC_PATCH_VERSION);
 })();
 </script>
 
