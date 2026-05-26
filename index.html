@@ -449,7 +449,6 @@ async function saveData() {
 
             if (!firebaseLoadedOnce) {
                 console.warn('Firebase 로딩 완료 전 저장 차단');
-                alert('Firebase 데이터 로딩이 끝나기 전이라 저장을 차단했습니다. 잠시 후 다시 저장해 주세요.');
                 return;
             }
 
@@ -2862,6 +2861,61 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         display: block;
       }
 
+      body.liv-mobile-device #webtoon-info-modal {
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 12px !important;
+      }
+
+      body.liv-mobile-device #webtoon-info-modal .modal-content {
+        position: relative !important;
+        width: min(360px, calc(100vw - 26px)) !important;
+        max-height: calc(100dvh - 28px) !important;
+        overflow: visible !important;
+        padding: 18px 18px 20px !important;
+        border-radius: 18px !important;
+      }
+
+      body.liv-mobile-device #webtoon-info-title {
+        padding-right: 34px !important;
+        margin-bottom: 10px !important;
+        font-size: 1.02rem !important;
+        line-height: 1.32 !important;
+      }
+
+      body.liv-mobile-device .webtoon-info-close-x {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        width: 32px;
+        height: 32px;
+        border: 0;
+        background: transparent;
+        color: #111;
+        font-size: 28px;
+        line-height: 30px;
+        font-weight: 800;
+        cursor: pointer;
+        z-index: 2;
+      }
+
+      body.liv-mobile-device #webtoon-info-modal .webtoon-info-modal-cover {
+        height: min(42dvh, 420px) !important;
+        aspect-ratio: auto !important;
+        margin-bottom: 12px !important;
+      }
+
+      body.liv-mobile-device #webtoon-info-modal .webtoon-progress {
+        margin-top: 10px !important;
+      }
+
+      body.liv-mobile-device #webtoon-info-modal .webtoon-progress .step {
+        min-height: 34px !important;
+        padding: 4px 2px !important;
+        font-size: .56rem !important;
+        line-height: 1.15 !important;
+      }
+
       body.liv-mobile-device .webtoon-info-modal-line {
         font-size: .92rem;
         line-height: 1.55;
@@ -2941,9 +2995,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
       document.body.insertAdjacentHTML('beforeend', `
         <div class="modal-overlay" id="webtoon-info-modal">
           <div class="modal-content" style="width:min(340px, calc(100vw - 26px));">
+            <button class="webtoon-info-close-x" type="button" onclick="document.getElementById('webtoon-info-modal').classList.remove('show')">×</button>
             <h3 id="webtoon-info-title" style="margin-top:0; color:var(--main-pink); line-height:1.35;"></h3>
             <div id="webtoon-info-body"></div>
-            <button class="btn btn-black" style="width:100%; margin-top:16px; height:36px!important;" onclick="document.getElementById('webtoon-info-modal').classList.remove('show')">닫기</button>
           </div>
         </div>
       `);
