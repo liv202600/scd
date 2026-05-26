@@ -308,20 +308,47 @@
 
         const firebaseConfig = { apiKey: "AIzaSyBipOGzVqm1vcTrgN9b6IXGtfewOgtJJb8", authDomain: "liv-management.firebaseapp.com", projectId: "liv-management", storageBucket: "liv-management.firebasestorage.app" };
         firebase.initializeApp(firebaseConfig); const db = firebase.firestore();
+        try { db.settings({ ignoreUndefinedProperties: true }); } catch(e) { console.warn('Firestore settings skipped:', e); }
 
         let livData = { writers: [], extraTasks: [], memos: [], webtoons: [], salesRecords: [] };
         let currentDate = parseDateString(getKstDateString()), currentWeekStart = parseDateString(getKstDateString()), currentCalFilter = 'all', currentWriterFilter = null, currentSearchText = '', currentViewName = 'dashboard', currentViewParam = null, currentProgressTab = 'ms';
         let extraTaskClickTimer = null;
 
+        // 전체 데이터 삭제 사고 방지용 최소 안전장치
+        // - 데이터를 복구/덮어쓰기하지 않음
+        // - Firebase 저장 직전, 비어 있는 데이터가 기존 원격 데이터를 덮어쓰는 경우만 차단
+        let firebaseLoadedOnce = false;
+        let lastKnownNonEmptyCount = 0;
+
+        function countImportantData(data) {
+            if (!data || typeof data !== 'object') return 0;
+            const writers = Array.isArray(data.writers) ? data.writers.length : 0;
+            const works = Array.isArray(data.writers) ? data.writers.reduce((sum, w) => sum + (Array.isArray(w.works) ? w.works.length : 0), 0) : 0;
+            const webtoons = Array.isArray(data.webtoons) ? data.webtoons.length : 0;
+            const extraTasks = Array.isArray(data.extraTasks) ? data.extraTasks.length : 0;
+            const memos = Array.isArray(data.memos) ? data.memos.length : 0;
+            const salesRecords = Array.isArray(data.salesRecords) ? data.salesRecords.length : 0;
+            return writers + works + webtoons + extraTasks + memos + salesRecords;
+        }
+
+        try {
+            const backupForGuard = localStorage.getItem('liv_auto_backup');
+            if (backupForGuard) lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(JSON.parse(backupForGuard)));
+        } catch(e) {
+            console.warn('Backup count check failed:', e);
+        }
+
         db.collection("config").doc("mainData").onSnapshot((doc) => {
             document.getElementById('firebase-loading').style.display = 'none';
             if (doc.metadata.hasPendingWrites) return;
+            firebaseLoadedOnce = true;
             if (doc.exists) {
                 livData = doc.data();
                 if(!livData.writers) livData.writers = []; if(!livData.extraTasks) livData.extraTasks = []; if(!livData.memos) livData.memos = []; if(!livData.webtoons) livData.webtoons = []; if(!livData.salesRecords) livData.salesRecords = [];
+                lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData));
                 
                 if (livData.writers.length > 0 || livData.memos.length > 0 || livData.extraTasks.length > 0) {
-                    livData.lastBackupTime = new Date().toLocaleString(); localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+                    livData.lastBackupTime = new Date().toLocaleString(); try { localStorage.setItem('liv_auto_backup', JSON.stringify(livData)); } catch(e) { console.warn('Local auto backup failed:', e); }
                 }
                 renderSidebarWriters(); changeView(currentViewName, currentViewParam);
             } else {
@@ -329,7 +356,87 @@
             }
         });
 
-        function saveData() {
+        
+
+        // Firestore 문서 용량 초과 방지: 이미지가 원격 저장 전체를 막지 않도록 저장 직전 자동 압축만 수행
+        function isLivDataImage(value) {
+            return typeof value === 'string' && value.indexOf('data:image/') === 0;
+        }
+        function livPayloadBytes(data) {
+            try { return new Blob([JSON.stringify(data)]).size; }
+            catch(e) { try { return JSON.stringify(data).length; } catch(err) { return 0; } }
+        }
+        function resizeLivDataUrl(dataUrl, maxWidth, quality) {
+            return new Promise(resolve => {
+                if (!isLivDataImage(dataUrl)) return resolve(dataUrl);
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const sourceW = img.naturalWidth || img.width;
+                        const sourceH = img.naturalHeight || img.height;
+                        if (!sourceW || !sourceH) return resolve(dataUrl);
+                        const ratio = Math.min(1, maxWidth / sourceW);
+                        const targetW = Math.max(1, Math.round(sourceW * ratio));
+                        const targetH = Math.max(1, Math.round(sourceH * ratio));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetW;
+                        canvas.height = targetH;
+                        const ctx = canvas.getContext('2d');
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, 0, 0, targetW, targetH);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    } catch(e) {
+                        console.warn('Image resize failed:', e);
+                        resolve(dataUrl);
+                    }
+                };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            });
+        }
+        async function resizeLivFileToDataUrl(file, maxWidth, quality) {
+            const original = await new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+            return resizeLivDataUrl(original, maxWidth, quality);
+        }
+        async function compactEmbeddedImagesForFirestore(deep = false) {
+            const coverMax = deep ? 90 : 120;
+            const coverQuality = deep ? 0.62 : 0.74;
+            const webtoonMax = deep ? 220 : 300;
+            const webtoonQuality = deep ? 0.68 : 0.82;
+
+            if (Array.isArray(livData.writers)) {
+                for (const writer of livData.writers) {
+                    if (!Array.isArray(writer.works)) continue;
+                    for (const work of writer.works) {
+                        if (isLivDataImage(work.coverImg) && (deep || work.coverImg.length > 18000)) {
+                            work.coverImg = await resizeLivDataUrl(work.coverImg, coverMax, coverQuality);
+                        }
+                    }
+                }
+            }
+            if (Array.isArray(livData.webtoons)) {
+                for (const item of livData.webtoons) {
+                    if (isLivDataImage(item.image) && (deep || item.image.length > 45000)) {
+                        item.image = await resizeLivDataUrl(item.image, webtoonMax, webtoonQuality);
+                    }
+                }
+            }
+        }
+        async function prepareLivDataForFirebaseSave() {
+            await compactEmbeddedImagesForFirestore(false);
+            let size = livPayloadBytes(livData);
+            if (size > 850000) {
+                await compactEmbeddedImagesForFirestore(true);
+                size = livPayloadBytes(livData);
+            }
+            return size;
+        }
+async function saveData() {
             if (!livData) return;
             if (!Array.isArray(livData.writers)) livData.writers = [];
             if (!Array.isArray(livData.extraTasks)) livData.extraTasks = [];
@@ -337,24 +444,54 @@
             if (!Array.isArray(livData.webtoons)) livData.webtoons = [];
             if (!Array.isArray(livData.salesRecords)) livData.salesRecords = [];
 
-            const hasBusinessData =
-                livData.writers.length > 0 ||
-                livData.extraTasks.length > 0 ||
-                livData.memos.length > 0 ||
-                livData.webtoons.length > 0 ||
-                livData.salesRecords.length > 0;
+            const nowImportantCount = countImportantData(livData);
+            const hasBusinessData = nowImportantCount > 0;
+
+            if (!firebaseLoadedOnce) {
+                console.warn('Firebase 로딩 완료 전 저장 차단');
+                alert('Firebase 데이터 로딩이 끝나기 전이라 저장을 차단했습니다. 잠시 후 다시 저장해 주세요.');
+                return;
+            }
+
+            if (lastKnownNonEmptyCount > 0 && nowImportantCount === 0) {
+                console.error('Blocked dangerous empty save:', { lastKnownNonEmptyCount, livData });
+                alert('데이터 전체 삭제 위험이 감지되어 저장을 차단했습니다. 기존 Firebase 데이터는 덮어쓰지 않았습니다.');
+                return;
+            }
 
             if (!hasBusinessData) {
                 if(!confirm("🚨 데이터가 비어있습니다! 보호하시려면 '취소'를 누르세요.")) return;
             } else {
+                lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, nowImportantCount);
                 livData.lastBackupTime = new Date().toLocaleString();
-                localStorage.setItem('liv_auto_backup', JSON.stringify(livData));
+            }
+
+            let payloadSize = 0;
+            try {
+                payloadSize = await prepareLivDataForFirebaseSave();
+            } catch(e) {
+                console.warn('Image compaction skipped:', e);
+                payloadSize = livPayloadBytes(livData);
+            }
+
+            if (payloadSize > 1000000) {
+                console.error('Firestore payload is still too large:', payloadSize);
+                alert('저장할 데이터 용량이 Firebase 한도에 너무 가까워 저장을 멈췄습니다. 표지/웹툰 이미지가 너무 많이 쌓인 상태라 추가 분리 작업이 필요합니다. 기존 Firebase 데이터는 덮어쓰지 않았습니다.');
+                return;
+            }
+
+            if (hasBusinessData) {
+                try { localStorage.setItem('liv_auto_backup', JSON.stringify(livData)); }
+                catch(e) { console.warn('Local auto backup failed:', e); }
             }
 
             db.collection("config").doc("mainData").set(livData)
+                .then(() => { lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData)); })
                 .catch(err => {
                     console.error('Firebase save failed:', err);
-                    alert('저장에 실패했습니다. Firebase 권한/네트워크 상태를 확인해 주세요. 입력 내용은 이 기기 자동 백업에는 보관되었습니다.');
+                    const code = err && err.code ? err.code : 'unknown';
+                    const message = err && err.message ? err.message : String(err || '');
+                    alert(`저장에 실패했습니다.\n오류 코드: ${code}\n${message}\n\n기존 Firebase 데이터는 덮어쓰지 않았고, 가능한 경우 이 기기 자동 백업에는 보관했습니다.`);
                 });
             renderSidebarWriters();
         }
@@ -1351,10 +1488,30 @@ function renderProgress(c) {
 }
 
 function getRowHtml(wId, w, isC) { const rc=isC?'row-child':'', px=isC?`<span class="child-indicator">└</span>`:'', bT=(w.title||'').replace(/\s*\d+권$/,'').replace(/'/g,"\'"); const msB=getStatusColor(w.msStatus,'ms'), cvB=getStatusColor(w.coverStatus,'cover'); const coverSrc=getWorkCoverSrc(w); const sH = w.msStatus==='출간 완료' ? `<div class="platform-box" style="margin-top:0; padding:10px;"><div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${wId}, ${w.id})">상태 변경</button></div><div class="platform-grid">${platforms.map(p=>`<label><input type="checkbox" ${w.platforms&&w.platforms.includes(p)?'checked':''} onchange="togglePlatform(${wId}, ${w.id}, '${p}')"> ${p}</label>`).join('')}</div></div>` : `<div class="status-row"><span class="status-label">작업</span><select class="input-select" style="background-color:${msB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'msStatus', this.value)">${msStatuses2.map(s=>`<option ${w.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="status-row"><span class="status-label">표지</span><select class="input-select" style="background-color:${cvB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'coverStatus', this.value)">${coverStatuses2.map(s=>`<option ${w.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>`; const sqH = !isC ? `<select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${wId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>${w.sequel==='Y'?`<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${wId}, ${w.id}, '${bT}')">생성</button>`:''}` : `<span style="color:#aaa; font-size:0.7rem;">종속</span>`; return `<tr id="work-row-${w.id}" class="${rc}"><td><div class="mobile-del-btn"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div><div style="display:flex; gap:12px; align-items:flex-start;"><label style="cursor:pointer; flex-shrink:0;"><img src="${coverSrc}" class="cover-thumb" id="thumb-${w.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${wId}, ${w.id})"></label><div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;"><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${px}<span class="clickable-title" style="font-weight:800; font-size:0.95rem; color:#222; word-break:keep-all; padding-top:4px;" onclick="openWorkPage(${wId}, ${w.id})">${escapeHtml(w.title)}</span><button class="btn-del" onclick="openWorkEditModal(${wId}, ${w.id})">수정</button></div><div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;"><span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)">%<span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${sqH}</div></div></div></td><td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)"></td><td class="desktop-only-td"><div style="display:flex; align-items:center; gap:5px;">${sqH}</div></td><td>${sH}</td><td><div class="date-grid-2x2"><div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate||''}" onchange="updateWork(${wId}, ${w.id}, 'pubDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate||''}" onchange="updateWork(${wId}, ${w.id}, 'coverDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate2', this.value)"></div></div></td><td class="desktop-only-td" style="text-align:center;"><div class="work-action-group"><button class="btn-del" onclick="openWorkEditModal(${wId}, ${w.id})">수정</button><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div></td></tr>`; }
-function uploadWorkCover(inp,wId,wkId) { if(inp.files&&inp.files[0]){ const r=new FileReader(); r.onload=e=>{ const thumb=document.getElementById(`thumb-${wkId}`); if(thumb) thumb.src=e.target.result; updateWork(wId,wkId,'coverImg',e.target.result); }; r.readAsDataURL(inp.files[0]); } }
+function uploadWorkCover(inp,wId,wkId) {
+  if(!inp.files || !inp.files[0]) return;
+  resizeLivFileToDataUrl(inp.files[0], 120, 0.74).then(b64 => {
+    const thumb=document.getElementById(`thumb-${wkId}`);
+    if(thumb) thumb.src=b64;
+    updateWork(wId,wkId,'coverImg',b64);
+  }).catch(err => {
+    console.error('Cover resize failed:', err);
+    alert('표지 이미지를 처리하지 못했습니다. 다른 이미지 파일로 다시 시도해 주세요.');
+  });
+}
 function openWorkEditModal(wId, workId) { gwEnsureModals(); const {writer,work}=getWorkRef(wId,workId); if(!writer||!work) return; currentEditingWork={wId:Number(wId),workId:Number(workId),tempCover:work.coverImg||''}; document.getElementById('work-edit-writer').value=writer.name||''; document.getElementById('work-edit-title').value=work.title||''; document.getElementById('work-edit-royalty').value=work.royalty||''; document.getElementById('work-edit-sequel').value=work.sequel||'N'; document.getElementById('work-edit-ms').value=work.msStatus||msStatuses2[0]; document.getElementById('work-edit-coverstatus').value=work.coverStatus||coverStatuses2[0]; document.getElementById('work-edit-pub').value=work.pubDate||''; document.getElementById('work-edit-cover').value=work.coverDate||''; document.getElementById('work-edit-proof1').value=work.proofDate||''; document.getElementById('work-edit-proof2').value=work.proofDate2||''; document.getElementById('work-edit-preview').src=getWorkCoverSrc(work); document.getElementById('work-edit-platforms').innerHTML = platforms.map(p=>`<label><input type="checkbox" value="${p}" ${work.platforms&&work.platforms.includes(p)?'checked':''}> ${p}</label>`).join(''); document.getElementById('work-edit-modal').classList.add('show'); }
 function closeWorkEditModal() { document.getElementById('work-edit-modal').classList.remove('show'); currentEditingWork=null; }
-function handleWorkEditFile(e) { const file=e.target.files&&e.target.files[0]; if(!file||!currentEditingWork) return; const r=new FileReader(); r.onload=ev=>{ currentEditingWork.tempCover=ev.target.result; document.getElementById('work-edit-preview').src=ev.target.result; }; r.readAsDataURL(file); }
+function handleWorkEditFile(e) {
+  const file=e.target.files&&e.target.files[0];
+  if(!file||!currentEditingWork) return;
+  resizeLivFileToDataUrl(file, 120, 0.74).then(b64 => {
+    currentEditingWork.tempCover=b64;
+    document.getElementById('work-edit-preview').src=b64;
+  }).catch(err => {
+    console.error('Cover resize failed:', err);
+    alert('표지 이미지를 처리하지 못했습니다. 다른 이미지 파일로 다시 시도해 주세요.');
+  });
+}
 function saveWorkEditModal() { if(!currentEditingWork) return; const {writer,work}=getWorkRef(currentEditingWork.wId,currentEditingWork.workId); work.title=document.getElementById('work-edit-title').value.trim()||work.title; work.royalty=Number(document.getElementById('work-edit-royalty').value||work.royalty||0); work.sequel=document.getElementById('work-edit-sequel').value; work.msStatus=document.getElementById('work-edit-ms').value; work.coverStatus=document.getElementById('work-edit-coverstatus').value; work.pubDate=document.getElementById('work-edit-pub').value; work.coverDate=document.getElementById('work-edit-cover').value; work.proofDate=document.getElementById('work-edit-proof1').value; work.proofDate2=document.getElementById('work-edit-proof2').value; work.platforms=[...document.querySelectorAll('#work-edit-platforms input:checked')].map(el=>el.value); if(currentEditingWork.tempCover) work.coverImg=currentEditingWork.tempCover; saveData(); closeWorkEditModal(); changeView('writer', writer.id); }
 
 function renderWebtoon(c) { gwSetupUi(); if(!livData.webtoons) livData.webtoons=[]; c.innerHTML = `<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><div><h2 style="margin:0 0 6px;">웹툰</h2><div style="font-size:0.84rem; color:#666;">등록 버튼을 누르면 팝업에서 내용을 입력하고, 저장 후에는 확정된 정보 형태로 카드가 표시됩니다.</div></div><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-list" class="webtoon-card-grid"></div>`; const box=document.getElementById('webtoon-list'); if(!livData.webtoons.length) { box.innerHTML='<div class="card" style="text-align:center; padding:40px; color:#888; width:100%;">등록된 웹툰 계약 작품이 없습니다.</div>'; return; } box.innerHTML = livData.webtoons.map(item=>{ const {writer,work}=getWorkRef(item.writerId,item.workId); const title=work?work.title:(item.title||'미지정 작품'); const writerName=writer?writer.name:(item.writerName||'미상'); const stIdx=Math.max(0, webtoonStatuses.indexOf(item.status)); return `<div class="card webtoon-card"><img src="${getWebtoonCoverSrc(item)}" class="webtoon-cover"><div class="clickable-title" style="font-weight:900; font-size:1.03rem; line-height:1.4;" onclick="openWorkPage(${item.writerId}, ${item.workId})">${escapeHtml(title)}</div><div class="webtoon-info-box"><div><b>작가</b> ${escapeHtml(writerName)}</div><div><b>에이전시</b> ${escapeHtml(item.agency||'-')}</div><div><b>계약 비율</b> ${escapeHtml(item.ratio||'-')}</div><div><b>MG 수령일</b> ${item.mgDate||'-'}</div><div><b>MG 금액</b> ${item.mgAmount ? formatWon(item.mgAmount) : '-'}</div></div><div class="webtoon-progress">${webtoonStatuses.map((s,idx)=>`<span class="step ${idx<=stIdx?'active':''}">${escapeHtml(s)}</span>`).join('')}</div><div style="display:flex; gap:8px; margin-top:auto;"><button class="btn btn-del" style="flex:1;" onclick="openWebtoonModal(${item.id})">수정</button><button class="btn-del" style="flex:1;" onclick="deleteWebtoon(${item.id})">삭제</button></div></div>`; }).join(''); }
@@ -3264,7 +3421,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, targetW, targetH);
 
-    return canvas.toDataURL('image/jpeg', 0.94);
+    return canvas.toDataURL('image/jpeg', 0.82);
   }
 
   function applyWebtoonPreviewSize() {
