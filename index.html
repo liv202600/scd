@@ -3862,7 +3862,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
    - Existing Firebase save/backup/restore logic is not modified.
    - Runs only while this program page is open.
    - Requires a Google OAuth Web Client ID authorized for the current HTTPS origin.
-   - v3 fix: Google login libraries are preloaded and the login popup is requested directly from the button click.
+   - v4 fix: hourly backups renew the Google access token silently and use a wake-safe 1-minute checker.
 */
 (function(){
   const DRIVE_FOLDER_NAME = 'LIV_AUTO_BACKUP_JSON';
@@ -3871,12 +3871,16 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   const CLIENT_ID_KEY = 'liv_drive_oauth_client_id';
   const ENABLED_KEY = 'liv_drive_auto_backup_enabled';
   const LAST_BACKUP_KEY = 'liv_drive_last_backup_at';
+  const LAST_ERROR_KEY = 'liv_drive_last_error_at';
   const BACKUP_INTERVAL_MS = 60 * 60 * 1000;
+  const CHECK_INTERVAL_MS = 60 * 1000;
+  const STARTUP_CHECK_DELAY_MS = 15000;
   const KEEP_MS = 72 * 60 * 60 * 1000;
 
   let driveTokenClient = null;
   let driveTokenClientId = '';
   let driveAccessToken = '';
+  let driveAccessTokenExpiresAt = 0;
   let driveBackupTimer = null;
   let driveBackupInProgress = false;
   let driveGapiReady = false;
@@ -3896,39 +3900,31 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   }
 
   function isDriveLibraryReady() {
-    return driveGapiReady && hasGoogleIdentityLibrary() && hasGoogleApiLibrary() && !!(gapi.client && gapi.client.drive);
+    return hasGoogleIdentityLibrary() && hasGoogleApiLibrary() && driveGapiReady;
   }
 
-  function loadExternalScriptOnce(src, id, globalCheck) {
+  function loadScriptOnce(src, markerId) {
     return new Promise((resolve, reject) => {
-      if (globalCheck && globalCheck()) {
+      if (markerId && document.getElementById(markerId)) {
+        const existing = document.getElementById(markerId);
+        if (existing.dataset.loaded === 'true') resolve();
+        else {
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error(src + ' load failed')), { once: true });
+        }
+        return;
+      }
+      const script = document.createElement('script');
+      if (markerId) script.id = markerId;
+      script.src = src;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        script.dataset.loaded = 'true';
         resolve();
-        return;
-      }
-
-      const existing = document.getElementById(id);
-      if (existing) {
-        const started = Date.now();
-        const timer = setInterval(() => {
-          if (globalCheck && globalCheck()) {
-            clearInterval(timer);
-            resolve();
-          } else if (Date.now() - started > 20000) {
-            clearInterval(timer);
-            reject(new Error('Google script load timeout: ' + id));
-          }
-        }, 100);
-        return;
-      }
-
-      const s = document.createElement('script');
-      s.id = id;
-      s.src = src;
-      s.async = true;
-      s.defer = true;
-      s.onload = () => resolve();
-      s.onerror = () => reject(new Error('Google script load failed: ' + src));
-      document.head.appendChild(s);
+      };
+      script.onerror = () => reject(new Error(src + ' load failed'));
+      document.head.appendChild(script);
     });
   }
 
@@ -3938,29 +3934,44 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
     driveLibraryError = null;
     driveLibraryPromise = (async () => {
-      await loadExternalScriptOnce('https://accounts.google.com/gsi/client', 'liv-google-gsi-script', hasGoogleIdentityLibrary);
-      await loadExternalScriptOnce('https://apis.google.com/js/api.js', 'liv-google-api-script', () => !!window.gapi);
+      await Promise.all([
+        loadScriptOnce('https://accounts.google.com/gsi/client', 'google-identity-services-js'),
+        loadScriptOnce('https://apis.google.com/js/api.js', 'google-api-js')
+      ]);
 
-      if (!driveGapiReady) {
-        await new Promise((resolve, reject) => {
-          gapi.load('client', {
-            callback: resolve,
-            onerror: () => reject(new Error('Google API client load failed'))
-          });
-        });
-        await gapi.client.init({
-          discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-        });
-        driveGapiReady = true;
-      }
+      await new Promise((resolve, reject) => {
+        const started = Date.now();
+        const tick = () => {
+          if (hasGoogleApiLibrary() && typeof gapi.load === 'function') {
+            gapi.load('client', {
+              callback: () => resolve(),
+              onerror: () => reject(new Error('gapi client load failed'))
+            });
+            return;
+          }
+          if (Date.now() - started > 15000) {
+            reject(new Error('Google API library timeout'));
+            return;
+          }
+          setTimeout(tick, 100);
+        };
+        tick();
+      });
+
+      await gapi.client.init({
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+      });
+      driveGapiReady = true;
       return true;
-    })().catch(e => {
+    })();
+
+    try {
+      return await driveLibraryPromise;
+    } catch(e) {
       driveLibraryError = e;
       driveLibraryPromise = null;
       throw e;
-    });
-
-    return driveLibraryPromise;
+    }
   }
 
   function preloadGoogleDriveLibraries() {
@@ -3973,10 +3984,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     let clientId = localStorage.getItem(CLIENT_ID_KEY) || '';
     if (!clientId && interactive) {
       clientId = prompt('Google Drive 자동 백업에 사용할 OAuth Web Client ID를 입력하세요.\n\n※ Google Cloud Console에서 만든 “웹 애플리케이션” 클라이언트 ID입니다.\n※ 승인된 JavaScript 원본에 현재 GitHub Pages 주소가 등록되어 있어야 합니다.');
-      clientId = (clientId || '').trim();
-      if (clientId) localStorage.setItem(CLIENT_ID_KEY, clientId);
+      if (clientId) localStorage.setItem(CLIENT_ID_KEY, clientId.trim());
     }
-    return clientId;
+    return (clientId || '').trim();
   }
 
   function resetDriveClientId() {
@@ -3984,12 +3994,11 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     driveTokenClient = null;
     driveTokenClientId = '';
     driveAccessToken = '';
+    driveAccessTokenExpiresAt = 0;
+    if (window.gapi && gapi.client) gapi.client.setToken(null);
   }
 
   function initDriveTokenClient(clientId) {
-    if (!hasGoogleIdentityLibrary()) {
-      throw new Error('Google 로그인 모듈이 아직 준비되지 않았습니다. 잠시 후 다시 눌러주세요.');
-    }
     if (!driveTokenClient || driveTokenClientId !== clientId) {
       driveTokenClientId = clientId;
       driveTokenClient = google.accounts.oauth2.initTokenClient({
@@ -4001,12 +4010,12 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     return driveTokenClient;
   }
 
-  function requestDriveAccessTokenFromClick(clientId, promptMode) {
+  function requestDriveAccessToken(clientId, promptMode) {
     const tokenClient = initDriveTokenClient(clientId);
     return new Promise((resolve, reject) => {
       tokenClient.callback = (response) => {
         if (response && response.error) {
-          reject(new Error(response.error));
+          reject(new Error(response.error_description || response.error));
           return;
         }
         driveAccessToken = response && response.access_token ? response.access_token : '';
@@ -4014,26 +4023,41 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
           reject(new Error('Google Drive access token을 받지 못했습니다. 팝업 차단을 해제한 뒤 다시 눌러주세요.'));
           return;
         }
+        const expiresInSec = Number(response.expires_in || 3600);
+        driveAccessTokenExpiresAt = Date.now() + Math.max(60, expiresInSec - 300) * 1000;
         if (window.gapi && gapi.client) gapi.client.setToken({ access_token: driveAccessToken });
         resolve(driveAccessToken);
       };
       try {
-        tokenClient.requestAccessToken({ prompt: promptMode || 'consent' });
+        tokenClient.requestAccessToken({ prompt: promptMode });
       } catch(e) {
         reject(e);
       }
     });
   }
 
+  function requestDriveAccessTokenFromClick(clientId, promptMode) {
+    return requestDriveAccessToken(clientId, promptMode || 'consent');
+  }
+
   async function ensureDriveTokenNonInteractive() {
     const clientId = getDriveClientId(false);
     if (!clientId) throw new Error('Google OAuth Client ID가 없습니다. Drive 자동 백업 버튼을 먼저 눌러 설정하세요.');
     await loadGoogleDriveLibraries();
-    if (driveAccessToken) {
+
+    if (driveAccessToken && Date.now() < driveAccessTokenExpiresAt) {
       gapi.client.setToken({ access_token: driveAccessToken });
       return driveAccessToken;
     }
-    throw new Error('Google Drive 로그인이 필요합니다. Drive 자동 백업 또는 Drive 즉시 백업 버튼을 눌러 로그인하세요.');
+
+    try {
+      return await requestDriveAccessToken(clientId, '');
+    } catch(e) {
+      driveAccessToken = '';
+      driveAccessTokenExpiresAt = 0;
+      if (window.gapi && gapi.client) gapi.client.setToken(null);
+      throw new Error('Google Drive 권한을 자동 갱신하지 못했습니다. Drive 자동 백업 버튼을 한 번 다시 눌러 로그인해 주세요. 원인: ' + (e && e.message ? e.message : e));
+    }
   }
 
   function getKstBackupStamp() {
@@ -4105,6 +4129,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
     if (resp.status === 401) {
       driveAccessToken = '';
+      driveAccessTokenExpiresAt = 0;
+      if (window.gapi && gapi.client) gapi.client.setToken(null);
       throw new Error('Google Drive 권한이 만료되었습니다. Drive 자동 백업 버튼을 다시 눌러 권한을 갱신하세요.');
     }
     if (!resp.ok) {
@@ -4138,7 +4164,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   }
 
   async function doDriveBackupWithCurrentToken(reason) {
-    if (driveBackupInProgress) return;
+    if (driveBackupInProgress) return null;
     if (!livData || typeof livData !== 'object') throw new Error('백업할 livData가 없습니다.');
     if (typeof countImportantData === 'function' && countImportantData(livData) <= 0) {
       throw new Error('백업할 주요 데이터가 비어 있어 Drive 백업을 중단했습니다.');
@@ -4165,12 +4191,26 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     return doDriveBackupWithCurrentToken(reason || 'hourly-auto');
   }
 
+  function getLastDriveBackupTime() {
+    const last = Date.parse(localStorage.getItem(LAST_BACKUP_KEY) || '');
+    return Number.isFinite(last) ? last : 0;
+  }
+
+  async function runDriveAutoBackupIfDue(reason) {
+    if (localStorage.getItem(ENABLED_KEY) !== 'true') return null;
+    const last = getLastDriveBackupTime();
+    if (last && Date.now() - last < BACKUP_INTERVAL_MS) return null;
+    return doDriveBackupNonInteractive(reason || 'hourly-auto');
+  }
+
   function startDriveAutoBackupTimer() {
     if (driveBackupTimer) clearInterval(driveBackupTimer);
     driveBackupTimer = setInterval(() => {
-      if (localStorage.getItem(ENABLED_KEY) !== 'true') return;
-      doDriveBackupNonInteractive('hourly-auto').catch(e => console.warn('Hourly Drive backup skipped:', e));
-    }, BACKUP_INTERVAL_MS);
+      runDriveAutoBackupIfDue('hourly-auto').catch(e => {
+        localStorage.setItem(LAST_ERROR_KEY, new Date().toISOString());
+        console.warn('Hourly Drive backup skipped:', e);
+      });
+    }, CHECK_INTERVAL_MS);
   }
 
   async function prepareInteractiveDriveLogin() {
@@ -4235,18 +4275,24 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     }
   };
 
+  window.checkDriveBackupStatus = function() {
+    const enabled = localStorage.getItem(ENABLED_KEY) === 'true';
+    const last = localStorage.getItem(LAST_BACKUP_KEY) || '없음';
+    const lastError = localStorage.getItem(LAST_ERROR_KEY) || '없음';
+    alert('Drive 자동 백업 상태\n\n사용 여부: ' + (enabled ? '켜짐' : '꺼짐') + '\n마지막 백업: ' + last + '\n마지막 자동 백업 오류: ' + lastError + '\n토큰 상태: ' + (driveAccessToken && Date.now() < driveAccessTokenExpiresAt ? '유효' : '갱신 필요'));
+  };
+
   document.addEventListener('DOMContentLoaded', () => {
     preloadGoogleDriveLibraries();
     if (localStorage.getItem(ENABLED_KEY) === 'true') {
       startDriveAutoBackupTimer();
       setTimeout(() => {
-        doDriveBackupNonInteractive('startup-auto').catch(e => console.warn('Startup Drive backup skipped:', e));
-      }, 60000);
+        runDriveAutoBackupIfDue('startup-auto').catch(e => console.warn('Startup Drive backup skipped:', e));
+      }, STARTUP_CHECK_DELAY_MS);
     }
   });
 })();
 </script>
-
 <script>
 /* LIV clean sync note: this build keeps one Firebase document as the source of truth. No Firebase Storage split, no local cover-store override, no local backup auto-restore. */
 </script>
