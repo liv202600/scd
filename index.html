@@ -3862,7 +3862,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
    - Existing Firebase save/backup/restore logic is not modified.
    - Runs only while this program page is open.
    - Requires a Google OAuth Web Client ID authorized for the current HTTPS origin.
-   - v4 fix: hourly backups renew the Google access token silently and use a wake-safe 1-minute checker.
+   - v5 fix: Google API loader readiness is checked correctly so the login module finishes loading.
+   - Hourly backups renew the Google access token silently and use a wake-safe 1-minute checker.
 */
 (function(){
   const DRIVE_FOLDER_NAME = 'LIV_AUTO_BACKUP_JSON';
@@ -3893,6 +3894,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
   function hasGoogleIdentityLibrary() {
     return !!(window.google && google.accounts && google.accounts.oauth2);
+  }
+
+  function hasGoogleApiLoader() {
+    return !!(window.gapi && typeof gapi.load === 'function');
   }
 
   function hasGoogleApiLibrary() {
@@ -3942,7 +3947,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
       await new Promise((resolve, reject) => {
         const started = Date.now();
         const tick = () => {
-          if (hasGoogleApiLibrary() && typeof gapi.load === 'function') {
+          if (hasGoogleApiLoader()) {
             gapi.load('client', {
               callback: () => resolve(),
               onerror: () => reject(new Error('gapi client load failed'))
