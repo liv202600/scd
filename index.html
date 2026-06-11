@@ -331,6 +331,86 @@
             return writers + works + webtoons + extraTasks + memos + salesRecords;
         }
 
+
+        // 일일 자동 백업: 앱을 열거나 저장할 때, 그날의 안전한 데이터 사본을 별도 보관
+        // - mainData를 덮어쓰지 않음
+        // - 기존 백업보다 데이터 수가 적은 사본은 덮어쓰지 않음
+        // - 실패해도 일반 저장 흐름을 막지 않음
+        let dailyAutoBackupInProgress = false;
+        let dailyAutoBackupLastSignature = '';
+
+        function cloneLivDataForDailyBackup(data) {
+            return JSON.parse(JSON.stringify(data || {}));
+        }
+
+        function getDailyBackupSummary(data) {
+            return {
+                writers: Array.isArray(data.writers) ? data.writers.length : 0,
+                works: Array.isArray(data.writers) ? data.writers.reduce((sum, w) => sum + (Array.isArray(w.works) ? w.works.length : 0), 0) : 0,
+                webtoons: Array.isArray(data.webtoons) ? data.webtoons.length : 0,
+                extraTasks: Array.isArray(data.extraTasks) ? data.extraTasks.length : 0,
+                memos: Array.isArray(data.memos) ? data.memos.length : 0,
+                salesRecords: Array.isArray(data.salesRecords) ? data.salesRecords.length : 0
+            };
+        }
+
+        async function runDailyAutoBackup(reason = 'auto') {
+            if (!firebaseLoadedOnce || !livData || dailyAutoBackupInProgress) return;
+            const dateKey = getKstDateString();
+            const importantCount = countImportantData(livData);
+            if (importantCount <= 0) return;
+
+            const signature = `${dateKey}|${importantCount}|${livData.lastBackupTime || ''}`;
+            if (dailyAutoBackupLastSignature === signature) return;
+
+            dailyAutoBackupInProgress = true;
+            try {
+                const backupData = cloneLivDataForDailyBackup(livData);
+                const summary = getDailyBackupSummary(backupData);
+                const localKey = `liv_daily_backup_${dateKey}`;
+
+                try {
+                    const existingLocal = localStorage.getItem(localKey);
+                    const existingLocalCount = existingLocal ? countImportantData(JSON.parse(existingLocal)) : 0;
+                    if (existingLocalCount <= importantCount) {
+                        localStorage.setItem(localKey, JSON.stringify(backupData));
+                        localStorage.setItem('liv_daily_backup_latest_key', dateKey);
+                    }
+                } catch(e) {
+                    console.warn('Local daily backup skipped:', e);
+                }
+
+                try {
+                    const ref = db.collection('livDailyBackups').doc(dateKey);
+                    const oldSnap = await ref.get();
+                    const oldCount = oldSnap.exists ? countImportantData(oldSnap.data()) : 0;
+                    if (oldCount > importantCount) {
+                        console.warn('Daily Firebase backup kept existing larger backup:', { dateKey, oldCount, importantCount, reason });
+                        dailyAutoBackupLastSignature = signature;
+                        return;
+                    }
+
+                    const firebaseBackupData = cloneLivDataForDailyBackup(backupData);
+                    firebaseBackupData.dailyBackupMeta = {
+                        date: dateKey,
+                        reason,
+                        importantCount,
+                        summary,
+                        backedUpAtLocal: new Date().toLocaleString()
+                    };
+                    firebaseBackupData.dailyBackupUpdatedAt = firebase.firestore.FieldValue.serverTimestamp();
+                    await ref.set(firebaseBackupData);
+                    dailyAutoBackupLastSignature = signature;
+                    console.log('Daily Firebase backup saved:', dateKey, summary);
+                } catch(e) {
+                    console.warn('Firebase daily backup skipped:', e);
+                    dailyAutoBackupLastSignature = signature;
+                }
+            } finally {
+                dailyAutoBackupInProgress = false;
+            }
+        }
+
         try {
             const backupForGuard = localStorage.getItem('liv_auto_backup');
             if (backupForGuard) lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(JSON.parse(backupForGuard)));
@@ -350,6 +430,7 @@
                 if (livData.writers.length > 0 || livData.memos.length > 0 || livData.extraTasks.length > 0) {
                     livData.lastBackupTime = new Date().toLocaleString(); try { localStorage.setItem('liv_auto_backup', JSON.stringify(livData)); } catch(e) { console.warn('Local auto backup failed:', e); }
                 }
+                runDailyAutoBackup('snapshot');
                 renderSidebarWriters(); changeView(currentViewName, currentViewParam);
             } else {
                 const sv = localStorage.getItem('livDataFinal_v21'); if (sv) { livData = JSON.parse(sv); saveData(); }
@@ -485,7 +566,7 @@ async function saveData() {
             }
 
             db.collection("config").doc("mainData").set(livData)
-                .then(() => { lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData)); })
+                .then(() => { lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData)); runDailyAutoBackup('save'); })
                 .catch(err => {
                     console.error('Firebase save failed:', err);
                     const code = err && err.code ? err.code : 'unknown';
@@ -1462,10 +1543,25 @@ function renderDashboard(container) {
 
 function renderCalendar(c) {
   gwSetupUi(); const y=currentDate.getFullYear(), m=currentDate.getMonth(), td=getKstDateString(); const fd=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate(), wks=Math.ceil((fd+dim)/7);
-  let h=`<div class="cal-wrapper"><div class="card" style="padding:15px 20px; margin-bottom:10px;"><div class="cal-header-wrap"><div class="cal-nav"><button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()-1);renderCalendar(document.getElementById('main-view'))">◀</button><span>${y}년 ${m+1}월</span><button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()+1);renderCalendar(document.getElementById('main-view'))">▶</button></div><div class="filter-group"><button class="filter-btn ${currentCalFilter==='all'?'active':''}" onclick="currentCalFilter='all';renderCalendar(document.getElementById('main-view'))">전체</button><button class="filter-btn ${currentCalFilter==='pub'?'active':''}" onclick="currentCalFilter='pub';renderCalendar(document.getElementById('main-view'))">출간</button><button class="filter-btn ${currentCalFilter==='cover'?'active':''}" onclick="currentCalFilter='cover';renderCalendar(document.getElementById('main-view'))">표지</button><button class="filter-btn ${currentCalFilter==='proof'?'active':''}" onclick="currentCalFilter='proof';renderCalendar(document.getElementById('main-view'))">교정</button></div></div></div><div class="calendar-grid" style="grid-template-rows:auto repeat(${wks},1fr);">${['일','월','화','수','목','금','토'].map(d=>`<div class="day-header">${d}</div>`).join('')}`;
+  let h=`<div class="cal-wrapper"><div class="card" style="padding:15px 20px; margin-bottom:10px;"><div class="cal-header-wrap"><div class="cal-nav"><button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()-1);renderCalendar(document.getElementById('main-view'))">◀</button><span>${y}년 ${m+1}월</span><button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()+1);renderCalendar(document.getElementById('main-view'))">▶</button></div><div class="filter-group"><button class="filter-btn ${currentCalFilter==='all'?'active':''}" onclick="currentCalFilter='all';renderCalendar(document.getElementById('main-view'))">전체</button><button class="filter-btn ${currentCalFilter==='pub'?'active':''}" onclick="currentCalFilter='pub';renderCalendar(document.getElementById('main-view'))">출간</button><button class="filter-btn ${currentCalFilter==='cover'?'active':''}" onclick="currentCalFilter='cover';renderCalendar(document.getElementById('main-view'))">표지</button><button class="filter-btn ${currentCalFilter==='proof'?'active':''}" onclick="currentCalFilter='proof';renderCalendar(document.getElementById('main-view'))">교정</button><button class="filter-btn" style="border-color:#e63946; color:#e63946;" onclick="resetMonthlyScheduleInputs()">입력 초기화</button></div></div></div><div class="calendar-grid" style="grid-template-rows:auto repeat(${wks},1fr);">${['일','월','화','수','목','금','토'].map(d=>`<div class="day-header">${d}</div>`).join('')}`;
   for(let i=0;i<fd;i++) h += `<div></div>`;
   for(let i=1;i<=dim;i++) { const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`; h += `<div class="day-box ${ds===td?'today':''}" ondragover="allowDrop(event)" ondrop="drop(event, '${ds}')" onclick="openDayModal(event,'${ds}')" oncontextmenu="pasteCopiedTask(event,'${ds}')"><div class="day-num">${dateNumHtml(ds, i, true)}</div><div id="cal-day-${ds}" style="display:flex; flex-direction:column; gap:2px; min-height:10px;"></div></div>`; }
   c.innerHTML = h + `</div></div>`; for(let i=1;i<=dim;i++) updateTasksHtml(`${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, `cal-day-${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`, 'calendar', currentCalFilter);
+}
+
+function resetMonthlyScheduleInputs() {
+  if (!livData || !Array.isArray(livData.extraTasks)) return;
+  const manualTasks = livData.extraTasks.filter(t => !(t && (t.systemSettlement || t.fixed)));
+  if (manualTasks.length === 0) {
+    alert('초기화할 월간 스케줄러 입력 데이터가 없습니다.');
+    return;
+  }
+  if (!confirm(`월간 스케줄러에 직접 입력한 일정 ${manualTasks.length}개만 삭제할까요?
+작가/작품/웹툰/매출/정산 고정 일정은 삭제되지 않습니다.`)) return;
+  livData.extraTasks = livData.extraTasks.filter(t => t && (t.systemSettlement || t.fixed));
+  saveData();
+  renderCalendar(document.getElementById('main-view'));
+  alert('월간 스케줄러 입력 데이터만 초기화했습니다.');
 }
 
 function updateTasksHtml(dateStr, containerId, view, filter) {
