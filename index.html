@@ -4245,30 +4245,49 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 <!-- =========================================================
-     ★ LIV 데일리 스케줄 안전 패치 v2
+     ★ LIV 데일리 스케줄 안전 패치 v3
      붙이는 위치: index.html 맨 아래 </body> 바로 위
 
      ★ 중요:
-     이전에 붙였던
-     "★ LIV 데일리 스케줄 / 월간 우클릭 복사 패치"
-     또는
-     "★ 데스크 커스텀 타임테이블 추가 기능"
-     블록은 반드시 삭제한 뒤, 이 코드만 붙이세요.
+     이전에 붙였던 아래 패치들은 반드시 삭제한 뒤, 이 코드만 붙이세요.
+     1) ★ 데스크 커스텀 타임테이블 추가 기능
+     2) ★ LIV 데일리 스케줄 / 월간 우클릭 복사 패치
+     3) ★ LIV 데일리 스케줄 안전 패치 v2
+
+     v3 수정사항:
+     - 월간 스케줄러 작품 일정(1교/2교/표지/출간) 우클릭 복사 정확도 개선
+     - 일반/미팅/메일 일정이 잘못 반복 복사되는 현상 방지
+     - 데일리 스케줄 모바일 화면 가로 넘침/테두리 잘림 방지
 ========================================================= -->
 
 <style>
+    .daily-safe-main,
+    .daily-safe-main * {
+        box-sizing: border-box;
+    }
+
+    .daily-safe-main {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
     .daily-safe-shell {
         display: grid;
-        grid-template-columns: 340px minmax(0, 1fr);
+        grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
         gap: 16px;
         align-items: stretch;
         flex: 1;
         min-height: 0;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
     }
 
     .daily-safe-left,
     .daily-safe-right {
-        min-height: 0;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .daily-safe-left {
@@ -4281,6 +4300,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         flex: 1;
         min-height: 0;
         overflow-y: auto;
+        overflow-x: hidden;
         padding-right: 4px;
     }
 
@@ -4291,6 +4311,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         gap: 12px;
         flex-wrap: wrap;
         margin-bottom: 15px;
+        width: 100%;
+        max-width: 100%;
     }
 
     .daily-safe-controls {
@@ -4298,6 +4320,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         align-items: center;
         gap: 8px;
         flex-wrap: wrap;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .daily-safe-controls input {
@@ -4308,6 +4332,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         font-size: 0.82rem;
         background: #fff;
         font-family: inherit;
+        max-width: 100%;
     }
 
     .daily-safe-source {
@@ -4316,6 +4341,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         margin-bottom: 8px;
         border-left: 5px solid rgba(0,0,0,0.18);
         box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .daily-safe-title {
@@ -4323,6 +4351,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         font-weight: 900;
         line-height: 1.35;
         color: #222;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
     }
 
     .daily-safe-meta {
@@ -4330,13 +4360,16 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         font-weight: 700;
         color: #666;
         margin-top: 3px;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
     }
 
     .daily-safe-actions {
         display: grid;
-        grid-template-columns: 1fr 58px;
+        grid-template-columns: minmax(0, 1fr) 58px;
         gap: 6px;
         margin-top: 8px;
+        width: 100%;
     }
 
     .daily-safe-actions input,
@@ -4350,6 +4383,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         font-size: 0.8rem;
         background: #fff;
         font-family: inherit;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .daily-safe-actions input {
@@ -4368,6 +4403,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         background: var(--black);
         color: #fff;
         font-family: inherit;
+        white-space: nowrap;
     }
 
     .daily-safe-btn.gray {
@@ -4398,6 +4434,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         margin-top: 12px;
         padding-top: 12px;
         border-top: 1px dashed #ddd;
+        width: 100%;
+        max-width: 100%;
     }
 
     .daily-safe-manual h4 {
@@ -4407,15 +4445,15 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
     .daily-safe-manual-grid {
         display: grid;
-        grid-template-columns: 1fr 72px;
+        grid-template-columns: minmax(0, 1fr) 72px;
         gap: 6px;
+        width: 100%;
     }
 
     .daily-safe-manual-grid input,
     .daily-safe-manual-grid select {
         height: 32px;
         padding: 0 7px;
-        min-width: 0;
     }
 
     .daily-safe-wrap {
@@ -4423,14 +4461,20 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         border: 1px solid #eee;
         border-radius: 10px;
         background: #fff;
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
         height: calc(100vh - 170px);
         min-height: 620px;
+        width: 100%;
+        max-width: 100%;
     }
 
     .daily-safe-grid {
         position: relative;
         height: 1680px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
         background:
             repeating-linear-gradient(
                 to bottom,
@@ -4448,14 +4492,15 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         display: flex;
         border-top: 1px solid #f0f0f0;
         pointer-events: none;
+        max-width: 100%;
     }
 
     .daily-safe-label {
-        width: 58px;
-        flex-shrink: 0;
+        width: 54px;
+        flex: 0 0 54px;
         padding-top: 4px;
         text-align: center;
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         color: #999;
         background: #fafbfc;
         border-right: 1px solid #eee;
@@ -4464,9 +4509,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     .daily-safe-layer {
         position: absolute;
         top: 0;
-        left: 64px;
-        right: 8px;
+        left: 60px;
+        right: 6px;
         height: 100%;
+        min-width: 0;
     }
 
     .daily-safe-block {
@@ -4479,6 +4525,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         overflow: hidden;
         cursor: pointer;
         box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        min-width: 0;
     }
 
     .daily-safe-block:hover {
@@ -4503,6 +4550,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         font-weight: 800;
         color: rgba(0,0,0,0.48);
         margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .daily-safe-block-desc {
@@ -4511,12 +4561,15 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         margin-top: 4px;
         line-height: 1.32;
         white-space: pre-wrap;
+        overflow-wrap: anywhere;
     }
 
     .daily-safe-edit {
         margin-top: 12px;
         padding-top: 12px;
         border-top: 1px dashed #ddd;
+        width: 100%;
+        max-width: 100%;
     }
 
     .daily-safe-edit.empty {
@@ -4547,7 +4600,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
     .daily-safe-edit-row {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 8px;
     }
 
@@ -4569,6 +4622,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         color: #999;
         margin-top: 4px;
         line-height: 1.4;
+        word-break: keep-all;
     }
 
     .ev-writing {
@@ -4581,19 +4635,102 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         border-left-color: #8fc7b0 !important;
     }
 
-    @media (max-width: 1200px), (orientation: portrait) {
-        .daily-safe-shell {
-            grid-template-columns: 1fr;
+    @media (max-width: 900px), (orientation: portrait) {
+        .daily-safe-main {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            overflow-x: hidden !important;
         }
 
-        .daily-safe-wrap {
-            height: 720px;
-            min-height: 520px;
+        .daily-safe-shell {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 12px;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .daily-safe-top {
+            align-items: flex-start;
+        }
+
+        .daily-safe-controls {
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 6px;
+        }
+
+        .daily-safe-controls input[type="date"] {
+            grid-column: 1 / -1;
+            width: 100%;
+        }
+
+        .daily-safe-controls input[type="time"] {
+            width: 100%;
+        }
+
+        .daily-safe-controls span {
+            align-self: center;
+        }
+
+        .daily-safe-controls .daily-safe-btn {
+            grid-column: 1 / -1;
+            width: 100%;
         }
 
         .daily-safe-left,
-        .daily-safe-right {
+        .daily-safe-right,
+        .daily-safe-main .card {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+        }
+
+        .daily-safe-scroll {
+            max-height: none;
             overflow: visible;
+            padding-right: 0;
+        }
+
+        .daily-safe-wrap {
+            height: 680px;
+            min-height: 520px;
+            width: 100%;
+            max-width: 100%;
+            border-radius: 8px;
+            overflow-x: hidden;
+        }
+
+        .daily-safe-label {
+            width: 48px;
+            flex-basis: 48px;
+            font-size: 0.66rem;
+        }
+
+        .daily-safe-layer {
+            left: 52px;
+            right: 5px;
+        }
+
+        .daily-safe-block {
+            padding: 7px 8px;
+        }
+
+        .daily-safe-block-title {
+            font-size: 0.78rem;
+        }
+
+        .daily-safe-block-meta,
+        .daily-safe-block-desc {
+            font-size: 0.66rem;
+        }
+
+        .daily-safe-manual-grid {
+            grid-template-columns: minmax(0, 1fr) 64px;
+        }
+
+        .daily-safe-edit-row {
+            grid-template-columns: minmax(0, 1fr);
         }
     }
 </style>
@@ -4612,6 +4749,13 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         coverDate: { label: '표지', short: '표', cls: 'ev-cover', arr: 'coverDateDays', minutes: 60 },
         proofDate: { label: '1교', short: '1교', cls: 'ev-proof1', arr: 'proofDateDays', minutes: 180 },
         proofDate2: { label: '2교', short: '2교', cls: 'ev-proof2', arr: 'proofDate2Days', minutes: 180 }
+    };
+
+    const classToKeyMap = {
+        'ev-pub': 'pubDate',
+        'ev-cover': 'coverDate',
+        'ev-proof1': 'proofDate',
+        'ev-proof2': 'proofDate2'
     };
 
     const typeLabelMap = {
@@ -4880,10 +5024,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
         const storedDate = window.dailySafeDate || todayStr();
 
-        container.className = 'main-container';
+        container.className = 'main-container daily-safe-main';
         container.innerHTML = `
             <div class="daily-safe-top">
-                <div>
+                <div style="min-width:0;">
                     <h2 style="margin:0;">데일리 스케줄</h2>
                     <div class="daily-safe-total" id="daily-safe-total">작업 합계 0분</div>
                 </div>
@@ -4942,7 +5086,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
                                     </div>
                                 `;
                             }).join('')}
-                            <div class="daily-safe-empty" id="daily-safe-empty" style="position:absolute; left:80px; top:20px; right:20px;">
+                            <div class="daily-safe-empty" id="daily-safe-empty" style="position:absolute; left:60px; top:20px; right:10px;">
                                 왼쪽 일정의 소요 시간을 입력하고 등록해 주세요.
                             </div>
                             <div class="daily-safe-layer" id="daily-safe-layer"></div>
@@ -5208,6 +5352,91 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         renderDailyBlocks();
     };
 
+    function detectKeyByClass(el) {
+        for (const cls in classToKeyMap) {
+            if (el.classList.contains(cls)) return classToKeyMap[cls];
+        }
+        return null;
+    }
+
+    function parseIdsFromAttr(attr) {
+        if (!attr) return null;
+
+        let m = attr.match(/openWorkPage\(\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^'")]+)['"]?\s*\)/);
+        if (m) return { writerId: String(m[1]).trim(), workId: String(m[2]).trim(), key: null };
+
+        m = attr.match(/completeWorkTask\(\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]([^'"]+)['"]/);
+        if (m) return { writerId: String(m[1]).trim(), workId: String(m[2]).trim(), key: String(m[3]).trim() };
+
+        m = attr.match(/drag\(\s*event\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^'")]+)['"]?\s*\)/);
+        if (m) return { writerId: String(m[2]).trim(), workId: String(m[3]).trim(), key: String(m[1]).trim() };
+
+        return null;
+    }
+
+    function cleanTitleText(text) {
+        return String(text || '')
+            .replace(/\[[^\]]+\]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function findWorkByText(el, key, dateStr) {
+        if (!ensureData() || !key) return null;
+
+        const titleEl = el.querySelector('.evt-title, .week-evt-title, .clickable-title') || el;
+        const writerEl = el.querySelector('.evt-writer, .week-evt-writer');
+
+        const titleText = cleanTitleText(titleEl.textContent || '');
+        const writerText = cleanTitleText(writerEl ? writerEl.textContent : '');
+
+        let candidates = [];
+
+        livData.writers.forEach(writer => {
+            (writer.works || []).forEach(work => {
+                const sameTitle = cleanTitleText(work.title || '') === titleText;
+                const sameWriter = !writerText || cleanTitleText(writer.name || '') === writerText;
+                const hasDate = getDateList(work, key).includes(dateStr);
+
+                if (sameTitle && sameWriter && hasDate) {
+                    candidates.push({ writerId: writer.id, workId: work.id, key });
+                }
+            });
+        });
+
+        return candidates[0] || null;
+    }
+
+    function getWorkTargetFromElement(el, dateStr) {
+        const keyByClass = detectKeyByClass(el);
+        if (!keyByClass) return null;
+
+        const attrs = [
+            el.getAttribute('onclick'),
+            el.getAttribute('ondblclick'),
+            el.getAttribute('ondragstart')
+        ];
+
+        const titleEl = el.querySelector('.evt-title, .week-evt-title, .clickable-title');
+        if (titleEl) {
+            attrs.push(titleEl.getAttribute('onclick'));
+            attrs.push(titleEl.getAttribute('ondblclick'));
+        }
+
+        for (const attr of attrs) {
+            const parsed = parseIdsFromAttr(attr);
+            if (parsed && parsed.writerId && parsed.workId) {
+                return {
+                    writerId: parsed.writerId,
+                    workId: parsed.workId,
+                    key: parsed.key && keyInfoMap[parsed.key] ? parsed.key : keyByClass
+                };
+            }
+        }
+
+        return findWorkByText(el, keyByClass, dateStr);
+    }
+
     function appendMultiDateItems(dateStr, containerId, view, filter) {
         if (!ensureData()) return;
 
@@ -5238,9 +5467,14 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
                     const label = (view === 'week-calendar') ? info.short : info.label;
 
                     html += `
-                        <div class="${cls} ${info.cls}" style="${doneStyle}"
-                             oncontextmenu="copyWorkDateTaskSafe(event, '${writer.id}', '${work.id}', '${key}', '${dateStr}')">
-                            <span class="${titleCls} clickable-title" onclick="event.stopPropagation(); openWorkPage(${writer.id}, ${work.id})">[${label}] ${h(work.title)}</span>
+                        <div class="${cls} ${info.cls}"
+                             style="${doneStyle}"
+                             data-daily-work="1"
+                             data-daily-writer-id="${h(writer.id)}"
+                             data-daily-work-id="${h(work.id)}"
+                             data-daily-key="${h(key)}"
+                             oncontextmenu="return copyWorkDateTaskSafe(event, '${h(writer.id)}', '${h(work.id)}', '${h(key)}', '${h(dateStr)}')">
+                            <span class="${titleCls}" onclick="event.stopPropagation(); openWorkPage(${writer.id}, ${work.id})">[${label}] ${h(work.title)}</span>
                             <span class="${writerCls}">${h(writer.name)}</span>
                         </div>
                     `;
@@ -5249,37 +5483,44 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         });
 
         if (html) el.insertAdjacentHTML('beforeend', html);
-        attachContextMenuForRenderedTasks(el, dateStr);
+        attachContextMenuForRenderedWorkTasks(el, dateStr);
     }
 
-    function attachContextMenuForRenderedTasks(el, dateStr) {
+    function attachContextMenuForRenderedWorkTasks(el, dateStr) {
         if (!el) return;
 
-        el.querySelectorAll('.event-item, .week-evt-item').forEach(item => {
-            if (item.dataset.dailySafeContext === '1') return;
+        const selector = [
+            '.event-item.ev-pub',
+            '.event-item.ev-cover',
+            '.event-item.ev-proof1',
+            '.event-item.ev-proof2',
+            '.week-evt-item.ev-pub',
+            '.week-evt-item.ev-cover',
+            '.week-evt-item.ev-proof1',
+            '.week-evt-item.ev-proof2'
+        ].join(',');
 
-            const openTarget = item.querySelector('.clickable-title');
-            if (!openTarget) return;
+        el.querySelectorAll(selector).forEach(item => {
+            if (item.dataset.dailyV3Context === '1') return;
 
-            const onclick = openTarget.getAttribute('onclick') || '';
-            const match = onclick.match(/openWorkPage\(([^,]+),\s*([^)]+)\)/);
-            if (!match) return;
+            const target = item.dataset.dailyWork === '1'
+                ? {
+                    writerId: item.dataset.dailyWriterId,
+                    workId: item.dataset.dailyWorkId,
+                    key: item.dataset.dailyKey
+                }
+                : getWorkTargetFromElement(item, dateStr);
 
-            let key = null;
-            if (item.classList.contains('ev-pub')) key = 'pubDate';
-            else if (item.classList.contains('ev-cover')) key = 'coverDate';
-            else if (item.classList.contains('ev-proof1')) key = 'proofDate';
-            else if (item.classList.contains('ev-proof2')) key = 'proofDate2';
+            if (!target || !target.writerId || !target.workId || !keyInfoMap[target.key]) return;
 
-            if (!key) return;
+            item.dataset.dailyV3Context = '1';
+            item.dataset.dailyWriterId = target.writerId;
+            item.dataset.dailyWorkId = target.workId;
+            item.dataset.dailyKey = target.key;
 
-            const writerId = String(match[1]).trim().replace(/['"]/g, '');
-            const workId = String(match[2]).trim().replace(/['"]/g, '');
-
-            item.dataset.dailySafeContext = '1';
-            item.addEventListener('contextmenu', function (event) {
-                copyWorkDateTaskSafe(event, writerId, workId, key, dateStr);
-            });
+            item.oncontextmenu = function (event) {
+                return copyWorkDateTaskSafe(event, target.writerId, target.workId, target.key, dateStr);
+            };
         });
     }
 
@@ -5296,7 +5537,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         const work = found.work;
         const info = keyInfoMap[key];
 
-        if (!writer || !work || !info) return false;
+        if (!writer || !work || !info) {
+            alert('복사할 작품 일정을 찾지 못했어요. 새로고침 후 다시 시도해 주세요.');
+            return false;
+        }
 
         const defaultTarget = nextDate(sourceDate, 1);
         const targetDate = prompt(`"${work.title}" ${info.label} 일정을 어느 날짜로 복사할까요?`, defaultTarget);
@@ -5335,7 +5579,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     };
 
     function patchTaskRenderers() {
-        if (typeof updateTasksHtml === 'function' && !updateTasksHtml.__dailySafePatched) {
+        if (typeof updateTasksHtml === 'function' && !updateTasksHtml.__dailySafeV3Patched) {
             const originalUpdateTasksHtml = updateTasksHtml;
 
             updateTasksHtml = function (dateStr, containerId, view, filter) {
@@ -5343,11 +5587,11 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
                 appendMultiDateItems(dateStr, containerId, view || 'calendar', filter);
             };
 
-            updateTasksHtml.__dailySafePatched = true;
+            updateTasksHtml.__dailySafeV3Patched = true;
             window.updateTasksHtml = updateTasksHtml;
         }
 
-        if (typeof updateWeekTasksHtml === 'function' && !updateWeekTasksHtml.__dailySafePatched) {
+        if (typeof updateWeekTasksHtml === 'function' && !updateWeekTasksHtml.__dailySafeV3Patched) {
             const originalUpdateWeekTasksHtml = updateWeekTasksHtml;
 
             updateWeekTasksHtml = function (dateStr, containerId) {
@@ -5355,13 +5599,13 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
                 appendMultiDateItems(dateStr, containerId, 'week-calendar', 'all');
             };
 
-            updateWeekTasksHtml.__dailySafePatched = true;
+            updateWeekTasksHtml.__dailySafeV3Patched = true;
             window.updateWeekTasksHtml = updateWeekTasksHtml;
         }
     }
 
     function patchChangeView() {
-        if (typeof changeView !== 'function' || changeView.__dailySafePatched) return;
+        if (typeof changeView !== 'function' || changeView.__dailySafeV3Patched) return;
 
         const originalChangeView = changeView;
 
@@ -5383,7 +5627,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
             return originalChangeView(viewName, param);
         };
 
-        changeView.__dailySafePatched = true;
+        changeView.__dailySafeV3Patched = true;
         window.changeView = changeView;
     }
 
@@ -5403,7 +5647,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
                 if (main) renderDaily(main);
             }
         } catch(e) {
-            console.error('Daily schedule patch failed:', e);
+            console.error('Daily schedule patch v3 failed:', e);
         }
     }
 
@@ -5419,7 +5663,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     });
 
     setTimeout(function () {
-        if (!patchInstalled) console.warn('Daily schedule patch was not installed. Check whether the old broken patch remains.');
+        if (!patchInstalled) console.warn('Daily schedule patch v3 was not installed. Check whether old patches remain.');
     }, 5000);
 })();
 </script>
