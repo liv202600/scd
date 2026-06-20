@@ -6681,6 +6681,401 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     }
 })();
 </script>
+<!-- =========================================================
+     ★ LIV 데일리 스케줄 22시 종료 보정 패치
+     붙이는 위치: 최종 통합 코드(v9/v13 등) 바로 아래, </body> 바로 위
+
+     기능:
+     - 데일리 스케줄은 시작 시간이 몇 시든 무조건 22:00에 종료
+     - 시간표 라벨/높이/현재시간선/블록 위치를 22:00 기준으로 보정
+     - 새로 등록한 일정이 22:00을 넘으면 종료 시간을 22:00으로 잘라서 저장
+     - 22:00 이후에 시작되는 일정은 등록하지 않고 되돌림
+     - 다른 기능은 건드리지 않음
+========================================================= -->
+
+<script>
+(function () {
+    const FIXED_END = '22:00';
+    const DEFAULT_START = '08:00';
+    const MINUTE_HEIGHT = 2;
+    let applying = false;
+    let layoutTimer = null;
+
+    function hasData() {
+        return typeof livData !== 'undefined' && livData;
+    }
+
+    function ensureData() {
+        if (!hasData()) return false;
+
+        if (!Array.isArray(livData.dailyTimeBlocks)) {
+            livData.dailyTimeBlocks = [];
+        }
+
+        if (!livData.dailyStartTimes || typeof livData.dailyStartTimes !== 'object') {
+            livData.dailyStartTimes = {};
+        }
+
+        return true;
+    }
+
+    function saveLiv() {
+        if (typeof saveData === 'function') saveData();
+    }
+
+    function timeToMin(value) {
+        const parts = String(value || DEFAULT_START).split(':');
+        return Number(parts[0] || 0) * 60 + Number(parts[1] || 0);
+    }
+
+    function minToTime(mins) {
+        mins = Math.round(Number(mins || 0));
+
+        while (mins < 0) mins += 24 * 60;
+
+        const h = Math.floor(mins / 60) % 24;
+        const m = mins % 60;
+
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    function getDate() {
+        const el = document.getElementById('daily-v9-date');
+        return el ? el.value : (window.dailyV9Date || '');
+    }
+
+    function getStart(date) {
+        if (!ensureData()) return DEFAULT_START;
+
+        const input = document.getElementById('daily-v9-start');
+
+        return livData.dailyStartTimes[date] ||
+            (input && input.value) ||
+            DEFAULT_START;
+    }
+
+    function getEndMin() {
+        return timeToMin(FIXED_END);
+    }
+
+    function getStartMin(date) {
+        return timeToMin(getStart(date));
+    }
+
+    function getSpanMinutes(date) {
+        const start = getStartMin(date);
+        const end = getEndMin();
+
+        return Math.max(60, end - start);
+    }
+
+    function parseBlockTimes(blockEl) {
+        const meta = blockEl.querySelector('.daily-v9-block-meta');
+        const text = meta ? meta.textContent || '' : '';
+        const match = text.match(/(\d{2}):(\d{2})\s*~\s*(\d{2}):(\d{2})/);
+
+        if (!match) return null;
+
+        return {
+            start: Number(match[1]) * 60 + Number(match[2]),
+            end: Number(match[3]) * 60 + Number(match[4])
+        };
+    }
+
+    function getKstNow() {
+        try {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hourCycle: 'h23'
+            }).formatToParts(new Date());
+
+            const data = {};
+
+            parts.forEach(p => {
+                if (p.type !== 'literal') data[p.type] = p.value;
+            });
+
+            return {
+                date: `${data.year}-${data.month}-${data.day}`,
+                minutes: Number(data.hour || 0) * 60 + Number(data.minute || 0),
+                time: `${data.hour}:${data.minute}`
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function rebuildRows(date) {
+        const grid = document.querySelector('.daily-v9-grid');
+        const empty = document.getElementById('daily-v9-empty');
+        const layer = document.getElementById('daily-v9-layer');
+        const line = document.getElementById('daily-v9-now-line');
+
+        if (!grid) return;
+
+        const startMin = getStartMin(date);
+        const endMin = getEndMin();
+        const span = getSpanMinutes(date);
+        const height = span * MINUTE_HEIGHT;
+
+        grid.style.height = `${height}px`;
+
+        grid.querySelectorAll('.daily-v9-row').forEach(row => row.remove());
+
+        const rows = [];
+        let t = startMin;
+
+        while (t < endMin) {
+            rows.push(t);
+            t += 60;
+        }
+
+        if (!rows.includes(endMin)) {
+            rows.push(endMin);
+        }
+
+        const frag = document.createDocumentFragment();
+
+        rows.forEach(min => {
+            const row = document.createElement('div');
+            row.className = 'daily-v9-row';
+            row.style.top = `${Math.max(0, (min - startMin) * MINUTE_HEIGHT)}px`;
+            row.style.height = min === endMin ? '1px' : '120px';
+
+            const label = document.createElement('div');
+            label.className = 'daily-v9-label';
+            label.textContent = minToTime(min);
+
+            row.appendChild(label);
+            row.appendChild(document.createElement('div'));
+            frag.appendChild(row);
+        });
+
+        grid.insertBefore(frag, empty || layer || line || null);
+
+        if (empty) {
+            empty.style.top = '20px';
+        }
+    }
+
+    function reflowBlocks(date) {
+        const startMin = getStartMin(date);
+        const endMin = getEndMin();
+
+        document.querySelectorAll('.daily-v9-block').forEach(block => {
+            const times = parseBlockTimes(block);
+
+            if (!times) return;
+
+            const visibleStart = Math.max(times.start, startMin);
+            const visibleEnd = Math.min(times.end, endMin);
+
+            if (visibleEnd <= startMin || visibleStart >= endMin) {
+                block.style.display = 'none';
+                return;
+            }
+
+            block.style.display = 'block';
+            block.style.top = `${Math.max(0, (visibleStart - startMin) * MINUTE_HEIGHT)}px`;
+            block.style.height = `${Math.max(30, (visibleEnd - visibleStart) * MINUTE_HEIGHT - 4)}px`;
+        });
+    }
+
+    function reflowNowLine(date) {
+        const line = document.getElementById('daily-v9-now-line');
+        const now = getKstNow();
+
+        if (!line || !now) return;
+
+        const startMin = getStartMin(date);
+        const endMin = getEndMin();
+
+        if (date === now.date && now.minutes >= startMin && now.minutes <= endMin) {
+            line.style.display = 'block';
+            line.style.top = `${(now.minutes - startMin) * MINUTE_HEIGHT}px`;
+
+            const label = line.querySelector('.daily-v9-now-label');
+            if (label) label.textContent = `현재 ${now.time}`;
+        } else {
+            line.style.display = 'none';
+        }
+
+        document.querySelectorAll('.daily-v9-block').forEach(block => {
+            const times = parseBlockTimes(block);
+            if (!times) return;
+
+            if (date < now.date) {
+                block.classList.add('daily-v9-past');
+            } else if (date > now.date) {
+                block.classList.remove('daily-v9-past');
+            } else if (times.end <= now.minutes) {
+                block.classList.add('daily-v9-past');
+            } else {
+                block.classList.remove('daily-v9-past');
+            }
+        });
+    }
+
+    function applyLayout() {
+        if (applying) return;
+        if (!document.querySelector('.daily-v9-shell')) return;
+
+        const date = getDate();
+
+        if (!date) return;
+
+        applying = true;
+
+        try {
+            rebuildRows(date);
+            reflowBlocks(date);
+            reflowNowLine(date);
+        } finally {
+            applying = false;
+        }
+    }
+
+    function queueLayout() {
+        clearTimeout(layoutTimer);
+        layoutTimer = setTimeout(applyLayout, 40);
+        setTimeout(applyLayout, 180);
+    }
+
+    function enforceNewBlocksWithinTen(date, beforeIds) {
+        if (!ensureData() || !date) return false;
+
+        const endMin = getEndMin();
+        let changed = false;
+        let removed = 0;
+
+        livData.dailyTimeBlocks = livData.dailyTimeBlocks.filter(block => {
+            if (!block || block.date !== date) return true;
+            if (beforeIds && beforeIds.has(block.id)) return true;
+
+            const start = timeToMin(block.start);
+            const end = timeToMin(block.end);
+
+            if (start >= endMin) {
+                removed++;
+                changed = true;
+                return false;
+            }
+
+            if (end > endMin) {
+                block.end = FIXED_END;
+                changed = true;
+            }
+
+            return true;
+        });
+
+        if (changed) {
+            saveLiv();
+
+            if (removed > 0) {
+                alert('22:00 이후에는 일정을 등록할 수 없어서 추가하지 않았어요.');
+            }
+
+            if (typeof window.dailyV9ChangeDate === 'function') {
+                window.dailyV9ChangeDate(date);
+            }
+        }
+
+        return changed;
+    }
+
+    function patchRegistration(name) {
+        if (typeof window[name] !== 'function') return;
+        if (window[name].__livEndAtTenPatched) return;
+
+        const original = window[name];
+
+        window[name] = function () {
+            const date = getDate();
+            const before = new Set(
+                ensureData()
+                    ? livData.dailyTimeBlocks.filter(b => b && b.date === date).map(b => b.id)
+                    : []
+            );
+
+            const result = original.apply(this, arguments);
+
+            enforceNewBlocksWithinTen(date, before);
+            queueLayout();
+
+            return result;
+        };
+
+        window[name].__livEndAtTenPatched = true;
+    }
+
+    function patchFunctions() {
+        patchRegistration('dailyV9RegisterSource');
+        patchRegistration('dailyV9AddManual');
+
+        ['dailyV9ChangeDate', 'dailyV9ChangeStart', 'dailyV9SaveEdit', 'dailyV9DeleteBlock', 'dailyV9ClearDay', 'dailyV9OpenEditor', 'dailyV9CloseEditor'].forEach(name => {
+            if (typeof window[name] !== 'function') return;
+            if (window[name].__livEndAtTenLayoutPatched) return;
+
+            const original = window[name];
+
+            window[name] = function () {
+                const result = original.apply(this, arguments);
+                queueLayout();
+                return result;
+            };
+
+            window[name].__livEndAtTenLayoutPatched = true;
+        });
+    }
+
+    document.addEventListener('change', function (event) {
+        if (!event.target) return;
+
+        if (event.target.id === 'daily-v9-start' || event.target.id === 'daily-v9-date') {
+            queueLayout();
+        }
+    }, true);
+
+    document.addEventListener('input', function (event) {
+        if (event.target && event.target.id === 'daily-v9-start') {
+            queueLayout();
+        }
+    }, true);
+
+    function start() {
+        patchFunctions();
+        queueLayout();
+
+        const root = document.getElementById('main-view') || document.body;
+
+        try {
+            const observer = new MutationObserver(function () {
+                patchFunctions();
+                queueLayout();
+            });
+
+            observer.observe(root, { childList: true, subtree: true });
+        } catch (e) {}
+
+        setInterval(function () {
+            patchFunctions();
+            applyLayout();
+        }, 5000);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else {
+        start();
+    }
+})();
+</script>
 
 </body>
 </html>
