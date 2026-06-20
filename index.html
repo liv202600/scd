@@ -5667,6 +5667,771 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     }, 5000);
 })();
 </script>
+<!-- =========================================================
+     ★ LIV 데일리 스케줄 현재시간 표시 추가 패치
+     붙이는 위치: v3 패치 아래쪽, </body> 바로 위
+
+     기능:
+     - 한국 시간 기준 현재 시간을 빨간 가로선으로 표시
+     - 선택 날짜가 오늘일 때만 현재 시간선 표시
+     - 지나간 시간 블록은 자동으로 회색 처리
+     - 15초마다 실시간 갱신
+========================================================= -->
+
+<style>
+    .daily-safe-now-line {
+        position: absolute;
+        left: 60px;
+        right: 6px;
+        height: 0;
+        border-top: 2px solid #ff2f45;
+        z-index: 80;
+        pointer-events: none;
+        box-shadow: 0 0 0 1px rgba(255, 47, 69, 0.08);
+    }
+
+    .daily-safe-now-line::before {
+        content: '';
+        position: absolute;
+        left: -5px;
+        top: -5px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #ff2f45;
+    }
+
+    .daily-safe-now-label {
+        position: absolute;
+        left: 6px;
+        top: -18px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: #ff2f45;
+        color: #fff;
+        font-size: 0.64rem;
+        font-weight: 900;
+        line-height: 1.2;
+        white-space: nowrap;
+        box-shadow: 0 2px 5px rgba(255, 47, 69, 0.22);
+    }
+
+    .daily-safe-block.daily-safe-past {
+        background: #eeeeee !important;
+        border-left-color: #bdbdbd !important;
+        color: #888 !important;
+        opacity: 0.72;
+        box-shadow: none;
+    }
+
+    .daily-safe-block.daily-safe-past .daily-safe-block-title,
+    .daily-safe-block.daily-safe-past .daily-safe-block-meta,
+    .daily-safe-block.daily-safe-past .daily-safe-block-desc {
+        color: #888 !important;
+    }
+
+    @media (max-width: 900px), (orientation: portrait) {
+        .daily-safe-now-line {
+            left: 52px;
+            right: 5px;
+        }
+
+        .daily-safe-now-label {
+            font-size: 0.6rem;
+            top: -17px;
+        }
+    }
+</style>
+
+<script>
+(function () {
+    const DAY_START_MIN = 8 * 60;
+    const DAY_END_MIN = 22 * 60;
+    const MINUTE_HEIGHT = 2;
+
+    function getKstParts() {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Seoul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hourCycle: 'h23'
+        }).formatToParts(new Date());
+
+        const data = {};
+        parts.forEach(p => {
+            if (p.type !== 'literal') data[p.type] = p.value;
+        });
+
+        const date = `${data.year}-${data.month}-${data.day}`;
+        const minutes = Number(data.hour || 0) * 60 + Number(data.minute || 0);
+        const time = `${data.hour}:${data.minute}`;
+
+        return { date, minutes, time };
+    }
+
+    function getSelectedDailyDate() {
+        const el = document.getElementById('daily-safe-date');
+        return el ? el.value : null;
+    }
+
+    function parseBlockEndMinutes(block) {
+        const meta = block.querySelector('.daily-safe-block-meta');
+        const text = meta ? meta.textContent || '' : '';
+        const match = text.match(/(\d{2}):(\d{2})\s*~\s*(\d{2}):(\d{2})/);
+
+        if (!match) return null;
+
+        return Number(match[3]) * 60 + Number(match[4]);
+    }
+
+    function ensureNowLine(grid) {
+        let line = grid.querySelector('.daily-safe-now-line');
+
+        if (!line) {
+            line = document.createElement('div');
+            line.className = 'daily-safe-now-line';
+            line.innerHTML = '<span class="daily-safe-now-label"></span>';
+            grid.appendChild(line);
+        }
+
+        return line;
+    }
+
+    function updateDailyCurrentTimeUI() {
+        const grid = document.querySelector('.daily-safe-grid');
+        const selectedDate = getSelectedDailyDate();
+
+        if (!grid || !selectedDate) return;
+
+        const now = getKstParts();
+        const blocks = Array.from(document.querySelectorAll('.daily-safe-block'));
+
+        blocks.forEach(block => {
+            const endMin = parseBlockEndMinutes(block);
+
+            if (selectedDate < now.date) {
+                block.classList.add('daily-safe-past');
+                return;
+            }
+
+            if (selectedDate > now.date) {
+                block.classList.remove('daily-safe-past');
+                return;
+            }
+
+            if (endMin !== null && endMin <= now.minutes) {
+                block.classList.add('daily-safe-past');
+            } else {
+                block.classList.remove('daily-safe-past');
+            }
+        });
+
+        const line = ensureNowLine(grid);
+
+        if (selectedDate !== now.date || now.minutes < DAY_START_MIN || now.minutes > DAY_END_MIN) {
+            line.style.display = 'none';
+            return;
+        }
+
+        const top = (now.minutes - DAY_START_MIN) * MINUTE_HEIGHT;
+        line.style.display = 'block';
+        line.style.top = `${top}px`;
+
+        const label = line.querySelector('.daily-safe-now-label');
+        if (label) label.textContent = `현재 ${now.time}`;
+    }
+
+    window.updateDailyCurrentTimeUI = updateDailyCurrentTimeUI;
+
+    setInterval(updateDailyCurrentTimeUI, 15000);
+
+    document.addEventListener('click', function () {
+        setTimeout(updateDailyCurrentTimeUI, 80);
+    });
+
+    document.addEventListener('change', function () {
+        setTimeout(updateDailyCurrentTimeUI, 80);
+    });
+
+    const observer = new MutationObserver(function () {
+        setTimeout(updateDailyCurrentTimeUI, 80);
+    });
+
+    function startObserver() {
+        const main = document.getElementById('main-view') || document.body;
+        if (main) {
+            try {
+                observer.observe(main, { childList: true, subtree: true });
+            } catch (e) {}
+        }
+        updateDailyCurrentTimeUI();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserver);
+    } else {
+        startObserver();
+    }
+})();
+</script>
+<!-- =========================================================
+     ★ LIV 일정 복사 안정화 패치 v4
+     붙이는 위치: v3 패치 + 현재시간 패치 아래쪽, </body> 바로 위
+
+     기능:
+     - 일정 복사는 오직 마우스 오른쪽 버튼으로만 실행
+     - 복사 대상은 작품 일정만: 1교 / 2교 / 표지 / 출간
+     - 일반 / 미팅 / 메일 / 잡무 일정은 우클릭해도 복사되지 않음
+     - 우클릭으로 복사된 일정은 달력에서 한 번 클릭하면 즉시 삭제
+     - 복사된 1교가 여러 날짜일 때 작품 상세의 1교 날짜는 마지막 날짜로 유지
+========================================================= -->
+
+<style>
+    .event-item.daily-copied-occurrence,
+    .week-evt-item.daily-copied-occurrence {
+        position: relative;
+        cursor: pointer !important;
+        outline: 1px dashed rgba(0, 0, 0, 0.16);
+    }
+
+    .event-item.daily-copied-occurrence::after,
+    .week-evt-item.daily-copied-occurrence::after {
+        content: '클릭 삭제';
+        display: inline-block;
+        margin-left: 4px;
+        padding: 1px 4px;
+        border-radius: 999px;
+        background: rgba(255, 47, 69, 0.12);
+        color: #ff2f45;
+        font-size: 0.58rem;
+        font-weight: 900;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+</style>
+
+<script>
+(function () {
+    const WORK_KEYS = {
+        pubDate: { label: '출간', cls: 'ev-pub', arr: 'pubDateDays' },
+        coverDate: { label: '표지', cls: 'ev-cover', arr: 'coverDateDays' },
+        proofDate: { label: '1교', cls: 'ev-proof1', arr: 'proofDateDays' },
+        proofDate2: { label: '2교', cls: 'ev-proof2', arr: 'proofDate2Days' }
+    };
+
+    const CLASS_TO_KEY = {
+        'ev-pub': 'pubDate',
+        'ev-cover': 'coverDate',
+        'ev-proof1': 'proofDate',
+        'ev-proof2': 'proofDate2'
+    };
+
+    function hasLivData() {
+        return typeof livData !== 'undefined' && livData && Array.isArray(livData.writers);
+    }
+
+    function saveLiv() {
+        if (typeof saveData === 'function') saveData();
+    }
+
+    function htmlEscape(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function nextDate(dateStr, delta) {
+        const d = new Date(dateStr + 'T00:00:00');
+        d.setDate(d.getDate() + Number(delta || 1));
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function getWriter(writerId) {
+        if (!hasLivData()) return null;
+        return livData.writers.find(w => String(w.id) === String(writerId)) || null;
+    }
+
+    function getWork(writerId, workId) {
+        const writer = getWriter(writerId);
+        if (!writer) return { writer: null, work: null };
+
+        const work = (writer.works || []).find(w => String(w.id) === String(workId)) || null;
+        return { writer, work };
+    }
+
+    function getDateList(work, key) {
+        const info = WORK_KEYS[key];
+        if (!work || !info) return [];
+
+        const list = [];
+        if (work[key]) list.push(work[key]);
+        if (Array.isArray(work[info.arr])) list.push(...work[info.arr]);
+
+        return Array.from(new Set(list.filter(Boolean))).sort();
+    }
+
+    function setDateList(work, key, dates) {
+        const info = WORK_KEYS[key];
+        if (!work || !info) return;
+
+        const clean = Array.from(new Set((dates || []).filter(Boolean))).sort();
+
+        if (!clean.length) {
+            work[key] = '';
+            work[info.arr] = [];
+            return;
+        }
+
+        work[info.arr] = clean;
+        work[key] = clean[clean.length - 1];
+    }
+
+    function ensureCopyMeta(work, key) {
+        if (!work._dailyCopiedDates || typeof work._dailyCopiedDates !== 'object') {
+            work._dailyCopiedDates = {};
+        }
+
+        if (!Array.isArray(work._dailyCopiedDates[key])) {
+            const legacyDates = getDateList(work, key);
+
+            /*
+              이전 패치로 이미 여러 날짜가 저장되어 있는데 복사 기록이 없는 경우:
+              가장 빠른 날짜를 원본으로 보고, 그 뒤 날짜들을 복사본으로 자동 인식.
+            */
+            work._dailyCopiedDates[key] = legacyDates.length > 1 ? legacyDates.slice(1) : [];
+        }
+
+        return work._dailyCopiedDates[key];
+    }
+
+    function isCopiedOccurrence(work, key, dateStr) {
+        if (!work || !key || !dateStr) return false;
+        const copied = ensureCopyMeta(work, key);
+        return copied.includes(dateStr);
+    }
+
+    function addCopiedOccurrence(work, key, dateStr) {
+        const copied = ensureCopyMeta(work, key);
+        if (!copied.includes(dateStr)) copied.push(dateStr);
+        work._dailyCopiedDates[key] = Array.from(new Set(copied)).sort();
+    }
+
+    function removeCopiedOccurrence(work, key, dateStr) {
+        const info = WORK_KEYS[key];
+        if (!work || !info) return;
+
+        const copied = ensureCopyMeta(work, key).filter(d => d !== dateStr);
+        work._dailyCopiedDates[key] = copied;
+
+        const dates = getDateList(work, key).filter(d => d !== dateStr);
+        setDateList(work, key, dates);
+    }
+
+    function getKeyFromClass(el) {
+        if (!el || !el.classList) return null;
+
+        for (const cls in CLASS_TO_KEY) {
+            if (el.classList.contains(cls)) return CLASS_TO_KEY[cls];
+        }
+
+        return null;
+    }
+
+    function parseIdsFromString(value) {
+        const text = String(value || '');
+
+        let m = text.match(/openWorkPage\(\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^'")]+)['"]?\s*\)/);
+        if (m) return { writerId: String(m[1]).trim(), workId: String(m[2]).trim(), key: null };
+
+        m = text.match(/completeWorkTask\(\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]([^'"]+)['"]/);
+        if (m) return { writerId: String(m[1]).trim(), workId: String(m[2]).trim(), key: String(m[3]).trim() };
+
+        m = text.match(/drag\(\s*event\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^'")]+)['"]?\s*\)/);
+        if (m) return { writerId: String(m[2]).trim(), workId: String(m[3]).trim(), key: String(m[1]).trim() };
+
+        m = text.match(/copyWorkDateTaskSafe\(\s*event\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/);
+        if (m) return { writerId: String(m[1]).trim(), workId: String(m[2]).trim(), key: String(m[3]).trim(), date: String(m[4]).trim() };
+
+        return null;
+    }
+
+    function cleanText(value) {
+        return String(value || '')
+            .replace(/\[[^\]]+\]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function findByText(el, key, dateStr) {
+        if (!hasLivData() || !key || !dateStr) return null;
+
+        const titleEl = el.querySelector('.evt-title, .week-evt-title, .clickable-title') || el;
+        const writerEl = el.querySelector('.evt-writer, .week-evt-writer');
+
+        const titleText = cleanText(titleEl.textContent);
+        const writerText = writerEl ? cleanText(writerEl.textContent) : '';
+
+        for (const writer of livData.writers) {
+            for (const work of (writer.works || [])) {
+                const sameTitle = cleanText(work.title) === titleText;
+                const sameWriter = !writerText || cleanText(writer.name) === writerText;
+                const hasDate = getDateList(work, key).includes(dateStr);
+
+                if (sameTitle && sameWriter && hasDate) {
+                    return { writerId: writer.id, workId: work.id, key, date: dateStr };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function getTaskTarget(el, dateStr) {
+        if (!el) return null;
+
+        const keyFromClass = getKeyFromClass(el);
+        if (!keyFromClass) return null;
+
+        if (el.dataset.dailyWriterId && el.dataset.dailyWorkId && el.dataset.dailyKey) {
+            return {
+                writerId: el.dataset.dailyWriterId,
+                workId: el.dataset.dailyWorkId,
+                key: el.dataset.dailyKey,
+                date: el.dataset.dailyDate || dateStr
+            };
+        }
+
+        const possibleAttrs = [
+            el.getAttribute('onclick'),
+            el.getAttribute('ondblclick'),
+            el.getAttribute('ondragstart'),
+            el.getAttribute('oncontextmenu')
+        ];
+
+        const titleEl = el.querySelector('.evt-title, .week-evt-title, .clickable-title');
+        if (titleEl) {
+            possibleAttrs.push(titleEl.getAttribute('onclick'));
+            possibleAttrs.push(titleEl.getAttribute('ondblclick'));
+        }
+
+        for (const attr of possibleAttrs) {
+            const parsed = parseIdsFromString(attr);
+            if (parsed && parsed.writerId && parsed.workId) {
+                return {
+                    writerId: parsed.writerId,
+                    workId: parsed.workId,
+                    key: parsed.key && WORK_KEYS[parsed.key] ? parsed.key : keyFromClass,
+                    date: parsed.date || dateStr
+                };
+            }
+        }
+
+        return findByText(el, keyFromClass, dateStr);
+    }
+
+    function getMainViewName() {
+        try { return currentViewName; } catch (e) { return 'calendar'; }
+    }
+
+    function rerenderCalendar() {
+        const main = document.getElementById('main-view');
+
+        try {
+            if (getMainViewName() === 'week-calendar' && typeof renderWeekCalendar === 'function') {
+                renderWeekCalendar(main);
+            } else if (typeof renderCalendar === 'function') {
+                renderCalendar(main);
+            } else if (typeof changeView === 'function') {
+                changeView('calendar');
+            }
+        } catch (e) {
+            console.warn('Calendar rerender skipped:', e);
+        }
+    }
+
+    function copyWorkOnlyByRightClick(target, sourceDate) {
+        if (!target || !target.writerId || !target.workId || !WORK_KEYS[target.key]) return false;
+
+        const found = getWork(target.writerId, target.workId);
+        const writer = found.writer;
+        const work = found.work;
+        const info = WORK_KEYS[target.key];
+
+        if (!writer || !work) {
+            alert('복사할 작품 일정을 찾지 못했어요. 새로고침 후 다시 시도해 주세요.');
+            return false;
+        }
+
+        const realSourceDate = sourceDate || target.date;
+        if (!realSourceDate) {
+            alert('복사 기준 날짜를 찾지 못했어요. 새로고침 후 다시 시도해 주세요.');
+            return false;
+        }
+
+        const defaultTarget = nextDate(realSourceDate, 1);
+        const targetDate = prompt(`"${work.title}" ${info.label} 일정을 어느 날짜로 복사할까요?`, defaultTarget);
+
+        if (!targetDate) return false;
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+            alert('날짜는 2026-06-21처럼 입력해 주세요.');
+            return false;
+        }
+
+        const dates = getDateList(work, target.key);
+        dates.push(realSourceDate, targetDate);
+        setDateList(work, target.key, dates);
+        addCopiedOccurrence(work, target.key, targetDate);
+
+        saveLiv();
+        rerenderCalendar();
+        return false;
+    }
+
+    function deleteCopiedByClick(target, dateStr) {
+        if (!target || !target.writerId || !target.workId || !WORK_KEYS[target.key]) return false;
+
+        const found = getWork(target.writerId, target.workId);
+        const work = found.work;
+
+        if (!work) return false;
+
+        const realDate = dateStr || target.date;
+        if (!realDate || !isCopiedOccurrence(work, target.key, realDate)) return false;
+
+        removeCopiedOccurrence(work, target.key, realDate);
+
+        saveLiv();
+        rerenderCalendar();
+        return true;
+    }
+
+    function appendMissingCopiedItems(dateStr, containerId, view, filter) {
+        if (!hasLivData()) return;
+
+        const el = document.getElementById(containerId);
+        if (!el) return;
+
+        const existingKeys = new Set();
+        el.querySelectorAll('.event-item, .week-evt-item').forEach(item => {
+            if (item.dataset.dailyWriterId && item.dataset.dailyWorkId && item.dataset.dailyKey && item.dataset.dailyDate) {
+                existingKeys.add(`${item.dataset.dailyWriterId}:${item.dataset.dailyWorkId}:${item.dataset.dailyKey}:${item.dataset.dailyDate}`);
+            }
+        });
+
+        const currentFilter = filter || 'all';
+        let html = '';
+
+        livData.writers.forEach(writer => {
+            (writer.works || []).forEach(work => {
+                Object.keys(WORK_KEYS).forEach(key => {
+                    const info = WORK_KEYS[key];
+
+                    if (key === 'pubDate' && !(currentFilter === 'all' || currentFilter === 'pub')) return;
+                    if (key === 'coverDate' && !(currentFilter === 'all' || currentFilter === 'cover')) return;
+                    if ((key === 'proofDate' || key === 'proofDate2') && !(currentFilter === 'all' || currentFilter === 'proof')) return;
+
+                    const dates = getDateList(work, key);
+                    if (!dates.includes(dateStr)) return;
+
+                    const uniqueKey = `${writer.id}:${work.id}:${key}:${dateStr}`;
+                    if (existingKeys.has(uniqueKey)) return;
+
+                    /*
+                      기존 렌더러가 마지막 날짜만 표시할 수 있으므로,
+                      다중 날짜 중 기존 화면에 빠진 날짜를 보충 표시합니다.
+                    */
+                    if (work[key] === dateStr) return;
+
+                    const copiedClass = isCopiedOccurrence(work, key, dateStr) ? 'daily-copied-occurrence' : '';
+                    const itemCls = view === 'week-calendar' ? 'week-evt-item' : 'event-item';
+                    const titleCls = view === 'week-calendar' ? 'week-evt-title' : 'evt-title';
+                    const writerCls = view === 'week-calendar' ? 'week-evt-writer' : 'evt-writer';
+                    const label = view === 'week-calendar' ? info.label : info.label;
+
+                    html += `
+                        <div class="${itemCls} ${info.cls} ${copiedClass}"
+                             data-daily-work="1"
+                             data-daily-writer-id="${htmlEscape(writer.id)}"
+                             data-daily-work-id="${htmlEscape(work.id)}"
+                             data-daily-key="${htmlEscape(key)}"
+                             data-daily-date="${htmlEscape(dateStr)}">
+                            <span class="${titleCls}">[${label}] ${htmlEscape(work.title)}</span>
+                            <span class="${writerCls}">${htmlEscape(writer.name)}</span>
+                        </div>
+                    `;
+                });
+            });
+        });
+
+        if (html) el.insertAdjacentHTML('beforeend', html);
+    }
+
+    function markCalendarItems(dateStr, containerId, view, filter) {
+        if (!hasLivData()) return;
+
+        const el = document.getElementById(containerId);
+        if (!el) return;
+
+        appendMissingCopiedItems(dateStr, containerId, view, filter);
+
+        const selector = [
+            '.event-item.ev-pub',
+            '.event-item.ev-cover',
+            '.event-item.ev-proof1',
+            '.event-item.ev-proof2',
+            '.week-evt-item.ev-pub',
+            '.week-evt-item.ev-cover',
+            '.week-evt-item.ev-proof1',
+            '.week-evt-item.ev-proof2'
+        ].join(',');
+
+        el.querySelectorAll(selector).forEach(item => {
+            const target = getTaskTarget(item, dateStr);
+
+            if (!target || !target.writerId || !target.workId || !WORK_KEYS[target.key]) return;
+
+            const found = getWork(target.writerId, target.workId);
+            const work = found.work;
+            if (!work) return;
+
+            item.dataset.dailyWork = '1';
+            item.dataset.dailyWriterId = target.writerId;
+            item.dataset.dailyWorkId = target.workId;
+            item.dataset.dailyKey = target.key;
+            item.dataset.dailyDate = dateStr;
+
+            const copied = isCopiedOccurrence(work, target.key, dateStr);
+            item.classList.toggle('daily-copied-occurrence', copied);
+        });
+    }
+
+    function patchRenderers() {
+        if (typeof updateTasksHtml === 'function' && !updateTasksHtml.__dailyCopyStableV4) {
+            const original = updateTasksHtml;
+
+            updateTasksHtml = function (dateStr, containerId, view, filter) {
+                original(dateStr, containerId, view, filter);
+                markCalendarItems(dateStr, containerId, view || 'calendar', filter || 'all');
+            };
+
+            updateTasksHtml.__dailyCopyStableV4 = true;
+            window.updateTasksHtml = updateTasksHtml;
+        }
+
+        if (typeof updateWeekTasksHtml === 'function' && !updateWeekTasksHtml.__dailyCopyStableV4) {
+            const originalWeek = updateWeekTasksHtml;
+
+            updateWeekTasksHtml = function (dateStr, containerId) {
+                originalWeek(dateStr, containerId);
+                markCalendarItems(dateStr, containerId, 'week-calendar', 'all');
+            };
+
+            updateWeekTasksHtml.__dailyCopyStableV4 = true;
+            window.updateWeekTasksHtml = updateWeekTasksHtml;
+        }
+    }
+
+    /*
+      핵심:
+      capture 단계에서 우클릭 이벤트를 먼저 잡아
+      이전 패치/기존 코드의 oncontextmenu가 실행되기 전에 차단합니다.
+    */
+    document.addEventListener('contextmenu', function (event) {
+        const item = event.target.closest('.event-item, .week-evt-item');
+        if (!item) return;
+
+        const isWorkSchedule =
+            item.classList.contains('ev-pub') ||
+            item.classList.contains('ev-cover') ||
+            item.classList.contains('ev-proof1') ||
+            item.classList.contains('ev-proof2');
+
+        /*
+          일반/미팅/메일/잡무 등은 우클릭 복사 금지.
+          이전 패치의 불안정한 복사를 막기 위해 여기서 이벤트를 끊습니다.
+        */
+        if (!isWorkSchedule) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return false;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const target = getTaskTarget(item, item.dataset.dailyDate);
+        copyWorkOnlyByRightClick(target, item.dataset.dailyDate);
+
+        return false;
+    }, true);
+
+    /*
+      복사본만 한 번 클릭해서 삭제.
+      원본 일정 클릭은 기존처럼 작품 상세 열림.
+    */
+    document.addEventListener('click', function (event) {
+        const item = event.target.closest('.event-item.daily-copied-occurrence, .week-evt-item.daily-copied-occurrence');
+        if (!item) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const target = getTaskTarget(item, item.dataset.dailyDate);
+        deleteCopiedByClick(target, item.dataset.dailyDate);
+
+        return false;
+    }, true);
+
+    /*
+      이전 v3 함수가 남아 있어도 안정화된 복사 함수만 쓰도록 덮어씁니다.
+    */
+    window.copyWorkDateTaskSafe = function (event, writerId, workId, key, sourceDate) {
+        if (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+
+        return copyWorkOnlyByRightClick({ writerId, workId, key, date: sourceDate }, sourceDate);
+    };
+
+    function initStableCopyPatch() {
+        if (!hasLivData()) return;
+
+        patchRenderers();
+
+        /*
+          현재 달력이 이미 떠 있는 상태에서 붙였을 때도 한 번 보정.
+        */
+        document.querySelectorAll('[id]').forEach(el => {
+            const id = el.id || '';
+            const m = id.match(/(\d{4}-\d{2}-\d{2})/);
+            if (m) markCalendarItems(m[1], id, 'calendar', 'all');
+        });
+    }
+
+    const timer = setInterval(function () {
+        initStableCopyPatch();
+
+        if (typeof updateTasksHtml === 'function' && updateTasksHtml.__dailyCopyStableV4) {
+            clearInterval(timer);
+        }
+    }, 300);
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initStableCopyPatch();
+        setTimeout(initStableCopyPatch, 700);
+        setTimeout(initStableCopyPatch, 1500);
+    });
+})();
+</script>
 
 </body>
 </html>
