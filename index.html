@@ -4244,6 +4244,687 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   });
 })();
 </script>
+<!-- =========================================================
+     ★ 데스크 커스텀 타임테이블 추가 기능
+     기존 기능 건드리지 않고, 데스크 화면에만 자동 삽입됨
+========================================================= -->
+<style>
+    .desk-timetable-card {
+        margin-top: 20px;
+    }
 
+    .desk-timetable-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .desk-timetable-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin: 0;
+    }
+
+    .desk-timetable-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .desk-timetable-controls input,
+    .desk-timetable-controls select {
+        height: 34px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 0 8px;
+        font-size: 0.85rem;
+        background: #fff;
+    }
+
+    .desk-timetable-layout {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    .desk-preset-panel {
+        background: #fafbfc;
+        border: 1px solid #eee;
+        border-radius: 10px;
+        padding: 14px;
+    }
+
+    .desk-preset-title {
+        font-size: 0.9rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+    }
+
+    .desk-preset-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .desk-preset-btn {
+        border: 1px solid rgba(0,0,0,0.06);
+        border-left: 4px solid rgba(0,0,0,0.15);
+        border-radius: 8px;
+        min-height: 42px;
+        padding: 7px 8px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-align: left;
+        cursor: pointer;
+        color: #333;
+        background: #fff;
+        line-height: 1.25;
+    }
+
+    .desk-preset-btn small {
+        display: block;
+        font-weight: 600;
+        color: #777;
+        margin-top: 2px;
+    }
+
+    .desk-edit-panel {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px dashed #ddd;
+    }
+
+    .desk-edit-panel.empty {
+        color: #999;
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }
+
+    .desk-edit-panel label {
+        display: block;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #777;
+        margin: 8px 0 4px;
+    }
+
+    .desk-edit-panel input,
+    .desk-edit-panel textarea,
+    .desk-edit-panel select {
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 0.82rem;
+        background: #fff;
+        font-family: inherit;
+    }
+
+    .desk-edit-panel textarea {
+        resize: vertical;
+        min-height: 58px;
+    }
+
+    .desk-edit-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .desk-edit-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+    }
+
+    .desk-mini-btn {
+        border: none;
+        border-radius: 6px;
+        height: 32px;
+        padding: 0 10px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .desk-mini-btn.save {
+        background: var(--black);
+        color: #fff;
+    }
+
+    .desk-mini-btn.del {
+        background: #ffe6eb;
+        color: #e63946;
+    }
+
+    .desk-mini-btn.ghost {
+        background: #f3f3f3;
+        color: #555;
+    }
+
+    .desk-timetable-wrap {
+        position: relative;
+        border: 1px solid #eee;
+        border-radius: 10px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .desk-time-grid {
+        position: relative;
+        height: 1344px;
+        background:
+            repeating-linear-gradient(
+                to bottom,
+                #fff 0,
+                #fff 47px,
+                #f2f2f2 48px
+            );
+    }
+
+    .desk-time-row {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 48px;
+        border-top: 1px solid #f0f0f0;
+        display: flex;
+        pointer-events: none;
+    }
+
+    .desk-time-label {
+        width: 58px;
+        flex-shrink: 0;
+        padding-top: 4px;
+        text-align: center;
+        font-size: 0.72rem;
+        color: #999;
+        background: #fafbfc;
+        border-right: 1px solid #eee;
+    }
+
+    .desk-time-line {
+        flex: 1;
+    }
+
+    .desk-block-layer {
+        position: absolute;
+        top: 0;
+        left: 64px;
+        right: 8px;
+        height: 100%;
+    }
+
+    .desk-time-block {
+        position: absolute;
+        left: 0;
+        right: 0;
+        border-radius: 8px;
+        border-left: 5px solid rgba(0,0,0,0.18);
+        padding: 8px 10px;
+        overflow: hidden;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .desk-time-block:hover {
+        outline: 2px solid rgba(255,133,162,0.35);
+    }
+
+    .desk-time-block.active {
+        outline: 2px solid var(--main-pink);
+    }
+
+    .desk-time-block-title {
+        font-size: 0.84rem;
+        font-weight: 900;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .desk-time-block-meta {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: rgba(0,0,0,0.48);
+        margin-top: 2px;
+    }
+
+    .desk-time-block-desc {
+        font-size: 0.7rem;
+        color: rgba(0,0,0,0.56);
+        margin-top: 4px;
+        line-height: 1.3;
+        white-space: pre-wrap;
+    }
+
+    .desk-empty-timetable {
+        position: absolute;
+        top: 22px;
+        left: 80px;
+        right: 20px;
+        color: #aaa;
+        font-size: 0.85rem;
+        pointer-events: none;
+    }
+
+    .desk-day-total {
+        font-size: 0.82rem;
+        color: #777;
+        font-weight: 700;
+    }
+
+    .ev-rest {
+        background: #edf8f4;
+        border-left-color: #8fc7b0 !important;
+    }
+
+    .ev-writing {
+        background: #f0f4ff;
+        border-left-color: #8ba5ff !important;
+    }
+
+    .ev-ridi {
+        background: var(--color-pub);
+        border-left-color: #a3b8ac !important;
+    }
+
+    @media (max-width: 900px) {
+        .desk-timetable-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .desk-preset-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .desk-time-grid {
+            height: 1120px;
+        }
+
+        .desk-time-row {
+            height: 40px;
+        }
+
+        .desk-time-label {
+            width: 52px;
+            font-size: 0.66rem;
+        }
+
+        .desk-block-layer {
+            left: 58px;
+        }
+    }
+</style>
+
+<script>
+(function () {
+    const DESK_DAY_START = 8 * 60;
+    const DESK_DAY_END = 22 * 60;
+    const DESK_MINUTE_HEIGHT = 1.6;
+
+    const DESK_PRESETS = [
+        { key: 'cover-60', title: '표지', minutes: 60, className: 'ev-cover' },
+        { key: 'proof1-180', title: '1교', minutes: 180, className: 'ev-proof1' },
+        { key: 'ridi-120', title: '출간 등록', minutes: 120, className: 'ev-ridi' },
+        { key: 'task-60', title: '잡무', minutes: 60, className: 'ev-task' },
+        { key: 'task-30', title: '잡무', minutes: 30, className: 'ev-task' },
+        { key: 'writing-60', title: '원고 작성', minutes: 60, className: 'ev-writing' },
+        { key: 'rest-30', title: '휴식', minutes: 30, className: 'ev-rest' },
+        { key: 'meeting-180', title: '미팅', minutes: 180, className: 'ev-meeting' },
+        { key: 'meeting-360', title: '미팅', minutes: 360, className: 'ev-meeting' }
+    ];
+
+    let selectedDeskTimetableId = null;
+
+    function deskEscapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function deskTodayString() {
+        if (typeof getKstDateString === 'function') return getKstDateString(0);
+
+        const now = new Date();
+        const kst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60000);
+        return `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}-${String(kst.getDate()).padStart(2, '0')}`;
+    }
+
+    function ensureDeskTimetableData() {
+        if (typeof livData === 'undefined') return false;
+        if (!Array.isArray(livData.deskTimetable)) livData.deskTimetable = [];
+        return true;
+    }
+
+    function deskTimeToMinutes(value) {
+        const parts = String(value || '08:00').split(':');
+        const h = Number(parts[0] || 0);
+        const m = Number(parts[1] || 0);
+        return h * 60 + m;
+    }
+
+    function deskMinutesToTime(mins) {
+        mins = Math.max(0, Math.round(Number(mins || 0)));
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    function deskDurationLabel(minutes) {
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        if (h && m) return `${h}시간 ${m}분`;
+        if (h) return `${h}시간`;
+        return `${m}분`;
+    }
+
+    function deskSaveData() {
+        if (typeof saveData === 'function') saveData();
+    }
+
+    function getDeskSelectedDate() {
+        const el = document.getElementById('desk-timetable-date');
+        return el ? el.value : deskTodayString();
+    }
+
+    function getDeskItemsByDate(date) {
+        if (!ensureDeskTimetableData()) return [];
+
+        return livData.deskTimetable
+            .filter(item => item.date === date)
+            .sort((a, b) => deskTimeToMinutes(a.start) - deskTimeToMinutes(b.start));
+    }
+
+    function getNextDeskStartTime(date) {
+        const items = getDeskItemsByDate(date);
+        if (items.length) return items[items.length - 1].end || items[items.length - 1].start || '08:00';
+
+        const startInput = document.getElementById('desk-start-time');
+        return startInput ? startInput.value : '08:00';
+    }
+
+    function renderDeskTimetable(container) {
+        if (!container || !ensureDeskTimetableData()) return;
+
+        const old = document.getElementById('desk-timetable-card');
+        if (old) old.remove();
+
+        const card = document.createElement('div');
+        card.id = 'desk-timetable-card';
+        card.className = 'card desk-timetable-card';
+
+        card.innerHTML = `
+            <div class="desk-timetable-head">
+                <div>
+                    <h3 class="desk-timetable-title">데스크 커스텀 시간표</h3>
+                    <div class="desk-day-total" id="desk-day-total">오늘 작업 합계 0분</div>
+                </div>
+                <div class="desk-timetable-controls">
+                    <input type="date" id="desk-timetable-date" value="${deskTodayString()}" onchange="renderDeskTimetableBlocks()">
+                    <span style="font-size:0.8rem; color:#777; font-weight:800;">첫 시작</span>
+                    <input type="time" id="desk-start-time" value="08:00">
+                    <button class="desk-mini-btn ghost" onclick="clearDeskTimetableDay()">이 날짜 비우기</button>
+                </div>
+            </div>
+
+            <div class="desk-timetable-layout">
+                <div class="desk-preset-panel">
+                    <div class="desk-preset-title">클릭해서 시간표에 추가</div>
+                    <div class="desk-preset-grid">
+                        ${DESK_PRESETS.map(p => `
+                            <button class="desk-preset-btn ${p.className}" onclick="addDeskTimetablePreset('${p.key}')">
+                                ${deskEscapeHtml(p.title)}
+                                <small>${deskDurationLabel(p.minutes)}</small>
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div id="desk-edit-panel" class="desk-edit-panel empty">
+                        시간표 블록을 클릭하면 제목, 시간, 상세 설명을 수정할 수 있어요.
+                    </div>
+                </div>
+
+                <div class="desk-timetable-wrap">
+                    <div class="desk-time-grid" id="desk-time-grid">
+                        ${Array.from({ length: 15 }).map((_, i) => {
+                            const hour = 8 + i;
+                            return `
+                                <div class="desk-time-row" style="top:${i * 96}px;">
+                                    <div class="desk-time-label">${String(hour).padStart(2, '0')}:00</div>
+                                    <div class="desk-time-line"></div>
+                                </div>
+                            `;
+                        }).join('')}
+                        <div class="desk-empty-timetable" id="desk-empty-timetable">
+                            왼쪽 버튼을 클릭하면 이곳에 시간표가 쌓입니다.
+                        </div>
+                        <div class="desk-block-layer" id="desk-block-layer"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(card);
+        renderDeskTimetableBlocks();
+    }
+
+    window.renderDeskTimetableBlocks = function () {
+        if (!ensureDeskTimetableData()) return;
+
+        const date = getDeskSelectedDate();
+        const layer = document.getElementById('desk-block-layer');
+        const empty = document.getElementById('desk-empty-timetable');
+        const totalEl = document.getElementById('desk-day-total');
+
+        if (!layer) return;
+
+        const items = getDeskItemsByDate(date);
+        const totalMinutes = items.reduce((sum, item) => sum + Math.max(0, deskTimeToMinutes(item.end) - deskTimeToMinutes(item.start)), 0);
+
+        if (totalEl) {
+            totalEl.textContent = `${date} 작업 합계 ${deskDurationLabel(totalMinutes)}`;
+        }
+
+        if (empty) {
+            empty.style.display = items.length ? 'none' : 'block';
+        }
+
+        layer.innerHTML = items.map(item => {
+            const startMin = deskTimeToMinutes(item.start);
+            const endMin = deskTimeToMinutes(item.end);
+            const safeStart = Math.max(DESK_DAY_START, startMin);
+            const safeEnd = Math.min(DESK_DAY_END, endMin);
+            const top = Math.max(0, (safeStart - DESK_DAY_START) * DESK_MINUTE_HEIGHT);
+            const height = Math.max(28, (safeEnd - safeStart) * DESK_MINUTE_HEIGHT - 4);
+            const active = item.id === selectedDeskTimetableId ? 'active' : '';
+
+            return `
+                <div class="desk-time-block ${deskEscapeHtml(item.className)} ${active}"
+                     style="top:${top}px; height:${height}px;"
+                     onclick="openDeskTimetableEditor('${item.id}')">
+                    <div class="desk-time-block-title">${deskEscapeHtml(item.title)}</div>
+                    <div class="desk-time-block-meta">${deskEscapeHtml(item.start)} ~ ${deskEscapeHtml(item.end)} · ${deskDurationLabel(Math.max(0, endMin - startMin))}</div>
+                    ${item.desc ? `<div class="desk-time-block-desc">${deskEscapeHtml(item.desc)}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    };
+
+    window.addDeskTimetablePreset = function (presetKey) {
+        if (!ensureDeskTimetableData()) return;
+
+        const preset = DESK_PRESETS.find(p => p.key === presetKey);
+        if (!preset) return;
+
+        const date = getDeskSelectedDate();
+        const start = getNextDeskStartTime(date);
+        const startMin = deskTimeToMinutes(start);
+        const endMin = startMin + preset.minutes;
+
+        const item = {
+            id: 'dt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            date,
+            title: preset.title,
+            desc: '',
+            start: deskMinutesToTime(startMin),
+            end: deskMinutesToTime(endMin),
+            className: preset.className
+        };
+
+        livData.deskTimetable.push(item);
+        selectedDeskTimetableId = item.id;
+
+        deskSaveData();
+        renderDeskTimetableBlocks();
+        openDeskTimetableEditor(item.id);
+    };
+
+    window.openDeskTimetableEditor = function (id) {
+        if (!ensureDeskTimetableData()) return;
+
+        selectedDeskTimetableId = id;
+        const item = livData.deskTimetable.find(v => v.id === id);
+        const panel = document.getElementById('desk-edit-panel');
+
+        if (!item || !panel) return;
+
+        panel.className = 'desk-edit-panel';
+        panel.innerHTML = `
+            <label>제목</label>
+            <input type="text" id="desk-edit-title" value="${deskEscapeHtml(item.title)}">
+
+            <label>상세 설명</label>
+            <textarea id="desk-edit-desc" placeholder="제목 밑에 작은 글씨로 표시됩니다.">${deskEscapeHtml(item.desc || '')}</textarea>
+
+            <div class="desk-edit-row">
+                <div>
+                    <label>시작</label>
+                    <input type="time" id="desk-edit-start" value="${deskEscapeHtml(item.start)}">
+                </div>
+                <div>
+                    <label>종료</label>
+                    <input type="time" id="desk-edit-end" value="${deskEscapeHtml(item.end)}">
+                </div>
+            </div>
+
+            <label>라벨 색상</label>
+            <select id="desk-edit-class">
+                <option value="ev-cover" ${item.className === 'ev-cover' ? 'selected' : ''}>표지 색상</option>
+                <option value="ev-proof1" ${item.className === 'ev-proof1' ? 'selected' : ''}>1교 색상</option>
+                <option value="ev-ridi" ${item.className === 'ev-ridi' ? 'selected' : ''}>출간 등록 색상</option>
+                <option value="ev-task" ${item.className === 'ev-task' ? 'selected' : ''}>잡무 색상</option>
+                <option value="ev-writing" ${item.className === 'ev-writing' ? 'selected' : ''}>원고 작성 색상</option>
+                <option value="ev-rest" ${item.className === 'ev-rest' ? 'selected' : ''}>휴식 색상</option>
+                <option value="ev-meeting" ${item.className === 'ev-meeting' ? 'selected' : ''}>미팅 색상</option>
+                <option value="ev-email" ${item.className === 'ev-email' ? 'selected' : ''}>메일 색상</option>
+                <option value="ev-settlement" ${item.className === 'ev-settlement' ? 'selected' : ''}>정산 색상</option>
+                <option value="ev-personal" ${item.className === 'ev-personal' ? 'selected' : ''}>개인 색상</option>
+            </select>
+
+            <div class="desk-edit-actions">
+                <button class="desk-mini-btn save" onclick="saveDeskTimetableEdit('${item.id}')">저장</button>
+                <button class="desk-mini-btn del" onclick="deleteDeskTimetableItem('${item.id}')">삭제</button>
+                <button class="desk-mini-btn ghost" onclick="closeDeskTimetableEditor()">닫기</button>
+            </div>
+        `;
+
+        renderDeskTimetableBlocks();
+    };
+
+    window.saveDeskTimetableEdit = function (id) {
+        if (!ensureDeskTimetableData()) return;
+
+        const item = livData.deskTimetable.find(v => v.id === id);
+        if (!item) return;
+
+        const title = document.getElementById('desk-edit-title')?.value.trim() || '제목 없음';
+        const desc = document.getElementById('desk-edit-desc')?.value.trim() || '';
+        const start = document.getElementById('desk-edit-start')?.value || '08:00';
+        const end = document.getElementById('desk-edit-end')?.value || '09:00';
+        const className = document.getElementById('desk-edit-class')?.value || 'ev-task';
+
+        if (deskTimeToMinutes(end) <= deskTimeToMinutes(start)) {
+            alert('종료 시간은 시작 시간보다 늦어야 해요.');
+            return;
+        }
+
+        item.title = title;
+        item.desc = desc;
+        item.start = start;
+        item.end = end;
+        item.className = className;
+
+        deskSaveData();
+        renderDeskTimetableBlocks();
+    };
+
+    window.deleteDeskTimetableItem = function (id) {
+        if (!ensureDeskTimetableData()) return;
+        if (!confirm('이 시간표 블록을 삭제할까요?')) return;
+
+        livData.deskTimetable = livData.deskTimetable.filter(v => v.id !== id);
+        selectedDeskTimetableId = null;
+
+        deskSaveData();
+        closeDeskTimetableEditor();
+        renderDeskTimetableBlocks();
+    };
+
+    window.closeDeskTimetableEditor = function () {
+        selectedDeskTimetableId = null;
+
+        const panel = document.getElementById('desk-edit-panel');
+        if (panel) {
+            panel.className = 'desk-edit-panel empty';
+            panel.innerHTML = '시간표 블록을 클릭하면 제목, 시간, 상세 설명을 수정할 수 있어요.';
+        }
+
+        renderDeskTimetableBlocks();
+    };
+
+    window.clearDeskTimetableDay = function () {
+        if (!ensureDeskTimetableData()) return;
+
+        const date = getDeskSelectedDate();
+        if (!confirm(`${date} 시간표를 전부 비울까요?`)) return;
+
+        livData.deskTimetable = livData.deskTimetable.filter(item => item.date !== date);
+        selectedDeskTimetableId = null;
+
+        deskSaveData();
+        closeDeskTimetableEditor();
+        renderDeskTimetableBlocks();
+    };
+
+    function attachDeskTimetableToDashboard() {
+        if (typeof renderDashboard !== 'function') return;
+
+        const originalRenderDashboard = renderDashboard;
+
+        window.renderDashboard = function (container) {
+            originalRenderDashboard(container);
+            renderDeskTimetable(container);
+        };
+
+        try {
+            renderDashboard = window.renderDashboard;
+        } catch (e) {
+            // 일부 브라우저에서 재할당이 막히면 window 함수만 사용
+        }
+    }
+
+    attachDeskTimetableToDashboard();
+})();
+</script>
 </body>
 </html>
