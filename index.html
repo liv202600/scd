@@ -6487,742 +6487,43 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 </script>
 
 <!-- =========================================================
-     ★★★★★ LIV 데일리 스케줄 최종 통합 패치 v15 CLEAN ★★★★★
+     ★ LIV 데일리 스케줄 22:00 강제 종료 FINAL OVERRIDE
+     붙이는 위치: index.html 안의 모든 LIV 패치 중 제일 아래, </body> 바로 위
 
-     사용법:
-     1) index.html에서 내가 이전에 준 모든 패치 블록을 전부 삭제
-     2) 이 코드 하나만 index.html의 </body> 바로 위에 붙이기
-
-     이 코드 하나에 포함된 기능:
-     - 메뉴에 "데일리 스케줄" 추가
-     - 날짜별 데일리 시작시간 저장
-     - 시작시간 기준으로 시간표 라벨/블록/현재시간선 표시
-     - 월간 스케줄러 일정 → 데일리 스케줄 왼쪽 목록 표시
-     - 소요시간 입력 후 등록하면 시간표에 자동 배치
-     - 시간표 블록 제목/상세/시간/색상 수정 및 삭제
-     - 한국 시간 기준 현재시간 빨간선
-     - 지난 시간 블록 회색 처리
-     - 모바일 화면 깨짐 방지
-     - 월간/주간 스케줄러 일정 순서 고정
-       정산 → 출간 → 미팅 → 1교 → 2교 → 표지 → 메일 → 일반 → 개인
-     - 우클릭 = 복사
-     - 드래그 = 기존 이동
-     - 복사본 클릭 = 삭제 확인 팝업 후 삭제
+     중요:
+     - 이 코드는 위에 어떤 v9/v13/v14/v15가 있어도 마지막에 덮어씁니다.
+     - 데일리 스케줄 시간표를 "마지막 일정 종료시각"이 아니라
+       "선택한 시작시간 ~ 22:00" 기준으로 강제로 다시 그립니다.
+     - 일정 등록도 22:00을 넘기면 22:00에서 자릅니다.
 ========================================================= -->
 
 <style>
-    .daily-v9-main,
-    .daily-v9-main * {
-        box-sizing: border-box;
-    }
-
-    .daily-v9-main {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: hidden;
-    }
-
-    .daily-v9-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 15px;
-        width: 100%;
-    }
-
-    .daily-v9-total {
-        font-size: 0.82rem;
-        color: #777;
-        font-weight: 800;
-        margin-top: 3px;
-    }
-
-    .daily-v9-controls {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .daily-v9-controls input {
-        height: 34px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 0 8px;
-        font-size: 0.82rem;
-        background: #fff;
-        font-family: inherit;
-    }
-
-    .daily-v9-shell {
-        display: grid;
-        grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-        gap: 16px;
-        align-items: stretch;
-        width: 100%;
-        max-width: 100%;
-        min-height: 0;
-        overflow-x: hidden;
-    }
-
-    .daily-v9-left,
-    .daily-v9-right {
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .daily-v9-left {
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .daily-v9-scroll {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding-right: 4px;
-    }
-
-    .daily-v9-hint {
-        font-size: 0.74rem;
-        color: #999;
-        margin-top: 4px;
-        line-height: 1.4;
-        word-break: keep-all;
-    }
-
-    .daily-v9-source {
-        border-radius: 9px;
-        padding: 10px;
-        margin-bottom: 8px;
-        border-left: 5px solid rgba(0,0,0,0.18);
-        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-        width: 100%;
-        max-width: 100%;
-        overflow: hidden;
-    }
-
-    .daily-v9-source-title {
-        font-size: 0.84rem;
-        font-weight: 900;
-        line-height: 1.35;
-        color: #222;
-        word-break: keep-all;
-        overflow-wrap: anywhere;
-    }
-
-    .daily-v9-source-meta {
-        font-size: 0.7rem;
-        font-weight: 700;
-        color: #666;
-        margin-top: 3px;
-        word-break: keep-all;
-        overflow-wrap: anywhere;
-    }
-
-    .daily-v9-source-actions {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 58px;
-        gap: 6px;
-        margin-top: 8px;
-        width: 100%;
-    }
-
-    .daily-v9-source-actions input,
-    .daily-v9-manual-grid input,
-    .daily-v9-manual-grid select,
-    .daily-v9-edit input,
-    .daily-v9-edit textarea,
-    .daily-v9-edit select {
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        background: #fff;
-        font-family: inherit;
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .daily-v9-source-actions input {
-        height: 30px;
-        padding: 0 7px;
-    }
-
-    .daily-v9-btn {
-        border: none;
-        border-radius: 6px;
-        min-height: 30px;
-        padding: 0 9px;
-        font-size: 0.74rem;
-        font-weight: 900;
-        cursor: pointer;
-        background: var(--black, #222);
-        color: #fff;
-        font-family: inherit;
-        white-space: nowrap;
-    }
-
-    .daily-v9-btn.gray {
-        background: #f0f0f0;
-        color: #555;
-    }
-
-    .daily-v9-btn.del {
-        background: #ffe6eb;
-        color: #e63946;
-    }
-
-    .daily-v9-btn:disabled {
-        background: #eee;
-        color: #aaa;
-        cursor: default;
-    }
-
-    .daily-v9-empty {
-        padding: 25px 10px;
-        text-align: center;
-        color: #aaa;
-        font-size: 0.85rem;
-        line-height: 1.5;
-    }
-
-    .daily-v9-manual {
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px dashed #ddd;
-        width: 100%;
-        max-width: 100%;
-    }
-
-    .daily-v9-manual h4 {
-        margin: 0 0 8px;
-        font-size: 0.88rem;
-    }
-
-    .daily-v9-manual-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 72px;
-        gap: 6px;
-        width: 100%;
-    }
-
-    .daily-v9-manual-grid input,
-    .daily-v9-manual-grid select {
-        height: 32px;
-        padding: 0 7px;
+    .daily-v9-grid {
+        height: auto !important;
+        min-height: var(--liv-daily-22-height, 1680px) !important;
+        overflow: visible !important;
     }
 
     .daily-v9-wrap {
-        position: relative;
-        border: 1px solid #eee;
-        border-radius: 10px;
-        background: #fff;
-        overflow-y: auto;
-        overflow-x: hidden;
-        height: calc(100vh - 170px);
-        min-height: 620px;
-        width: 100%;
-        max-width: 100%;
-        -webkit-overflow-scrolling: touch;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
     }
 
-    .daily-v9-grid {
-        position: relative;
-        height: 1680px;
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        background:
-            repeating-linear-gradient(
-                to bottom,
-                #fff 0,
-                #fff 119px,
-                #f2f2f2 120px
-            );
-    }
-
-    .daily-v9-row {
+    .liv-daily-22-end-line {
         position: absolute;
         left: 0;
         right: 0;
-        height: 120px;
-        display: flex;
-        border-top: 1px solid #f0f0f0;
+        height: 28px;
+        border-top: 2px solid rgba(255, 79, 123, 0.9);
         pointer-events: none;
-        max-width: 100%;
+        z-index: 20;
     }
 
-    .daily-v9-label {
-        width: 54px;
-        flex: 0 0 54px;
-        padding-top: 4px;
-        text-align: center;
-        font-size: 0.7rem;
-        color: #999;
-        background: #fafbfc;
-        border-right: 1px solid #eee;
-    }
-
-    .daily-v9-layer {
-        position: absolute;
-        top: 0;
-        left: 60px;
-        right: 6px;
-        height: 100%;
-        min-width: 0;
-    }
-
-    .daily-v9-block {
+    .liv-daily-22-end-label {
         position: absolute;
         left: 0;
-        right: 0;
-        border-radius: 8px;
-        border-left: 5px solid rgba(0,0,0,0.18);
-        padding: 8px 10px;
-        overflow: hidden;
-        cursor: pointer;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-        min-width: 0;
-    }
-
-    .daily-v9-block:hover {
-        outline: 2px solid rgba(255,133,162,0.35);
-    }
-
-    .daily-v9-block.active {
-        outline: 2px solid var(--main-pink, #ff85a2);
-    }
-
-    .daily-v9-block-title {
-        font-size: 0.84rem;
-        font-weight: 900;
-        line-height: 1.25;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .daily-v9-block-meta {
-        font-size: 0.68rem;
-        font-weight: 800;
-        color: rgba(0,0,0,0.48);
-        margin-top: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .daily-v9-block-desc {
-        font-size: 0.7rem;
-        color: rgba(0,0,0,0.58);
-        margin-top: 4px;
-        line-height: 1.32;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-    }
-
-    .daily-v9-edit {
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px dashed #ddd;
-        width: 100%;
-        max-width: 100%;
-    }
-
-    .daily-v9-edit.empty {
-        color: #999;
-        font-size: 0.8rem;
-        line-height: 1.5;
-    }
-
-    .daily-v9-edit label {
-        display: block;
-        font-size: 0.72rem;
-        font-weight: 900;
-        color: #777;
-        margin: 8px 0 4px;
-    }
-
-    .daily-v9-edit input,
-    .daily-v9-edit textarea,
-    .daily-v9-edit select {
-        width: 100%;
-        padding: 8px;
-    }
-
-    .daily-v9-edit textarea {
-        min-height: 58px;
-        resize: vertical;
-    }
-
-    .daily-v9-edit-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 8px;
-    }
-
-    .daily-v9-edit-actions {
-        display: flex;
-        gap: 6px;
-        margin-top: 10px;
-        flex-wrap: wrap;
-    }
-
-    .daily-v9-now-line {
-        position: absolute;
-        left: 60px;
-        right: 6px;
-        height: 0;
-        border-top: 2px solid #ff2f45;
-        z-index: 80;
-        pointer-events: none;
-        box-shadow: 0 0 0 1px rgba(255, 47, 69, 0.08);
-    }
-
-    .daily-v9-now-line::before {
-        content: '';
-        position: absolute;
-        left: -5px;
-        top: -5px;
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: #ff2f45;
-    }
-
-    .daily-v9-now-label {
-        position: absolute;
-        left: 6px;
-        top: -18px;
-        padding: 2px 6px;
-        border-radius: 999px;
-        background: #ff2f45;
-        color: #fff;
-        font-size: 0.64rem;
-        font-weight: 900;
-        line-height: 1.2;
-        white-space: nowrap;
-        box-shadow: 0 2px 5px rgba(255, 47, 69, 0.22);
-    }
-
-    .daily-v9-block.daily-v9-past {
-        background: #eeeeee !important;
-        border-left-color: #bdbdbd !important;
-        color: #888 !important;
-        opacity: 0.72;
-        box-shadow: none;
-    }
-
-    .daily-v9-block.daily-v9-past .daily-v9-block-title,
-    .daily-v9-block.daily-v9-past .daily-v9-block-meta,
-    .daily-v9-block.daily-v9-past .daily-v9-block-desc {
-        color: #888 !important;
-    }
-
-    .ev-writing {
-        background: #f0f4ff;
-        border-left-color: #8ba5ff !important;
-    }
-
-    .ev-rest {
-        background: #edf8f4;
-        border-left-color: #8fc7b0 !important;
-    }
-
-    .event-item.liv-v9-copied,
-    .week-evt-item.liv-v9-copied {
-        outline: none !important;
-    }
-
-    .event-item.liv-v9-copied::after,
-    .week-evt-item.liv-v9-copied::after {
-        content: none !important;
-        display: none !important;
-    }
-
-    @media (max-width: 900px), (orientation: portrait) {
-        html,
-        body {
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-        }
-
-        body * {
-            box-sizing: border-box !important;
-        }
-
-        #main-view,
-        .main-container,
-        .daily-v9-main {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            overflow-x: hidden !important;
-        }
-
-        .daily-v9-main {
-            padding: 10px !important;
-        }
-
-        .daily-v9-top {
-            display: block !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-bottom: 12px !important;
-            overflow: hidden !important;
-        }
-
-        .daily-v9-top h2 {
-            font-size: 1.25rem !important;
-            line-height: 1.25 !important;
-            margin-bottom: 4px !important;
-            word-break: keep-all !important;
-        }
-
-        .daily-v9-total {
-            font-size: 0.78rem !important;
-            margin-bottom: 10px !important;
-        }
-
-        .daily-v9-controls {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 6px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-
-        .daily-v9-controls input,
-        .daily-v9-controls button {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-        }
-
-        .daily-v9-controls input[type="date"] {
-            grid-column: 1 / -1 !important;
-        }
-
-        .daily-v9-controls span {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            font-size: 0.76rem !important;
-        }
-
-        .daily-v9-controls .daily-v9-btn {
-            grid-column: 1 / -1 !important;
-            min-height: 34px !important;
-        }
-
-        .daily-v9-shell {
-            display: block !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            overflow-x: hidden !important;
-        }
-
-        .daily-v9-left,
-        .daily-v9-right,
-        .daily-v9-main .card {
-            display: block !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            overflow-x: hidden !important;
-        }
-
-        .daily-v9-left {
-            margin-bottom: 12px !important;
-        }
-
-        .daily-v9-main .card {
-            padding: 12px !important;
-            border-radius: 10px !important;
-        }
-
-        .daily-v9-scroll {
-            overflow: visible !important;
-            padding-right: 0 !important;
-        }
-
-        .daily-v9-source {
-            padding: 9px !important;
-            margin-bottom: 7px !important;
-        }
-
-        .daily-v9-source-title {
-            font-size: 0.8rem !important;
-            line-height: 1.35 !important;
-        }
-
-        .daily-v9-source-meta {
-            font-size: 0.66rem !important;
-        }
-
-        .daily-v9-source-actions {
-            grid-template-columns: minmax(0, 1fr) 54px !important;
-            gap: 5px !important;
-        }
-
-        .daily-v9-source-actions input {
-            font-size: 0.72rem !important;
-        }
-
-        .daily-v9-source-actions .daily-v9-btn {
-            width: 54px !important;
-            min-width: 54px !important;
-            padding: 0 !important;
-            font-size: 0.68rem !important;
-        }
-
-        .daily-v9-manual-grid {
-            grid-template-columns: minmax(0, 1fr) 64px !important;
-            gap: 6px !important;
-        }
-
-        .daily-v9-manual-grid input,
-        .daily-v9-manual-grid select,
-        .daily-v9-manual-grid button {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-        }
-
-        .daily-v9-edit-row {
-            display: block !important;
-        }
-
-        .daily-v9-edit-actions {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr 1fr !important;
-            gap: 6px !important;
-            width: 100% !important;
-        }
-
-        .daily-v9-edit-actions .daily-v9-btn {
-            width: 100% !important;
-            padding: 0 4px !important;
-            font-size: 0.68rem !important;
-        }
-
-        .daily-v9-wrap {
-            height: 68vh !important;
-            min-height: 480px !important;
-            max-height: 760px !important;
-            border-radius: 10px !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-        }
-
-        .daily-v9-label {
-            width: 42px !important;
-            flex: 0 0 42px !important;
-            min-width: 42px !important;
-            max-width: 42px !important;
-            font-size: 0.62rem !important;
-            padding-top: 4px !important;
-        }
-
-        .daily-v9-layer,
-        .daily-v9-now-line {
-            left: 46px !important;
-            right: 4px !important;
-        }
-
-        .daily-v9-block {
-            padding: 7px 7px !important;
-            border-radius: 7px !important;
-        }
-
-        .daily-v9-block-title {
-            font-size: 0.74rem !important;
-        }
-
-        .daily-v9-block-meta,
-        .daily-v9-block-desc {
-            font-size: 0.62rem !important;
-        }
-
-        .daily-v9-empty {
-            left: 46px !important;
-            right: 8px !important;
-            padding: 16px 6px !important;
-            font-size: 0.76rem !important;
-        }
-
-        .daily-v9-now-label {
-            left: 4px !important;
-            font-size: 0.56rem !important;
-            max-width: calc(100vw - 70px) !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-    }
-
-    @media (max-width: 380px) {
-        .daily-v9-main {
-            padding: 8px !important;
-        }
-
-        .daily-v9-main .card {
-            padding: 10px !important;
-        }
-
-        .daily-v9-label {
-            width: 38px !important;
-            flex-basis: 38px !important;
-            min-width: 38px !important;
-            max-width: 38px !important;
-            font-size: 0.58rem !important;
-        }
-
-        .daily-v9-layer,
-        .daily-v9-now-line {
-            left: 42px !important;
-            right: 3px !important;
-        }
-
-        .daily-v9-empty {
-            left: 42px !important;
-        }
-
-        .daily-v9-block {
-            padding: 6px !important;
-        }
-
-        .daily-v9-block-title {
-            font-size: 0.7rem !important;
-        }
-
-        .daily-v9-block-meta,
-        .daily-v9-block-desc {
-            font-size: 0.58rem !important;
-        }
-    }
-
-
-    .daily-v15-hard-end {
-        position: absolute;
-        left: 0;
-        right: 0;
-        height: 22px;
-        border-top: 2px solid rgba(255, 133, 162, 0.9);
-        pointer-events: none;
-        z-index: 6;
-    }
-
-    .daily-v15-hard-end-label {
-        position: absolute;
-        left: 0;
-        top: -10px;
-        width: 54px;
+        top: -11px;
+        width: 56px;
         text-align: center;
         font-size: 0.7rem;
         font-weight: 900;
@@ -7233,10 +6534,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         padding: 1px 0;
     }
 
-    .daily-v15-hard-end-text {
+    .liv-daily-22-end-text {
         position: absolute;
         left: 62px;
-        top: -10px;
+        top: -12px;
         font-size: 0.68rem;
         font-weight: 900;
         color: #ff4f7b;
@@ -7249,95 +6550,24 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
 <script>
 (function () {
-    const DAILY_VIEW = 'daily-schedule';
+    const END_TIME = '22:00';
     const DEFAULT_START = '08:00';
-    const FIXED_DAY_END = '22:00';
     const MINUTE_HEIGHT = 2;
-    let selectedBlockId = null;
-    let installed = false;
-    let isDragging = false;
 
-    const WORK_KEYS = {
-        pubDate: { label: '출간', short: '출간', cls: 'ev-pub', arr: 'pubDateDays', minutes: 120 },
-        coverDate: { label: '표지', short: '표지', cls: 'ev-cover', arr: 'coverDateDays', minutes: 60 },
-        proofDate: { label: '1교', short: '1교', cls: 'ev-proof1', arr: 'proofDateDays', minutes: 180 },
-        proofDate2: { label: '2교', short: '2교', cls: 'ev-proof2', arr: 'proofDate2Days', minutes: 180 }
-    };
+    let lock = false;
+    let lastKey = '';
 
-    const WORK_CLASS_TO_KEY = {
-        'ev-pub': 'pubDate',
-        'ev-cover': 'coverDate',
-        'ev-proof1': 'proofDate',
-        'ev-proof2': 'proofDate2'
-    };
-
-    const EXTRA_CLASSES = [
-        'ev-task',
-        'ev-email',
-        'ev-meeting',
-        'ev-settlement',
-        'ev-personal',
-        'ev-writing',
-        'ev-rest'
-    ];
-
-    const TYPE_LABELS = {
-        'ev-cover': '표지',
-        'ev-proof1': '1교',
-        'ev-proof2': '2교',
-        'ev-pub': '출간',
-        'ev-task': '일반',
-        'ev-email': '메일',
-        'ev-meeting': '미팅',
-        'ev-settlement': '정산',
-        'ev-personal': '개인',
-        'ev-writing': '원고 작성',
-        'ev-rest': '휴식'
-    };
-
-    const TYPE_DEFAULT_MINUTES = {
-        'ev-cover': 60,
-        'ev-proof1': 180,
-        'ev-proof2': 180,
-        'ev-pub': 120,
-        'ev-task': 60,
-        'ev-email': 30,
-        'ev-meeting': 180,
-        'ev-settlement': 60,
-        'ev-personal': 30,
-        'ev-writing': 60,
-        'ev-rest': 30
-    };
-
-    const ORDER = [
-        'settlement-top',
-        'ev-pub',
-        'ev-meeting',
-        'ev-proof1',
-        'ev-proof2',
-        'ev-cover',
-        'ev-email',
-        'ev-task',
-        'ev-personal'
-    ];
-
-    function hasData() {
-        return typeof livData !== 'undefined' && livData;
-    }
-
-    function ready() {
-        return hasData() &&
-            typeof changeView === 'function' &&
-            typeof saveData === 'function' &&
-            typeof updateTasksHtml === 'function';
+    function hasDailyScreen() {
+        return !!document.querySelector('.daily-v9-main .daily-v9-grid, .daily-v9-grid');
     }
 
     function ensureData() {
-        if (!hasData()) return false;
+        if (typeof livData === 'undefined' || !livData) return false;
 
-        if (!Array.isArray(livData.writers)) livData.writers = [];
-        if (!Array.isArray(livData.extraTasks)) livData.extraTasks = [];
-        if (!Array.isArray(livData.dailyTimeBlocks)) livData.dailyTimeBlocks = [];
+        if (!Array.isArray(livData.dailyTimeBlocks)) {
+            livData.dailyTimeBlocks = [];
+        }
+
         if (!livData.dailyStartTimes || typeof livData.dailyStartTimes !== 'object') {
             livData.dailyStartTimes = {};
         }
@@ -7345,246 +6575,79 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         return true;
     }
 
-    function save() {
-        if (typeof saveData === 'function') saveData();
+    function saveLiv() {
+        try {
+            if (typeof saveData === 'function') saveData();
+        } catch (e) {}
     }
 
-    function esc(value) {
-        const fn = typeof escapeHtml === 'function' ? escapeHtml : null;
-        if (fn) {
-            try { return fn(value || ''); } catch (e) {}
+    function pad(n) {
+        return String(n).padStart(2, '0');
+    }
+
+    function todayKstLocal() {
+        try {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(new Date());
+
+            const data = {};
+            parts.forEach(p => {
+                if (p.type !== 'literal') data[p.type] = p.value;
+            });
+
+            return `${data.year}-${data.month}-${data.day}`;
+        } catch (e) {
+            const d = new Date();
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         }
-
-        return String(value || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
     }
 
-    function todayKst() {
-        if (typeof getKstDateString === 'function') {
-            try { return getKstDateString(0); } catch (e) {}
+    function nowKstLocal() {
+        try {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hourCycle: 'h23'
+            }).formatToParts(new Date());
+
+            const data = {};
+            parts.forEach(p => {
+                if (p.type !== 'literal') data[p.type] = p.value;
+            });
+
+            return {
+                date: `${data.year}-${data.month}-${data.day}`,
+                time: `${data.hour}:${data.minute}`,
+                minutes: Number(data.hour) * 60 + Number(data.minute)
+            };
+        } catch (e) {
+            const d = new Date();
+            return {
+                date: todayKstLocal(),
+                time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+                minutes: d.getHours() * 60 + d.getMinutes()
+            };
         }
-
-        const parts = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Seoul',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).formatToParts(new Date());
-
-        const data = {};
-        parts.forEach(p => {
-            if (p.type !== 'literal') data[p.type] = p.value;
-        });
-
-        return `${data.year}-${data.month}-${data.day}`;
-    }
-
-    function nowKst() {
-        const parts = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Seoul',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hourCycle: 'h23'
-        }).formatToParts(new Date());
-
-        const data = {};
-        parts.forEach(p => {
-            if (p.type !== 'literal') data[p.type] = p.value;
-        });
-
-        return {
-            date: `${data.year}-${data.month}-${data.day}`,
-            minutes: Number(data.hour || 0) * 60 + Number(data.minute || 0),
-            time: `${data.hour}:${data.minute}`
-        };
-    }
-
-    function nextDate(dateStr, delta) {
-        const d = new Date(dateStr + 'T00:00:00');
-        d.setDate(d.getDate() + Number(delta || 1));
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
     function timeToMin(value) {
-        const parts = String(value || DEFAULT_START).split(':');
-        return Number(parts[0] || 0) * 60 + Number(parts[1] || 0);
+        const p = String(value || DEFAULT_START).split(':');
+        return Number(p[0] || 0) * 60 + Number(p[1] || 0);
     }
 
-    function minToTime(mins) {
-        mins = Math.round(Number(mins || 0));
-
-        while (mins < 0) mins += 24 * 60;
-
-        const h = Math.floor(mins / 60) % 24;
-        const m = mins % 60;
-
-        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    }
-
-    function getDayEndMin() {
-        return timeToMin(FIXED_DAY_END);
-    }
-
-    function getDailySpanMinutes(dateStr) {
-        const startMin = timeToMin(getStartForDate(dateStr));
-        return Math.max(60, getDayEndMin() - startMin);
-    }
-
-    function buildDailyRowsHtml(dateStr) {
-        const startMin = timeToMin(getStartForDate(dateStr));
-        const endMin = getDayEndMin();
-        const rows = [];
-        let t = startMin;
-
-        while (t < endMin) {
-            rows.push(t);
-            t += 60;
-        }
-
-        if (!rows.includes(endMin)) rows.push(endMin);
-
-        return rows.map(min => `
-            <div class="daily-v9-row" style="top:${Math.max(0, (min - startMin) * MINUTE_HEIGHT)}px; height:${min === endMin ? 1 : 120}px;">
-                <div class="daily-v9-label">${minToTime(min)}</div>
-                <div></div>
-            </div>
-        `).join('');
-    }
-
-
-    function forceDailyHardEnd(dateStr) {
-        const grid = document.querySelector('.daily-v9-grid');
-        if (!grid || !dateStr) return;
-
-        const startMin = timeToMin(getStartForDate(dateStr));
-        const endMin = getDayEndMin();
-        const span = Math.max(60, endMin - startMin);
-        const height = span * MINUTE_HEIGHT;
-
-        grid.style.height = `${height}px`;
-        grid.style.minHeight = `${height}px`;
-
-        const layer = document.getElementById('daily-v9-layer');
-        if (layer) layer.style.height = '100%';
-
-        grid.querySelectorAll('.daily-v15-hard-end').forEach(el => el.remove());
-
-        const line = document.createElement('div');
-        line.className = 'daily-v15-hard-end';
-        line.style.top = `${Math.max(0, height - 1)}px`;
-        line.innerHTML = `
-            <div class="daily-v15-hard-end-label">22:00</div>
-            <div class="daily-v15-hard-end-text">일과 종료</div>
-        `;
-        grid.appendChild(line);
-    }
-
-    function repairDailyBlocks(dateStr) {
-        if (!ensureData() || !dateStr) return false;
-
-        const startLimit = timeToMin(getStartForDate(dateStr));
-        const endLimit = getDayEndMin();
-        let changed = false;
-        const all = livData.dailyTimeBlocks;
-        const dayBlocks = all.filter(b => b && b.date === dateStr);
-        const keep = new Set();
-        const usedSources = new Set();
-
-        function durationOf(block) {
-            const s = timeToMin(block.start || getStartForDate(dateStr));
-            const e = timeToMin(block.end || minToTime(s + 60));
-            return Math.max(5, e - s || 60);
-        }
-
-        const normal = dayBlocks
-            .filter(block => timeToMin(block.start) < endLimit)
-            .sort((a, b) => timeToMin(a.start) - timeToMin(b.start));
-
-        normal.forEach(block => {
-            const sourceKey = block.sourceKey || '';
-            if (sourceKey && usedSources.has(sourceKey)) {
-                changed = true;
-                return;
-            }
-
-            const s = timeToMin(block.start);
-            let e = timeToMin(block.end);
-
-            if (e <= s) {
-                block.end = minToTime(Math.min(s + 60, endLimit));
-                e = timeToMin(block.end);
-                changed = true;
-            }
-
-            if (e > endLimit) {
-                block.end = FIXED_DAY_END;
-                changed = true;
-            }
-
-            if (timeToMin(block.end) <= s) {
-                changed = true;
-                return;
-            }
-
-            keep.add(block.id);
-            if (sourceKey) usedSources.add(sourceKey);
-        });
-
-        function lastEnd() {
-            let last = startLimit;
-            dayBlocks.forEach(block => {
-                if (!keep.has(block.id)) return;
-                const s = timeToMin(block.start);
-                const e = Math.min(timeToMin(block.end), endLimit);
-                if (s < endLimit && e > last) last = e;
-            });
-            return Math.max(startLimit, Math.min(last, endLimit));
-        }
-
-        const hidden = dayBlocks
-            .filter(block => !keep.has(block.id))
-            .sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
-
-        hidden.forEach(block => {
-            const sourceKey = block.sourceKey || '';
-            if (sourceKey && usedSources.has(sourceKey)) {
-                changed = true;
-                return;
-            }
-
-            const s = lastEnd();
-            if (s >= endLimit) {
-                changed = true;
-                return;
-            }
-
-            const e = Math.min(s + durationOf(block), endLimit);
-            if (e <= s) {
-                changed = true;
-                return;
-            }
-
-            block.start = minToTime(s);
-            block.end = minToTime(e);
-            keep.add(block.id);
-            if (sourceKey) usedSources.add(sourceKey);
-            changed = true;
-        });
-
-        livData.dailyTimeBlocks = all.filter(block => {
-            if (!block || block.date !== dateStr) return true;
-            return keep.has(block.id);
-        });
-
-        if (changed) save();
-        return changed;
+    function minToTime(min) {
+        min = Math.round(Number(min || 0));
+        const h = Math.floor(min / 60) % 24;
+        const m = min % 60;
+        return `${pad(h)}:${pad(m)}`;
     }
 
     function durationLabel(minutes) {
@@ -7597,1596 +6660,421 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
         return `${m}분`;
     }
 
-    function makeId(prefix) {
-        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    function esc(v) {
+        return String(v ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
     }
 
-    function cleanText(value) {
-        return String(value || '')
-            .replace(/\[[^\]]+\]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-
-    function currentView() {
-        try { return currentViewName || 'dashboard'; } catch (e) { return 'dashboard'; }
-    }
-
-    function setCurrentView(v) {
-        try { currentViewName = v; } catch (e) {}
-    }
-
-    function getDailyDate() {
+    function getDate() {
         const el = document.getElementById('daily-v9-date');
-        return el ? el.value : (window.dailyV9Date || todayKst());
+        return el && el.value ? el.value : (window.dailyV9Date || todayKstLocal());
     }
 
-    function getStartForDate(dateStr) {
-        ensureData();
-        return livData.dailyStartTimes[dateStr] || DEFAULT_START;
-    }
+    function getStart(date) {
+        const input = document.getElementById('daily-v9-start');
+        const inputVal = input && input.value ? input.value : '';
 
-    function setStartForDate(dateStr, start) {
-        if (!ensureData() || !dateStr || !start) return;
-        livData.dailyStartTimes[dateStr] = start;
-    }
-
-    function getWriter(writerId) {
-        if (!ensureData()) return null;
-        return livData.writers.find(w => String(w.id) === String(writerId)) || null;
-    }
-
-    function getWork(writerId, workId) {
-        const writer = getWriter(writerId);
-        if (!writer) return { writer: null, work: null };
-
-        const work = (writer.works || []).find(w => String(w.id) === String(workId)) || null;
-        return { writer, work };
-    }
-
-    function getExtra(extraId) {
-        if (!ensureData()) return null;
-        return livData.extraTasks.find(t => String(t.id) === String(extraId)) || null;
-    }
-
-    function normalizeType(type) {
-        const t = String(type || 'ev-task');
-        if (t.startsWith('ev-')) return t;
-
-        const map = {
-            task: 'ev-task',
-            email: 'ev-email',
-            meeting: 'ev-meeting',
-            settlement: 'ev-settlement',
-            personal: 'ev-personal',
-            writing: 'ev-writing',
-            rest: 'ev-rest',
-            cover: 'ev-cover',
-            proof1: 'ev-proof1',
-            proof2: 'ev-proof2',
-            pub: 'ev-pub'
-        };
-
-        return map[t] || t;
-    }
-
-    function extraLabel(type) {
-        const cls = normalizeType(type);
-
-        if (typeof extraTaskLabel === 'function') {
-            try {
-                const label = extraTaskLabel(cls);
-                if (label) return label;
-            } catch (e) {}
+        if (ensureData()) {
+            return inputVal || livData.dailyStartTimes[date] || DEFAULT_START;
         }
 
-        return TYPE_LABELS[cls] || '일정';
+        return inputVal || DEFAULT_START;
     }
 
-    function getDateList(work, key) {
-        const info = WORK_KEYS[key];
-        if (!work || !info) return [];
-
-        const list = [];
-        if (work[key]) list.push(work[key]);
-        if (Array.isArray(work[info.arr])) list.push(...work[info.arr]);
-
-        return Array.from(new Set(list.filter(Boolean))).sort();
+    function getEndMin() {
+        return timeToMin(END_TIME);
     }
 
-    function setDateList(work, key, dates) {
-        const info = WORK_KEYS[key];
-        if (!work || !info) return;
-
-        const clean = Array.from(new Set((dates || []).filter(Boolean))).sort();
-
-        if (!clean.length) {
-            work[key] = '';
-            work[info.arr] = [];
-            return;
-        }
-
-        work[info.arr] = clean;
-        work[key] = clean[clean.length - 1];
+    function getStartMin(date) {
+        return timeToMin(getStart(date));
     }
 
-    function ensureCopiedDates(work, key) {
-        if (!work._livCopiedDates || typeof work._livCopiedDates !== 'object') {
-            work._livCopiedDates = {};
-        }
+    function getHeight(date) {
+        const start = getStartMin(date);
+        const end = getEndMin();
 
-        if (!Array.isArray(work._livCopiedDates[key])) {
-            const dates = getDateList(work, key);
-            work._livCopiedDates[key] = dates.filter(d => d !== work[key]);
-        }
-
-        return work._livCopiedDates[key];
+        return Math.max(60, end - start) * MINUTE_HEIGHT;
     }
 
-    function isCopiedWorkOccurrence(work, key, dateStr) {
-        if (!work || !key || !dateStr) return false;
-
-        const copied = ensureCopiedDates(work, key);
-        if (copied.includes(dateStr)) return true;
-
-        const dates = getDateList(work, key);
-        return dates.length > 1 && dateStr !== work[key];
-    }
-
-    function addCopiedWorkOccurrence(work, key, dateStr) {
-        const copied = ensureCopiedDates(work, key);
-        if (!copied.includes(dateStr)) copied.push(dateStr);
-        work._livCopiedDates[key] = Array.from(new Set(copied)).sort();
-    }
-
-    function removeWorkOccurrence(work, key, dateStr) {
-        if (!work || !WORK_KEYS[key] || !dateStr) return;
-
-        ensureCopiedDates(work, key);
-        work._livCopiedDates[key] = work._livCopiedDates[key].filter(d => d !== dateStr);
-
-        const dates = getDateList(work, key).filter(d => d !== dateStr);
-        setDateList(work, key, dates);
-    }
-
-    function isCopiedExtra(task) {
-        return !!(
-            task &&
-            (
-                task._livCopied === true ||
-                task._livCopyV9 === true ||
-                task._dailyCopied === true ||
-                task._dailyCopySourceId ||
-                task.copiedFromId ||
-                task.copyOfId ||
-                String(task.id || '').startsWith('extra_v9_') ||
-                String(task.id || '').startsWith('extra_copy_')
-            )
-        );
-    }
-
-    function dailyBlocks(dateStr) {
+    function blockList(date) {
         if (!ensureData()) return [];
 
-        repairDailyBlocks(dateStr);
+        const endLimit = getEndMin();
+        let changed = false;
+
+        livData.dailyTimeBlocks = livData.dailyTimeBlocks.filter(b => {
+            if (!b || b.date !== date) return true;
+
+            const s = timeToMin(b.start);
+            let e = timeToMin(b.end);
+
+            if (s >= endLimit) {
+                changed = true;
+                return false;
+            }
+
+            if (e > endLimit) {
+                b.end = END_TIME;
+                changed = true;
+            }
+
+            if (e <= s) {
+                b.end = minToTime(Math.min(s + 60, endLimit));
+                changed = true;
+            }
+
+            return timeToMin(b.end) > s;
+        });
+
+        if (changed) saveLiv();
 
         return livData.dailyTimeBlocks
-            .filter(b => b && b.date === dateStr)
+            .filter(b => b && b.date === date)
             .sort((a, b) => timeToMin(a.start) - timeToMin(b.start));
     }
 
-    function nextStartForDaily(dateStr) {
-        const start = timeToMin(getStartForDate(dateStr));
-        const endLimit = getDayEndMin();
-        const blocks = dailyBlocks(dateStr);
+    function nextStart(date, ignoreSourceKey) {
+        const startLimit = getStartMin(date);
+        const endLimit = getEndMin();
+        const blocks = blockList(date);
 
-        if (!blocks.length) return minToTime(Math.min(start, endLimit));
+        let last = startLimit;
 
-        const lastEnd = Math.max(...blocks.map(b => Math.min(timeToMin(b.end || b.start || getStartForDate(dateStr)), endLimit)));
-        return minToTime(Math.min(Math.max(start, lastEnd), endLimit));
-    }
+        blocks.forEach(b => {
+            if (ignoreSourceKey && b.sourceKey === ignoreSourceKey) return;
 
-    function collectDailySources(dateStr) {
-        if (!ensureData()) return [];
+            const s = timeToMin(b.start);
+            const e = Math.min(timeToMin(b.end), endLimit);
 
-        const items = [];
-
-        livData.extraTasks.forEach(task => {
-            if (!task || task.hidden || task.date !== dateStr) return;
-
-            const cls = normalizeType(task.type);
-            const writer = task.writerId ? getWriter(task.writerId) : null;
-
-            items.push({
-                sourceKey: `extra:${task.id}`,
-                title: `[${extraLabel(cls)}] ${task.title || '제목 없음'}`,
-                writerName: writer ? writer.name : '',
-                className: cls,
-                defaultMinutes: TYPE_DEFAULT_MINUTES[cls] || 60
-            });
+            if (s < endLimit && e > last) last = e;
         });
 
-        livData.writers.forEach(writer => {
-            (writer.works || []).forEach(work => {
-                Object.keys(WORK_KEYS).forEach(key => {
-                    const info = WORK_KEYS[key];
-
-                    if (!getDateList(work, key).includes(dateStr)) return;
-
-                    items.push({
-                        sourceKey: `work:${writer.id}:${work.id}:${key}:${dateStr}`,
-                        title: `[${info.label}] ${work.title || '제목 없음'}`,
-                        writerName: writer.name || '',
-                        className: info.cls,
-                        defaultMinutes: info.minutes
-                    });
-                });
-            });
-        });
-
-        return items;
+        return Math.max(startLimit, Math.min(last, endLimit));
     }
 
-    function addDailyMenu() {
-        const old = document.querySelector(`.nav-item[data-view="${DAILY_VIEW}"]`);
-        if (old) return;
+    function typeLabel(cls) {
+        const labels = {
+            'ev-cover': '표지',
+            'ev-proof1': '1교',
+            'ev-proof2': '2교',
+            'ev-pub': '출간',
+            'ev-task': '일반',
+            'ev-email': '메일',
+            'ev-meeting': '미팅',
+            'ev-settlement': '정산',
+            'ev-personal': '개인',
+            'ev-writing': '원고 작성',
+            'ev-rest': '휴식'
+        };
 
-        const dashboard = document.querySelector('.nav-item[data-view="dashboard"]') ||
-            Array.from(document.querySelectorAll('.nav-item')).find(el => el.textContent.trim() === '데스크');
-
-        const nav = dashboard ? dashboard.parentElement : document.querySelector('.nav-group');
-        if (!nav) return;
-
-        const item = document.createElement('div');
-        item.className = 'nav-item';
-        item.dataset.view = DAILY_VIEW;
-        item.textContent = '데일리 스케줄';
-        item.onclick = function () { changeView(DAILY_VIEW); };
-
-        if (dashboard && dashboard.nextSibling) nav.insertBefore(item, dashboard.nextSibling);
-        else nav.insertBefore(item, nav.firstChild);
+        return labels[cls] || '일정';
     }
 
-    function setActiveDailyNav() {
-        document.querySelectorAll('.nav-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.view === DAILY_VIEW) el.classList.add('active');
-        });
+    function makeId() {
+        return `daily_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    function renderDaily(container) {
-        if (!ensureData()) return;
+    function addBlock(date, title, minutes, cls, sourceKey) {
+        if (!ensureData()) return false;
 
-        const date = window.dailyV9Date || todayKst();
-        const start = getStartForDate(date);
+        const endLimit = getEndMin();
+        const source = sourceKey || '';
+        const start = nextStart(date, source);
+        const requested = Math.max(5, Number(minutes || 60));
 
-        container.className = 'main-container daily-v9-main';
-        container.innerHTML = `
-            <div class="daily-v9-top">
-                <div style="min-width:0;">
-                    <h2 style="margin:0;">데일리 스케줄</h2>
-                    <div class="daily-v9-total" id="daily-v9-total">작업 합계 0분</div>
-                </div>
-                <div class="daily-v9-controls">
-                    <input type="date" id="daily-v9-date" value="${esc(date)}" onchange="dailyV9ChangeDate(this.value)">
-                    <span style="font-size:0.8rem; color:#777; font-weight:900;">시작 시간</span>
-                    <input type="time" id="daily-v9-start" value="${esc(start)}" onchange="dailyV9ChangeStart(this.value)">
-                    <button class="daily-v9-btn gray" onclick="dailyV9ClearDay()">이 날짜 비우기</button>
-                </div>
-            </div>
-
-            <div class="daily-v9-shell">
-                <div class="card daily-v9-left">
-                    <div style="margin-bottom:10px;">
-                        <h3 style="margin:0; font-size:1rem;">월간 스케줄러 일정</h3>
-                        <div class="daily-v9-hint">소요 시간을 적고 등록하면 오른쪽 시간표에 자동으로 배치됩니다.</div>
-                    </div>
-
-                    <div class="daily-v9-scroll" id="daily-v9-sources"></div>
-
-                    <div class="daily-v9-manual">
-                        <h4>직접 추가</h4>
-                        <div class="daily-v9-manual-grid">
-                            <input type="text" id="daily-v9-manual-title" placeholder="제목">
-                            <input type="number" id="daily-v9-manual-min" min="5" step="5" value="60" title="분">
-                            <select id="daily-v9-manual-type">
-                                <option value="ev-cover">표지</option>
-                                <option value="ev-proof1">1교</option>
-                                <option value="ev-proof2">2교</option>
-                                <option value="ev-pub">출간 등록</option>
-                                <option value="ev-task">일반</option>
-                                <option value="ev-email">메일</option>
-                                <option value="ev-meeting">미팅</option>
-                                <option value="ev-writing">원고 작성</option>
-                                <option value="ev-rest">휴식</option>
-                                <option value="ev-settlement">정산</option>
-                                <option value="ev-personal">개인</option>
-                            </select>
-                            <button class="daily-v9-btn" onclick="dailyV9AddManual()">추가</button>
-                        </div>
-                    </div>
-
-                    <div id="daily-v9-edit" class="daily-v9-edit empty">
-                        오른쪽 시간표 블록을 클릭하면 제목, 상세 설명, 시간을 수정할 수 있어요.
-                    </div>
-                </div>
-
-                <div class="card daily-v9-right">
-                    <div class="daily-v9-wrap">
-                        <div class="daily-v9-grid">
-                            ${buildDailyRowsHtml(date)}
-                            <div class="daily-v9-empty" id="daily-v9-empty" style="position:absolute; left:60px; top:20px; right:10px;">
-                                왼쪽 일정의 소요 시간을 입력하고 등록해 주세요.
-                            </div>
-                            <div class="daily-v9-layer" id="daily-v9-layer"></div>
-                            <div class="daily-v9-now-line" id="daily-v9-now-line" style="display:none;">
-                                <span class="daily-v9-now-label"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        renderDailySources();
-        renderDailyBlocks();
-        forceDailyHardEnd(date);
-    }
-
-    function renderDailySources() {
-        const box = document.getElementById('daily-v9-sources');
-        if (!box) return;
-
-        const date = getDailyDate();
-        const sources = collectDailySources(date);
-        const registered = new Set(dailyBlocks(date).map(b => b.sourceKey).filter(Boolean));
-
-        window.__dailyV9Sources = sources;
-
-        if (!sources.length) {
-            box.innerHTML = `<div class="daily-v9-empty">이 날짜에 월간 스케줄러 일정이 없습니다.<br>아래에서 직접 추가할 수 있어요.</div>`;
-            return;
+        if (start >= endLimit) {
+            alert('22:00 이후에는 더 이상 일정을 등록할 수 없어요.');
+            return false;
         }
 
-        box.innerHTML = sources.map((item, idx) => {
-            const done = registered.has(item.sourceKey);
+        const end = Math.min(start + requested, endLimit);
 
-            return `
-                <div class="daily-v9-source ${esc(item.className)}">
-                    <div class="daily-v9-source-title">${esc(item.title)}</div>
-                    <div class="daily-v9-source-meta">${item.writerName ? esc(item.writerName) + ' · ' : ''}${esc(date)}</div>
-                    <div class="daily-v9-source-actions">
-                        <input type="number" id="daily-v9-src-min-${idx}" min="5" step="5" value="${Number(item.defaultMinutes || 60)}" placeholder="소요 시간(분)">
-                        <button class="daily-v9-btn" ${done ? 'disabled' : ''} onclick="dailyV9RegisterSource(${idx})">${done ? '등록됨' : '등록'}</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        if (end <= start) {
+            alert('22:00 이후에는 더 이상 일정을 등록할 수 없어요.');
+            return false;
+        }
+
+        let existing = source
+            ? livData.dailyTimeBlocks.find(b => b && b.date === date && b.sourceKey === source)
+            : null;
+
+        if (existing) {
+            existing.title = title || existing.title;
+            existing.start = minToTime(start);
+            existing.end = minToTime(end);
+            existing.className = cls || existing.className || 'ev-task';
+        } else {
+            livData.dailyTimeBlocks.push({
+                id: makeId(),
+                date,
+                title: title || '일정',
+                desc: '',
+                start: minToTime(start),
+                end: minToTime(end),
+                className: cls || 'ev-task',
+                sourceKey: source
+            });
+        }
+
+        saveLiv();
+        drawDaily22(true);
+        return true;
     }
 
-    function renderDailyBlocks() {
-        const layer = document.getElementById('daily-v9-layer');
-        const empty = document.getElementById('daily-v9-empty');
-        const totalEl = document.getElementById('daily-v9-total');
+    function buildRows(date) {
+        const start = getStartMin(date);
+        const end = getEndMin();
+        const rows = [];
 
-        if (!layer) return;
-
-        const date = getDailyDate();
-        const startBase = timeToMin(getStartForDate(date));
-        const endBase = getDayEndMin();
-        const grid = document.querySelector('.daily-v9-grid');
-        if (grid) {
-            const hardHeight = getDailySpanMinutes(date) * MINUTE_HEIGHT;
-            grid.style.height = `${hardHeight}px`;
-            grid.style.minHeight = `${hardHeight}px`;
+        for (let t = start; t < end; t += 60) {
+            rows.push(t);
         }
-        const blocks = dailyBlocks(date);
-        const total = blocks.reduce((sum, b) => sum + Math.max(0, Math.min(timeToMin(b.end), endBase) - timeToMin(b.start)), 0);
 
-        if (totalEl) totalEl.textContent = `${date} 작업 합계 ${durationLabel(total)}`;
-        if (empty) empty.style.display = blocks.length ? 'none' : 'block';
+        if (!rows.includes(end)) rows.push(end);
 
-        layer.innerHTML = blocks.map(block => {
-            const startMin = timeToMin(block.start);
-            const endMin = timeToMin(block.end);
-            const visibleStart = Math.max(startBase, startMin);
-            const visibleEnd = Math.min(endBase, endMin);
+        return rows.map(t => `
+            <div class="daily-v9-row liv-daily-22-row" style="top:${Math.max(0, (t - start) * MINUTE_HEIGHT)}px; height:${t === end ? 1 : 120}px;">
+                <div class="daily-v9-label">${minToTime(t)}</div>
+                <div></div>
+            </div>
+        `).join('');
+    }
 
-            if (visibleEnd <= startBase || visibleStart >= endBase) return '';
+    function buildBlocks(date) {
+        const start = getStartMin(date);
+        const end = getEndMin();
+        const blocks = blockList(date);
 
-            const top = Math.max(0, (visibleStart - startBase) * MINUTE_HEIGHT);
+        return blocks.map(b => {
+            const s = timeToMin(b.start);
+            const e = Math.min(timeToMin(b.end), end);
+
+            if (e <= start || s >= end) return '';
+
+            const visibleStart = Math.max(s, start);
+            const visibleEnd = Math.min(e, end);
+            const top = Math.max(0, (visibleStart - start) * MINUTE_HEIGHT);
             const height = Math.max(30, (visibleEnd - visibleStart) * MINUTE_HEIGHT - 4);
-            const active = block.id === selectedBlockId ? 'active' : '';
 
             return `
-                <div class="daily-v9-block ${esc(block.className)} ${active}"
+                <div class="daily-v9-block ${esc(b.className || 'ev-task')}"
                      style="top:${top}px; height:${height}px;"
-                     onclick="dailyV9OpenEditor('${esc(block.id)}')">
-                    <div class="daily-v9-block-title">${esc(block.title)}</div>
-                    <div class="daily-v9-block-meta">${esc(block.start)} ~ ${esc(block.end)} · ${durationLabel(Math.max(0, endMin - startMin))}</div>
-                    ${block.desc ? `<div class="daily-v9-block-desc">${esc(block.desc)}</div>` : ''}
+                     onclick="if(window.dailyV9OpenEditor) dailyV9OpenEditor('${esc(b.id)}')">
+                    <div class="daily-v9-block-title">${esc(b.title || '일정')}</div>
+                    <div class="daily-v9-block-meta">${esc(b.start)} ~ ${esc(b.end)} · ${durationLabel(Math.max(0, e - s))}</div>
+                    ${b.desc ? `<div class="daily-v9-block-desc">${esc(b.desc)}</div>` : ''}
                 </div>
             `;
         }).join('');
-
-        updateNowLine();
-        forceDailyHardEnd(date);
     }
 
-    function updateNowLine() {
-        const date = getDailyDate();
+    function drawNowLine(date) {
         const line = document.getElementById('daily-v9-now-line');
-        if (!line || !date) return;
+        if (!line) return;
 
-        const now = nowKst();
-        const startBase = timeToMin(getStartForDate(date));
-        const endBase = getDayEndMin();
+        const now = nowKstLocal();
+        const start = getStartMin(date);
+        const end = getEndMin();
 
-        if (date === now.date && now.minutes >= startBase && now.minutes <= endBase) {
+        if (date === now.date && now.minutes >= start && now.minutes <= end) {
             line.style.display = 'block';
-            line.style.top = `${(now.minutes - startBase) * MINUTE_HEIGHT}px`;
+            line.style.top = `${(now.minutes - start) * MINUTE_HEIGHT}px`;
 
             const label = line.querySelector('.daily-v9-now-label');
             if (label) label.textContent = `현재 ${now.time}`;
         } else {
             line.style.display = 'none';
         }
-
-        document.querySelectorAll('.daily-v9-block').forEach(block => {
-            const meta = block.querySelector('.daily-v9-block-meta');
-            const text = meta ? meta.textContent || '' : '';
-            const match = text.match(/(\d{2}):(\d{2})\s*~\s*(\d{2}):(\d{2})/);
-            if (!match) return;
-
-            const endMin = Number(match[3]) * 60 + Number(match[4]);
-
-            if (date < now.date) block.classList.add('daily-v9-past');
-            else if (date > now.date) block.classList.remove('daily-v9-past');
-            else if (endMin <= now.minutes) block.classList.add('daily-v9-past');
-            else block.classList.remove('daily-v9-past');
-        });
     }
 
-    window.dailyV9ChangeDate = function (date) {
-        window.dailyV9Date = date || todayKst();
-        selectedBlockId = null;
-        const main = document.getElementById('main-view');
-        if (main) renderDaily(main);
-    };
-
-    window.dailyV9ChangeStart = function (start) {
-        const date = getDailyDate();
-        if (!date) return;
-
-        setStartForDate(date, start || DEFAULT_START);
-        save();
-
-        const main = document.getElementById('main-view');
-        if (main) renderDaily(main);
-    };
-
-    window.dailyV9RegisterSource = function (idx) {
-        if (!ensureData()) return;
-
+    function updateSourceButtons(date) {
         const sources = window.__dailyV9Sources || [];
-        const item = sources[idx];
-        if (!item) return;
+        const registered = new Set(blockList(date).map(b => b.sourceKey).filter(Boolean));
 
-        const minEl = document.getElementById(`daily-v9-src-min-${idx}`);
-        const minutes = Math.max(5, Number(minEl && minEl.value ? minEl.value : item.defaultMinutes || 60));
-        const date = getDailyDate();
+        sources.forEach((item, idx) => {
+            const btn = document.querySelector(`button[onclick="dailyV9RegisterSource(${idx})"]`);
+            if (!btn) return;
 
-        repairDailyBlocks(date);
+            const done = item && item.sourceKey && registered.has(item.sourceKey);
 
-        const endLimit = getDayEndMin();
-        const start = nextStartForDaily(date);
-        const startMin = timeToMin(start);
-
-        if (startMin >= endLimit) {
-            alert('22:00 이후에는 더 이상 일정을 등록할 수 없어요.');
-            renderDailySources();
-            renderDailyBlocks();
-            return;
-        }
-
-        const endMin = Math.min(startMin + minutes, endLimit);
-
-        if (endMin <= startMin) {
-            alert('22:00 이후에는 더 이상 일정을 등록할 수 없어요.');
-            renderDailySources();
-            renderDailyBlocks();
-            return;
-        }
-
-        const existing = item.sourceKey
-            ? livData.dailyTimeBlocks.find(b => b && b.date === date && b.sourceKey === item.sourceKey)
-            : null;
-
-        if (existing) {
-            existing.title = item.title;
-            existing.desc = existing.desc || '';
-            existing.start = minToTime(startMin);
-            existing.end = minToTime(endMin);
-            existing.className = item.className;
-        } else {
-            livData.dailyTimeBlocks.push({
-                id: makeId('daily'),
-                date,
-                title: item.title,
-                desc: '',
-                start: minToTime(startMin),
-                end: minToTime(endMin),
-                className: item.className,
-                sourceKey: item.sourceKey
-            });
-        }
-
-        save();
-        renderDailySources();
-        renderDailyBlocks();
-    };
-
-    window.dailyV9AddManual = function () {
-        if (!ensureData()) return;
-
-        const titleEl = document.getElementById('daily-v9-manual-title');
-        const minEl = document.getElementById('daily-v9-manual-min');
-        const typeEl = document.getElementById('daily-v9-manual-type');
-
-        const title = (titleEl && titleEl.value ? titleEl.value.trim() : '') || '직접 추가 일정';
-        const minutes = Math.max(5, Number(minEl && minEl.value ? minEl.value : 60));
-        const cls = typeEl && typeEl.value ? typeEl.value : 'ev-task';
-        const label = TYPE_LABELS[cls] || '일정';
-        const date = getDailyDate();
-
-        repairDailyBlocks(date);
-
-        const endLimit = getDayEndMin();
-        const start = nextStartForDaily(date);
-        const startMin = timeToMin(start);
-
-        if (startMin >= endLimit) {
-            alert('22:00 이후에는 더 이상 일정을 등록할 수 없어요.');
-            renderDailyBlocks();
-            return;
-        }
-
-        const endMin = Math.min(startMin + minutes, endLimit);
-
-        if (endMin <= startMin) {
-            alert('22:00 이후에는 더 이상 일정을 등록할 수 없어요.');
-            renderDailyBlocks();
-            return;
-        }
-
-        livData.dailyTimeBlocks.push({
-            id: makeId('daily'),
-            date,
-            title: `[${label}] ${title}`,
-            desc: '',
-            start: minToTime(startMin),
-            end: minToTime(endMin),
-            className: cls
+            btn.disabled = !!done;
+            btn.textContent = done ? '등록됨' : '등록';
         });
-
-        if (titleEl) titleEl.value = '';
-
-        save();
-        renderDailyBlocks();
-    };
-
-    window.dailyV9OpenEditor = function (id) {
-        selectedBlockId = id;
-
-        const block = livData.dailyTimeBlocks.find(b => b.id === id);
-        const panel = document.getElementById('daily-v9-edit');
-
-        if (!block || !panel) return;
-
-        panel.className = 'daily-v9-edit';
-        panel.innerHTML = `
-            <label>제목</label>
-            <input type="text" id="daily-v9-edit-title" value="${esc(block.title)}">
-
-            <label>상세 설명</label>
-            <textarea id="daily-v9-edit-desc" placeholder="시간표 블록 제목 밑에 작은 글씨로 표시됩니다.">${esc(block.desc || '')}</textarea>
-
-            <div class="daily-v9-edit-row">
-                <div>
-                    <label>시작</label>
-                    <input type="time" id="daily-v9-edit-start" value="${esc(block.start)}">
-                </div>
-                <div>
-                    <label>종료</label>
-                    <input type="time" id="daily-v9-edit-end" value="${esc(block.end)}">
-                </div>
-            </div>
-
-            <label>라벨 색상</label>
-            <select id="daily-v9-edit-class">
-                ${Object.keys(TYPE_LABELS).map(cls => `
-                    <option value="${esc(cls)}" ${block.className === cls ? 'selected' : ''}>${esc(TYPE_LABELS[cls])}</option>
-                `).join('')}
-            </select>
-
-            <div class="daily-v9-edit-actions">
-                <button class="daily-v9-btn" onclick="dailyV9SaveEdit('${esc(block.id)}')">저장</button>
-                <button class="daily-v9-btn del" onclick="dailyV9DeleteBlock('${esc(block.id)}')">삭제</button>
-                <button class="daily-v9-btn gray" onclick="dailyV9CloseEditor()">닫기</button>
-            </div>
-        `;
-
-        renderDailyBlocks();
-    };
-
-    window.dailyV9SaveEdit = function (id) {
-        const block = livData.dailyTimeBlocks.find(b => b.id === id);
-        if (!block) return;
-
-        const title = document.getElementById('daily-v9-edit-title').value.trim() || '제목 없음';
-        const desc = document.getElementById('daily-v9-edit-desc').value.trim() || '';
-        const start = document.getElementById('daily-v9-edit-start').value || DEFAULT_START;
-        let end = document.getElementById('daily-v9-edit-end').value || minToTime(timeToMin(start) + 60);
-        const cls = document.getElementById('daily-v9-edit-class').value || 'ev-task';
-
-        if (timeToMin(start) >= getDayEndMin()) {
-            alert('22:00 이후에는 일정을 둘 수 없어요.');
-            return;
-        }
-
-        if (timeToMin(end) > getDayEndMin()) end = FIXED_DAY_END;
-
-        if (timeToMin(end) <= timeToMin(start)) {
-            alert('종료 시간은 시작 시간보다 늦어야 해요.');
-            return;
-        }
-
-        block.title = title;
-        block.desc = desc;
-        block.start = start;
-        block.end = end;
-        block.className = cls;
-
-        save();
-        renderDailySources();
-        renderDailyBlocks();
-    };
-
-    window.dailyV9DeleteBlock = function (id) {
-        if (!confirm('이 시간표 블록을 삭제할까요?')) return;
-
-        livData.dailyTimeBlocks = livData.dailyTimeBlocks.filter(b => b.id !== id);
-        selectedBlockId = null;
-
-        save();
-        dailyV9CloseEditor();
-        renderDailySources();
-        renderDailyBlocks();
-    };
-
-    window.dailyV9CloseEditor = function () {
-        selectedBlockId = null;
-
-        const panel = document.getElementById('daily-v9-edit');
-        if (panel) {
-            panel.className = 'daily-v9-edit empty';
-            panel.innerHTML = '오른쪽 시간표 블록을 클릭하면 제목, 상세 설명, 시간을 수정할 수 있어요.';
-        }
-
-        renderDailyBlocks();
-    };
-
-    window.dailyV9ClearDay = function () {
-        const date = getDailyDate();
-        if (!confirm(`${date}의 데일리 시간표를 전부 비울까요?`)) return;
-
-        livData.dailyTimeBlocks = livData.dailyTimeBlocks.filter(b => b.date !== date);
-        selectedBlockId = null;
-
-        save();
-        dailyV9CloseEditor();
-        renderDailySources();
-        renderDailyBlocks();
-    };
-
-    window.livDailyRepairToday = function () {
-        const date = getDailyDate();
-        const changed = repairDailyBlocks(date);
-        const main = document.getElementById('main-view');
-        if (main && currentView() === DAILY_VIEW) renderDaily(main);
-        return changed;
-    };
-
-    function detectWorkKey(item) {
-        if (!item || !item.classList) return null;
-
-        for (const cls in WORK_CLASS_TO_KEY) {
-            if (item.classList.contains(cls)) return WORK_CLASS_TO_KEY[cls];
-        }
-
-        return null;
     }
 
-    function detectExtraType(item) {
-        if (!item || !item.classList) return null;
-        return EXTRA_CLASSES.find(cls => item.classList.contains(cls)) || null;
-    }
-
-    function parseIds(attr) {
-        const text = String(attr || '');
-
-        let m = text.match(/openWorkPage\(\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^'")]+)['"]?\s*\)/);
-        if (m) return { kind: 'work', writerId: String(m[1]).trim(), workId: String(m[2]).trim() };
-
-        m = text.match(/completeWorkTask\(\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]([^'"]+)['"]/);
-        if (m) return { kind: 'work', writerId: String(m[1]).trim(), workId: String(m[2]).trim(), key: String(m[3]).trim() };
-
-        m = text.match(/drag\(\s*event\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]?([^,'")]+)['"]?\s*,\s*['"]?([^'")]+)['"]?\s*\)/);
-        if (m && m[1] !== 'extraTask') return { kind: 'work', key: String(m[1]).trim(), writerId: String(m[2]).trim(), workId: String(m[3]).trim() };
-
-        m = text.match(/handleExtraTask(?:Dbl)?Click\(\s*event\s*,\s*['"]([^'"]+)['"]/);
-        if (m) return { kind: 'extra', extraId: String(m[1]).trim() };
-
-        m = text.match(/copyExtraTask\(\s*event\s*,\s*['"]([^'"]+)['"]/);
-        if (m) return { kind: 'extra', extraId: String(m[1]).trim() };
-
-        m = text.match(/drag\(\s*event\s*,\s*['"]extraTask['"]\s*,\s*null\s*,\s*['"]([^'"]+)['"]\s*\)/);
-        if (m) return { kind: 'extra', extraId: String(m[1]).trim() };
-
-        return null;
-    }
-
-    function getDateFromItem(item, fallback) {
-        if (item.dataset.livV9Date) return item.dataset.livV9Date;
-
-        const parent = item.closest('[id]');
-        if (parent) {
-            const m = String(parent.id || '').match(/(\d{4}-\d{2}-\d{2})/);
-            if (m) return m[1];
-        }
-
-        return fallback || null;
-    }
-
-    function attrsForItem(item) {
-        const attrs = [
-            item.getAttribute('onclick'),
-            item.getAttribute('ondblclick'),
-            item.getAttribute('ondragstart'),
-            item.getAttribute('oncontextmenu')
-        ];
-
-        const titleEl = item.querySelector('.evt-title, .week-evt-title, .clickable-title');
-        if (titleEl) {
-            attrs.push(titleEl.getAttribute('onclick'));
-            attrs.push(titleEl.getAttribute('ondblclick'));
-        }
-
-        return attrs;
-    }
-
-    function findWorkByText(item, key, dateStr) {
-        const titleEl = item.querySelector('.evt-title, .week-evt-title, .clickable-title') || item;
-        const writerEl = item.querySelector('.evt-writer, .week-evt-writer');
-
-        const title = cleanText(titleEl.textContent);
-        const writerName = writerEl ? cleanText(writerEl.textContent) : '';
-
-        for (const writer of livData.writers) {
-            for (const work of (writer.works || [])) {
-                const sameTitle = cleanText(work.title) === title;
-                const sameWriter = !writerName || cleanText(writer.name) === writerName;
-                const hasDate = getDateList(work, key).includes(dateStr);
-
-                if (sameTitle && sameWriter && hasDate) {
-                    return { kind: 'work', writerId: writer.id, workId: work.id, key, date: dateStr };
-                }
-            }
-        }
-
-        return null;
-    }
-
-    function findExtraByText(item, type, dateStr) {
-        const titleEl = item.querySelector('.evt-title, .week-evt-title') || item;
-        const writerEl = item.querySelector('.evt-writer, .week-evt-writer');
-
-        const title = cleanText(titleEl.textContent);
-        const writerName = writerEl ? cleanText(writerEl.textContent) : '';
-
-        for (const task of livData.extraTasks) {
-            if (!task || task.hidden || task.date !== dateStr) continue;
-            if (type && normalizeType(task.type) !== type) continue;
-
-            const rawTitle = cleanText(task.title);
-            const labeledTitle = cleanText(`[${extraLabel(task.type)}] ${task.title}`);
-            const sameTitle = rawTitle === title || labeledTitle === title;
-
-            const writer = task.writerId ? getWriter(task.writerId) : null;
-            const sameWriter = !writerName || (writer && cleanText(writer.name) === writerName);
-
-            if (sameTitle && sameWriter) {
-                return { kind: 'extra', extraId: task.id, date: dateStr };
-            }
-        }
-
-        return null;
-    }
-
-    function getWorkTarget(item, fallbackDate) {
-        const keyFromClass = detectWorkKey(item);
-        if (!keyFromClass) return null;
-
-        if (item.dataset.livV9Kind === 'work') {
-            return {
-                kind: 'work',
-                writerId: item.dataset.livV9WriterId,
-                workId: item.dataset.livV9WorkId,
-                key: item.dataset.livV9Key,
-                date: item.dataset.livV9Date || fallbackDate
-            };
-        }
-
-        for (const attr of attrsForItem(item)) {
-            const parsed = parseIds(attr);
-
-            if (parsed && parsed.kind === 'work') {
-                return {
-                    kind: 'work',
-                    writerId: parsed.writerId,
-                    workId: parsed.workId,
-                    key: parsed.key && WORK_KEYS[parsed.key] ? parsed.key : keyFromClass,
-                    date: fallbackDate
-                };
-            }
-        }
-
-        return findWorkByText(item, keyFromClass, fallbackDate);
-    }
-
-    function getExtraTarget(item, fallbackDate) {
-        const type = detectExtraType(item);
-        if (!type) return null;
-
-        if (item.dataset.livV9Kind === 'extra') {
-            return {
-                kind: 'extra',
-                extraId: item.dataset.livV9ExtraId,
-                date: item.dataset.livV9Date || fallbackDate
-            };
-        }
-
-        for (const attr of attrsForItem(item)) {
-            const parsed = parseIds(attr);
-            if (parsed && parsed.kind === 'extra') {
-                return { kind: 'extra', extraId: parsed.extraId, date: fallbackDate };
-            }
-        }
-
-        return findExtraByText(item, type, fallbackDate);
-    }
-
-    function copyWork(target) {
-        if (!target || !WORK_KEYS[target.key]) return;
-
-        const found = getWork(target.writerId, target.workId);
-        const work = found.work;
-        const info = WORK_KEYS[target.key];
-
-        if (!work) {
-            alert('복사할 작품 일정을 찾지 못했어요.');
-            return;
-        }
-
-        const sourceDate = target.date || work[target.key];
-
-        if (!sourceDate) {
-            alert('복사 기준 날짜를 찾지 못했어요.');
-            return;
-        }
-
-        const targetDate = prompt(`"${work.title}" ${info.label} 일정을 어느 날짜로 복사할까요?`, nextDate(sourceDate, 1));
-        if (!targetDate) return;
-
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-            alert('날짜는 2026-06-21처럼 입력해 주세요.');
-            return;
-        }
-
-        const dates = getDateList(work, target.key);
-        dates.push(sourceDate, targetDate);
-
-        setDateList(work, target.key, dates);
-        addCopiedWorkOccurrence(work, target.key, targetDate);
-
-        save();
-        rerenderCalendar();
-    }
-
-    function copyExtra(target) {
-        if (!target || !target.extraId) return;
-
-        const source = getExtra(target.extraId);
-
-        if (!source) {
-            alert('복사할 일정을 찾지 못했어요.');
-            return;
-        }
-
-        if (source.fixed || source.systemSettlement) {
-            alert('고정/시스템 일정은 복사하지 않는 편이 안전해요.');
-            return;
-        }
-
-        const sourceDate = source.date || target.date;
-
-        if (!sourceDate) {
-            alert('복사 기준 날짜를 찾지 못했어요.');
-            return;
-        }
-
-        const targetDate = prompt(`"${source.title || '일정'}" 일정을 어느 날짜로 복사할까요?`, nextDate(sourceDate, 1));
-        if (!targetDate) return;
-
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-            alert('날짜는 2026-06-21처럼 입력해 주세요.');
-            return;
-        }
-
-        const copied = JSON.parse(JSON.stringify(source));
-        copied.id = makeId('extra_v9');
-        copied.date = targetDate;
-        copied.completed = false;
-        copied.fixed = false;
-        copied.systemSettlement = false;
-        copied._livCopied = true;
-        copied._livCopyV9 = true;
-        copied._dailyCopySourceId = source.id;
-
-        livData.extraTasks.push(copied);
-
-        save();
-        rerenderCalendar();
-    }
-
-    function deleteCopiedWork(target) {
-        if (!target || !WORK_KEYS[target.key]) return false;
-
-        const found = getWork(target.writerId, target.workId);
-        const work = found.work;
-
-        if (!work || !isCopiedWorkOccurrence(work, target.key, target.date)) return false;
-
-        const info = WORK_KEYS[target.key];
-
-        if (!confirm(`이 복사된 ${info.label} 일정을 삭제할까요?`)) return true;
-
-        removeWorkOccurrence(work, target.key, target.date);
-
-        save();
-        rerenderCalendar();
-
-        return true;
-    }
-
-    function deleteCopiedExtra(target) {
-        if (!target || !target.extraId) return false;
-
-        const task = getExtra(target.extraId);
-
-        if (!isCopiedExtra(task)) return false;
-
-        if (!confirm('이 복사된 일정을 삭제할까요?')) return true;
-
-        livData.extraTasks = livData.extraTasks.filter(t => String(t.id) !== String(task.id));
-
-        save();
-        rerenderCalendar();
-
-        return true;
-    }
-
-    function appendMissingWorkOccurrences(dateStr, containerId, view, filter) {
-        const container = document.getElementById(containerId);
-        if (!container || !ensureData()) return;
-
-        const existing = new Set();
-
-        container.querySelectorAll('.event-item, .week-evt-item').forEach(item => {
-            const date = getDateFromItem(item, dateStr);
-            const target = getWorkTarget(item, date);
-
-            if (target && target.kind === 'work') {
-                existing.add(`${target.writerId}:${target.workId}:${target.key}:${date}`);
-            }
-        });
-
-        const currentFilter = filter || 'all';
-        let html = '';
-
-        livData.writers.forEach(writer => {
-            (writer.works || []).forEach(work => {
-                Object.keys(WORK_KEYS).forEach(key => {
-                    const info = WORK_KEYS[key];
-
-                    if (key === 'pubDate' && !(currentFilter === 'all' || currentFilter === 'pub')) return;
-                    if (key === 'coverDate' && !(currentFilter === 'all' || currentFilter === 'cover')) return;
-                    if ((key === 'proofDate' || key === 'proofDate2') && !(currentFilter === 'all' || currentFilter === 'proof')) return;
-
-                    const dates = getDateList(work, key);
-
-                    if (!dates.includes(dateStr)) return;
-
-                    const unique = `${writer.id}:${work.id}:${key}:${dateStr}`;
-                    if (existing.has(unique)) return;
-
-                    if (work[key] === dateStr) return;
-
-                    const itemClass = view === 'week-calendar' ? 'week-evt-item' : 'event-item';
-                    const titleClass = view === 'week-calendar' ? 'week-evt-title' : 'evt-title';
-                    const writerClass = view === 'week-calendar' ? 'week-evt-writer' : 'evt-writer';
-
-                    html += `
-                        <div class="${itemClass} ${info.cls}"
-                             data-liv-v9-kind="work"
-                             data-liv-v9-writer-id="${esc(writer.id)}"
-                             data-liv-v9-work-id="${esc(work.id)}"
-                             data-liv-v9-key="${esc(key)}"
-                             data-liv-v9-date="${esc(dateStr)}">
-                            <span class="${titleClass}">[${info.label}] ${esc(work.title)}</span>
-                            <span class="${writerClass}">${esc(writer.name)}</span>
-                        </div>
-                    `;
-                });
-            });
-        });
-
-        if (html) container.insertAdjacentHTML('beforeend', html);
-    }
-
-    function markItems(dateStr, containerId, view, filter) {
-        const container = document.getElementById(containerId);
-        if (!container || !ensureData()) return;
-
-        appendMissingWorkOccurrences(dateStr, containerId, view, filter);
-
-        container.querySelectorAll('.event-item, .week-evt-item').forEach(item => {
-            const date = getDateFromItem(item, dateStr);
-            const workTarget = getWorkTarget(item, date);
-
-            if (workTarget && workTarget.kind === 'work') {
-                const found = getWork(workTarget.writerId, workTarget.workId);
-                const work = found.work;
-                const copied = work && isCopiedWorkOccurrence(work, workTarget.key, date);
-
-                item.dataset.livV9Kind = 'work';
-                item.dataset.livV9WriterId = workTarget.writerId;
-                item.dataset.livV9WorkId = workTarget.workId;
-                item.dataset.livV9Key = workTarget.key;
-                item.dataset.livV9Date = date;
-                item.dataset.livV9Copied = copied ? '1' : '0';
-
-                item.classList.toggle('liv-v9-copied', !!copied);
-                return;
-            }
-
-            const extraTarget = getExtraTarget(item, date);
-
-            if (extraTarget && extraTarget.kind === 'extra') {
-                const task = getExtra(extraTarget.extraId);
-                const copied = isCopiedExtra(task);
-
-                item.dataset.livV9Kind = 'extra';
-                item.dataset.livV9ExtraId = extraTarget.extraId;
-                item.dataset.livV9Date = date;
-                item.dataset.livV9Copied = copied ? '1' : '0';
-
-                item.classList.toggle('liv-v9-copied', !!copied);
-            }
-        });
-
-        sortScheduleContainer(container);
-    }
-
-    function priority(item) {
-        const text = cleanText(item.textContent);
-
-        if (
-            item.classList.contains('ev-settlement') ||
-            text.includes('정산') ||
-            text.includes('정산서') ||
-            text.includes('정산금')
-        ) {
-            return 0;
-        }
-
-        for (let i = 1; i < ORDER.length; i++) {
-            if (item.classList.contains(ORDER[i])) return i;
-        }
-
-        return 99;
-    }
-
-    function sortScheduleContainer(container) {
-        if (!container) return;
-
-        const items = Array.from(container.children).filter(el => {
-            return el.classList && (
-                el.classList.contains('event-item') ||
-                el.classList.contains('week-evt-item')
-            );
-        });
-
-        if (items.length < 2) return;
-
-        const sorted = items
-            .map((el, index) => ({ el, index, priority: priority(el) }))
-            .sort((a, b) => {
-                if (a.priority !== b.priority) return a.priority - b.priority;
-                return a.index - b.index;
-            });
-
-        let changed = false;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i] !== sorted[i].el) {
-                changed = true;
-                break;
-            }
-        }
-
-        if (!changed) return;
-
-        sorted.forEach(obj => container.appendChild(obj.el));
-    }
-
-    function rerenderCalendar() {
-        const main = document.getElementById('main-view');
+    function drawDaily22(force) {
+        if (lock) return;
+        if (!hasDailyScreen()) return;
+
+        const grid = document.querySelector('.daily-v9-grid');
+        const layer = document.getElementById('daily-v9-layer');
+        const empty = document.getElementById('daily-v9-empty');
+        const totalEl = document.getElementById('daily-v9-total');
+
+        if (!grid || !layer) return;
+
+        const date = getDate();
+        const start = getStart(date);
+        const height = getHeight(date);
+        const key = `${date}|${start}|${height}|${(livData && livData.dailyTimeBlocks ? livData.dailyTimeBlocks.length : 0)}|${force ? Date.now() : ''}`;
+
+        lock = true;
 
         try {
-            if (currentView() === 'week-calendar' && typeof renderWeekCalendar === 'function') {
-                renderWeekCalendar(main);
-            } else if (typeof renderCalendar === 'function') {
-                renderCalendar(main);
-            }
-        } catch (e) {
-            console.warn('v9 rerender skipped', e);
+            grid.style.setProperty('--liv-daily-22-height', `${height}px`);
+            grid.style.height = `${height}px`;
+            grid.style.minHeight = `${height}px`;
+            grid.style.position = 'relative';
+
+            grid.querySelectorAll('.daily-v9-row, .liv-daily-22-end-line').forEach(el => el.remove());
+            grid.insertAdjacentHTML('afterbegin', buildRows(date));
+
+            layer.style.height = `${height}px`;
+            layer.innerHTML = buildBlocks(date);
+
+            const blocks = blockList(date);
+            const total = blocks.reduce((sum, b) => {
+                return sum + Math.max(0, Math.min(timeToMin(b.end), getEndMin()) - timeToMin(b.start));
+            }, 0);
+
+            if (totalEl) totalEl.textContent = `${date} 작업 합계 ${durationLabel(total)}`;
+            if (empty) empty.style.display = blocks.length ? 'none' : 'block';
+
+            const endLine = document.createElement('div');
+            endLine.className = 'liv-daily-22-end-line';
+            endLine.style.top = `${Math.max(0, height - 1)}px`;
+            endLine.innerHTML = `
+                <div class="liv-daily-22-end-label">22:00</div>
+                <div class="liv-daily-22-end-text">일과 종료</div>
+            `;
+            grid.appendChild(endLine);
+
+            drawNowLine(date);
+            updateSourceButtons(date);
+            lastKey = key;
+        } finally {
+            lock = false;
         }
     }
 
-    function patchChangeView() {
-        if (typeof changeView !== 'function' || changeView.__livV9Patched) return;
+    function patchRegister() {
+        window.dailyV9RegisterSource = function (idx) {
+            const sources = window.__dailyV9Sources || [];
+            const item = sources[idx];
+            if (!item) return false;
 
-        const original = changeView;
+            const minEl = document.getElementById(`daily-v9-src-min-${idx}`);
+            const minutes = minEl && minEl.value ? Number(minEl.value) : Number(item.defaultMinutes || 60);
 
-        changeView = function (viewName, param) {
-            if (viewName === DAILY_VIEW) {
-                setCurrentView(DAILY_VIEW);
-                setActiveDailyNav();
-
-                const main = document.getElementById('main-view');
-                if (main) renderDaily(main);
-
-                if (typeof closeSidebarMobile === 'function') {
-                    try { closeSidebarMobile(); } catch (e) {}
-                }
-
-                return;
-            }
-
-            return original(viewName, param);
+            return addBlock(
+                getDate(),
+                item.title || '일정',
+                minutes,
+                item.className || 'ev-task',
+                item.sourceKey || ''
+            );
         };
 
-        changeView.__livV9Patched = true;
-        window.changeView = changeView;
+        window.dailyV9AddManual = function () {
+            const titleEl = document.getElementById('daily-v9-manual-title');
+            const minEl = document.getElementById('daily-v9-manual-min');
+            const typeEl = document.getElementById('daily-v9-manual-type');
+
+            const rawTitle = titleEl && titleEl.value ? titleEl.value.trim() : '';
+            const cls = typeEl && typeEl.value ? typeEl.value : 'ev-task';
+            const label = typeLabel(cls);
+            const title = `[${label}] ${rawTitle || '직접 추가 일정'}`;
+            const minutes = minEl && minEl.value ? Number(minEl.value) : 60;
+
+            const ok = addBlock(getDate(), title, minutes, cls, '');
+
+            if (ok && titleEl) titleEl.value = '';
+
+            return ok;
+        };
     }
 
-    function patchCalendarRenderers() {
-        if (typeof updateTasksHtml === 'function' && !updateTasksHtml.__livV9Patched) {
-            const original = updateTasksHtml;
+    function patchDateAndStart() {
+        const oldChangeDate = window.dailyV9ChangeDate;
+        window.dailyV9ChangeDate = function (date) {
+            window.dailyV9Date = date || todayKstLocal();
 
-            updateTasksHtml = function (dateStr, containerId, view, filter) {
-                original(dateStr, containerId, view, filter);
-                markItems(dateStr, containerId, view || 'calendar', filter || 'all');
-            };
-
-            updateTasksHtml.__livV9Patched = true;
-            window.updateTasksHtml = updateTasksHtml;
-        }
-
-        if (typeof updateWeekTasksHtml === 'function' && !updateWeekTasksHtml.__livV9Patched) {
-            const originalWeek = updateWeekTasksHtml;
-
-            updateWeekTasksHtml = function (dateStr, containerId) {
-                originalWeek(dateStr, containerId);
-                markItems(dateStr, containerId, 'week-calendar', 'all');
-            };
-
-            updateWeekTasksHtml.__livV9Patched = true;
-            window.updateWeekTasksHtml = updateWeekTasksHtml;
-        }
-    }
-
-    document.addEventListener('dragstart', function () {
-        isDragging = true;
-    }, true);
-
-    document.addEventListener('dragend', function () {
-        setTimeout(() => { isDragging = false; }, 50);
-    }, true);
-
-    document.addEventListener('drop', function () {
-        setTimeout(() => { isDragging = false; }, 50);
-    }, true);
-
-    document.addEventListener('contextmenu', function (event) {
-        if (isDragging) return;
-
-        const item = event.target.closest('.event-item, .week-evt-item');
-        if (!item) return;
-
-        const date = getDateFromItem(item);
-        const workTarget = getWorkTarget(item, date);
-
-        if (workTarget && workTarget.kind === 'work') {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            copyWork(workTarget);
-            return false;
-        }
-
-        const extraTarget = getExtraTarget(item, date);
-
-        if (extraTarget && extraTarget.kind === 'extra') {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            copyExtra(extraTarget);
-            return false;
-        }
-    }, true);
-
-    document.addEventListener('click', function (event) {
-        const item = event.target.closest('.event-item, .week-evt-item');
-        if (!item) return;
-
-        const date = getDateFromItem(item);
-        const workTarget = getWorkTarget(item, date);
-
-        if (workTarget && workTarget.kind === 'work') {
-            const handled = deleteCopiedWork(workTarget);
-
-            if (handled) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return false;
+            if (typeof oldChangeDate === 'function' && oldChangeDate !== window.dailyV9ChangeDate) {
+                try { oldChangeDate(window.dailyV9Date); } catch (e) {}
             }
-        }
 
-        const extraTarget = getExtraTarget(item, date);
+            setTimeout(() => drawDaily22(true), 0);
+            setTimeout(() => drawDaily22(true), 80);
+        };
 
-        if (extraTarget && extraTarget.kind === 'extra') {
-            const handled = deleteCopiedExtra(extraTarget);
+        const oldChangeStart = window.dailyV9ChangeStart;
+        window.dailyV9ChangeStart = function (start) {
+            const date = getDate();
 
-            if (handled) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return false;
+            if (ensureData()) {
+                livData.dailyStartTimes[date] = start || DEFAULT_START;
+                saveLiv();
             }
-        }
-    }, true);
 
-    window.copyWorkDateTaskSafe = function (event, writerId, workId, key, sourceDate) {
-        if (event) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-        }
-
-        copyWork({
-            kind: 'work',
-            writerId,
-            workId,
-            key,
-            date: sourceDate
-        });
-
-        return false;
-    };
-
-    window.copyExtraTask = function (event, extraId) {
-        if (event) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-        }
-
-        const task = getExtra(extraId);
-
-        copyExtra({
-            kind: 'extra',
-            extraId,
-            date: task ? task.date : null
-        });
-
-        return false;
-    };
-
-    window.livRemoveWorkOccurrence = function (titlePart, dateStr, key) {
-        if (!ensureData()) return false;
-
-        let removed = false;
-
-        livData.writers.forEach(writer => {
-            (writer.works || []).forEach(work => {
-                if (!String(work.title || '').includes(titlePart)) return;
-
-                const keys = key && WORK_KEYS[key] ? [key] : Object.keys(WORK_KEYS);
-
-                keys.forEach(k => {
-                    if (!getDateList(work, k).includes(dateStr)) return;
-                    removeWorkOccurrence(work, k, dateStr);
-                    removed = true;
-                });
-            });
-        });
-
-        if (removed) {
-            save();
-            rerenderCalendar();
-        }
-
-        return removed;
-    };
-
-    function markVisibleCalendar() {
-        document.querySelectorAll('[id]').forEach(el => {
-            const m = String(el.id || '').match(/(\d{4}-\d{2}-\d{2})/);
-            if (m && el.querySelector && el.querySelector('.event-item, .week-evt-item')) {
-                markItems(m[1], el.id, currentView(), 'all');
+            if (typeof oldChangeStart === 'function' && oldChangeStart !== window.dailyV9ChangeStart) {
+                try { oldChangeStart(start || DEFAULT_START); } catch (e) {}
             }
-        });
+
+            setTimeout(() => drawDaily22(true), 0);
+            setTimeout(() => drawDaily22(true), 80);
+        };
     }
-
-    function install() {
-        if (installed || !ready()) return;
-
-        ensureData();
-        addDailyMenu();
-        patchChangeView();
-        patchCalendarRenderers();
-
-        installed = true;
-
-        markVisibleCalendar();
-
-        if (currentView() === DAILY_VIEW) {
-            const main = document.getElementById('main-view');
-            if (main) renderDaily(main);
-        }
-    }
-
-    const timer = setInterval(function () {
-        install();
-
-        if (installed) clearInterval(timer);
-    }, 300);
-
-    const observer = new MutationObserver(function () {
-        if (!installed) return;
-        setTimeout(markVisibleCalendar, 60);
-    });
 
     function start() {
-        install();
+        patchRegister();
+        patchDateAndStart();
 
-        const root = document.getElementById('main-view') || document.body;
-        try {
-            observer.observe(root, { childList: true, subtree: true });
-        } catch (e) {}
+        drawDaily22(true);
+
+        document.addEventListener('click', function () {
+            setTimeout(function () {
+                patchRegister();
+                drawDaily22(true);
+            }, 60);
+        }, true);
+
+        document.addEventListener('change', function (event) {
+            if (!event.target) return;
+
+            if (event.target.id === 'daily-v9-date' || event.target.id === 'daily-v9-start') {
+                setTimeout(() => drawDaily22(true), 60);
+            }
+        }, true);
+
+        const observer = new MutationObserver(function () {
+            patchRegister();
+            setTimeout(() => drawDaily22(false), 30);
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        let n = 0;
+        const fast = setInterval(function () {
+            patchRegister();
+            drawDaily22(true);
+            n++;
+            if (n > 40) clearInterval(fast);
+        }, 250);
 
         setInterval(function () {
-            if (currentView() === DAILY_VIEW) updateNowLine();
-            markVisibleCalendar();
-        }, 15000);
+            patchRegister();
+            drawDaily22(false);
+        }, 1000);
     }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', start);
     } else {
         start();
-    }
-})();
-</script>
-
-
-
-<!-- =========================================================
-     ★ LIV 월간 달력 앞뒤 날짜칸 정확 교체 패치 v13 ADDON
-     v13 통합 파일 내부 포함 기능
-
-     이건 DOM을 추측해서 나중에 빈칸을 찾는 방식이 아닙니다.
-     기존 renderCalendar()가 만들던 앞쪽 <div></div> 빈칸 자체를
-     실제 날짜칸(day-box)으로 바꿔서 렌더링합니다.
-
-     예: 2026년 6월
-     - 앞칸: 2026-05-31 딱 1개
-     - 뒤칸: 2026-07-01 ~ 2026-07-04 딱 4개
-========================================================= -->
-
-<style>
-    .day-box.liv-v13-adjacent-day {
-        background: #fafafa !important;
-        color: #aaa !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-    }
-
-    .day-box.liv-v13-adjacent-day .day-num {
-        color: #aaa !important;
-    }
-
-    .day-box.liv-v13-adjacent-day.liv-v13-drop-hover {
-        outline: 2px solid rgba(255, 133, 162, 0.45) !important;
-        outline-offset: -2px;
-        background: #fff7fa !important;
-    }
-</style>
-
-<script>
-(function () {
-    function pad(n) {
-        return String(n).padStart(2, '0');
-    }
-
-    function dateStrFromDate(d) {
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    }
-
-    function safeDateNumHtml(ds, n, isCurrentMonth) {
-        if (typeof dateNumHtml === 'function') {
-            try {
-                return dateNumHtml(ds, n, !!isCurrentMonth);
-            } catch (e) {}
-        }
-
-        return String(n);
-    }
-
-    function renderCalendarDayBox(dateObj, td, isCurrentMonth) {
-        const ds = dateStrFromDate(dateObj);
-        const day = dateObj.getDate();
-        const adjacentCls = isCurrentMonth ? '' : ' liv-v13-adjacent-day';
-        const todayCls = ds === td ? ' today' : '';
-
-        return `
-            <div class="day-box${todayCls}${adjacentCls}"
-                 ondragover="allowDrop(event); this.classList.add('liv-v13-drop-hover')"
-                 ondragleave="this.classList.remove('liv-v13-drop-hover')"
-                 ondrop="this.classList.remove('liv-v13-drop-hover'); drop(event, '${ds}')"
-                 onclick="openDayModal(event,'${ds}')"
-                 oncontextmenu="pasteCopiedTask(event,'${ds}')">
-                <div class="day-num">${safeDateNumHtml(ds, day, isCurrentMonth)}</div>
-                <div id="cal-day-${ds}" style="display:flex; flex-direction:column; gap:2px; min-height:10px;"></div>
-            </div>
-        `;
-    }
-
-    function installRenderCalendarV13() {
-        if (typeof renderCalendar !== 'function') return false;
-        if (renderCalendar.__livV13ExactAdjacent) return true;
-
-        window.renderCalendar = renderCalendar = function (c) {
-            if (!c) c = document.getElementById('main-view');
-            if (!c) return;
-
-            if (typeof gwSetupUi === 'function') {
-                try { gwSetupUi(); } catch (e) {}
-            }
-
-            const y = currentDate.getFullYear();
-            const m = currentDate.getMonth();
-            const td = typeof getKstDateString === 'function' ? getKstDateString() : '';
-
-            const fd = new Date(y, m, 1).getDay();              // 앞쪽 빈칸 개수
-            const dim = new Date(y, m + 1, 0).getDate();        // 이번 달 말일
-            const wks = Math.ceil((fd + dim) / 7);              // 현재 달력 줄 수
-            const totalCells = wks * 7;
-            const afterCount = totalCells - fd - dim;           // 뒤쪽 빈칸 개수
-
-            const visibleDates = [];
-
-            let h = `
-                <div class="cal-wrapper">
-                    <div class="card" style="padding:15px 20px; margin-bottom:10px;">
-                        <div class="cal-header-wrap">
-                            <div class="cal-nav">
-                                <button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()-1);renderCalendar(document.getElementById('main-view'))">◀</button>
-                                <span>${y}년 ${m + 1}월</span>
-                                <button class="cal-btn" onclick="currentDate.setMonth(currentDate.getMonth()+1);renderCalendar(document.getElementById('main-view'))">▶</button>
-                            </div>
-                            <div class="filter-group">
-                                <button class="filter-btn ${currentCalFilter === 'all' ? 'active' : ''}" onclick="currentCalFilter='all';renderCalendar(document.getElementById('main-view'))">전체</button>
-                                <button class="filter-btn ${currentCalFilter === 'pub' ? 'active' : ''}" onclick="currentCalFilter='pub';renderCalendar(document.getElementById('main-view'))">출간</button>
-                                <button class="filter-btn ${currentCalFilter === 'cover' ? 'active' : ''}" onclick="currentCalFilter='cover';renderCalendar(document.getElementById('main-view'))">표지</button>
-                                <button class="filter-btn ${currentCalFilter === 'proof' ? 'active' : ''}" onclick="currentCalFilter='proof';renderCalendar(document.getElementById('main-view'))">교정</button>
-                                ${typeof window.resetMonthlyScheduleInputs === 'function'
-                                    ? `<button class="filter-btn" style="border-color:#e63946; color:#e63946;" onclick="window.resetMonthlyScheduleInputs()">입력 초기화</button>`
-                                    : ''}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="calendar-grid" style="grid-template-rows:auto repeat(${wks},1fr);">
-                        ${['일','월','화','수','목','금','토'].map(d => `<div class="day-header">${d}</div>`).join('')}
-            `;
-
-            /*
-              앞쪽 이전달 칸.
-              기존 코드의 h += `<div></div>` 부분을 실제 날짜칸으로 교체.
-              2026년 6월이면 fd=1이라 2026-05-31 하나만 생성.
-            */
-            for (let i = 0; i < fd; i++) {
-                const d = new Date(y, m, 1 - fd + i);
-                const ds = dateStrFromDate(d);
-                visibleDates.push(ds);
-                h += renderCalendarDayBox(d, td, false);
-            }
-
-            /*
-              현재월 1일~말일.
-            */
-            for (let i = 1; i <= dim; i++) {
-                const d = new Date(y, m, i);
-                const ds = dateStrFromDate(d);
-                visibleDates.push(ds);
-                h += renderCalendarDayBox(d, td, true);
-            }
-
-            /*
-              뒤쪽 다음달 칸.
-              2026년 6월이면 afterCount=4라 2026-07-01~04만 생성.
-            */
-            for (let i = 1; i <= afterCount; i++) {
-                const d = new Date(y, m + 1, i);
-                const ds = dateStrFromDate(d);
-                visibleDates.push(ds);
-                h += renderCalendarDayBox(d, td, false);
-            }
-
-            h += `
-                    </div>
-                </div>
-            `;
-
-            c.innerHTML = h;
-
-            visibleDates.forEach(ds => {
-                if (typeof updateTasksHtml === 'function') {
-                    updateTasksHtml(ds, `cal-day-${ds}`, 'calendar', currentCalFilter);
-                }
-            });
-        };
-
-        window.renderCalendar.__livV13ExactAdjacent = true;
-        return true;
-    }
-
-    function startV13() {
-        const ok = installRenderCalendarV13();
-
-        if (ok) {
-            try {
-                if (typeof currentViewName !== 'undefined' && currentViewName === 'calendar') {
-                    renderCalendar(document.getElementById('main-view'));
-                }
-            } catch (e) {}
-        }
-    }
-
-    const timer = setInterval(function () {
-        if (installRenderCalendarV13()) clearInterval(timer);
-    }, 300);
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', startV13);
-    } else {
-        startV13();
     }
 })();
 </script>
