@@ -9292,7 +9292,207 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 })();
 </script>
 
+<!-- =========================================================
+     ★ LIV 데일리 스케줄 모바일 세로화면 접힘/펼침 패치 v17
+     붙이는 위치:
+     - 현재 데일리 스케줄 최종 통합 코드(v16) 바로 아래
+     - </body> 바로 위
 
+     수정 내용:
+     - 세로 화면/모바일에서만 데일리 스케줄의 "월간 스케줄러 일정" 카드에 펼치기/접기 버튼 추가
+     - 기본값: 세로 화면에서는 접힌 상태
+     - 데스크톱/가로 화면에서는 기존처럼 항상 펼쳐짐
+     - 일정 등록/직접 추가/수정/삭제/드래그/우클릭 복사 기능은 건드리지 않음
+========================================================= -->
+
+<style>
+    .daily-v9-mobile-toggle-btn {
+        display: none;
+    }
+
+    @media (max-width: 900px), (orientation: portrait) {
+        .daily-v9-left .daily-v9-mobile-toggle-head {
+            position: relative !important;
+            padding-right: 86px !important;
+            min-height: 38px !important;
+        }
+
+        .daily-v9-left .daily-v9-mobile-toggle-btn {
+            display: inline-flex !important;
+            position: absolute !important;
+            top: 0 !important;
+            right: 0 !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-width: 76px !important;
+            height: 32px !important;
+            padding: 0 10px !important;
+            border: 0 !important;
+            border-radius: 999px !important;
+            background: var(--black, #222) !important;
+            color: #fff !important;
+            font-family: inherit !important;
+            font-size: 0.72rem !important;
+            font-weight: 900 !important;
+            line-height: 1 !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+            z-index: 5 !important;
+        }
+
+        .daily-v9-left.daily-v9-mobile-collapsed .daily-v9-scroll,
+        .daily-v9-left.daily-v9-mobile-collapsed .daily-v9-manual,
+        .daily-v9-left.daily-v9-mobile-collapsed .daily-v9-edit {
+            display: none !important;
+        }
+
+        .daily-v9-left.daily-v9-mobile-collapsed {
+            padding-bottom: 12px !important;
+            margin-bottom: 10px !important;
+        }
+
+        .daily-v9-left.daily-v9-mobile-collapsed .daily-v9-hint::after {
+            content: " 펼치기를 누르면 목록과 직접 추가 영역이 보입니다.";
+            color: #aaa;
+            font-weight: 700;
+        }
+    }
+</style>
+
+<script>
+(function () {
+    const STORAGE_KEY = 'livDailyV9MonthlyCardMobileState';
+
+    function isMobilePortraitMode() {
+        try {
+            return window.matchMedia('(max-width: 900px), (orientation: portrait)').matches;
+        } catch (e) {
+            return window.innerWidth <= 900;
+        }
+    }
+
+    function getSavedOpenState() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === 'open') return true;
+            if (saved === 'closed') return false;
+        } catch (e) {}
+
+        return false;
+    }
+
+    function saveOpenState(open) {
+        try {
+            localStorage.setItem(STORAGE_KEY, open ? 'open' : 'closed');
+        } catch (e) {}
+    }
+
+    function getCard() {
+        return document.querySelector('.daily-v9-main .daily-v9-left');
+    }
+
+    function getHeader(card) {
+        if (!card) return null;
+
+        const title = Array.from(card.querySelectorAll('h3')).find(h => {
+            return (h.textContent || '').trim().includes('월간 스케줄러 일정');
+        });
+
+        return title ? title.parentElement : card.firstElementChild;
+    }
+
+    function applyState(open) {
+        const card = getCard();
+        if (!card) return;
+
+        const btn = card.querySelector('.daily-v9-mobile-toggle-btn');
+
+        if (!isMobilePortraitMode()) {
+            card.classList.remove('daily-v9-mobile-collapsed');
+
+            if (btn) {
+                btn.textContent = '접기 ▲';
+                btn.setAttribute('aria-expanded', 'true');
+            }
+
+            return;
+        }
+
+        card.classList.toggle('daily-v9-mobile-collapsed', !open);
+
+        if (btn) {
+            btn.textContent = open ? '접기 ▲' : '펼치기 ▼';
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+    }
+
+    function enhanceDailyMonthlyCard() {
+        const card = getCard();
+        if (!card) return;
+
+        const header = getHeader(card);
+        if (!header) return;
+
+        header.classList.add('daily-v9-mobile-toggle-head');
+
+        let btn = header.querySelector('.daily-v9-mobile-toggle-btn');
+
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'daily-v9-mobile-toggle-btn';
+            btn.setAttribute('aria-label', '월간 스케줄러 일정 접기 펼치기');
+
+            btn.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const currentlyOpen = !card.classList.contains('daily-v9-mobile-collapsed');
+                const nextOpen = !currentlyOpen;
+
+                saveOpenState(nextOpen);
+                applyState(nextOpen);
+            });
+
+            header.appendChild(btn);
+        }
+
+        applyState(getSavedOpenState());
+    }
+
+    function scheduleEnhance() {
+        clearTimeout(window.__dailyV9MobileToggleTimer);
+        window.__dailyV9MobileToggleTimer = setTimeout(enhanceDailyMonthlyCard, 80);
+    }
+
+    function boot() {
+        scheduleEnhance();
+
+        const observer = new MutationObserver(function () {
+            if (document.querySelector('.daily-v9-main .daily-v9-left')) {
+                scheduleEnhance();
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        window.addEventListener('resize', scheduleEnhance);
+        window.addEventListener('orientationchange', function () {
+            setTimeout(scheduleEnhance, 250);
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
+})();
+</script>
 
 </body>
 </html>
