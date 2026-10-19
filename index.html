@@ -324,6 +324,93 @@
         // - Firebase 저장 직전, 비어 있는 데이터가 기존 원격 데이터를 덮어쓰는 경우만 차단
         let firebaseLoadedOnce = false;
         let lastKnownNonEmptyCount = 0;
+        const LIV_MEDIA_COLLECTION = 'livMedia';
+        const livMediaCache = new Map();
+        let livMediaSeparationReady = false;
+
+        function workMediaId(writerId, workId) { return `work_${writerId}_${workId}`; }
+        function webtoonMediaId(itemId) { return `webtoon_${itemId}`; }
+
+        function ensureLivMediaRefs(data) {
+            if (!data || typeof data !== 'object') return data;
+            (data.writers || []).forEach(writer => (writer.works || []).forEach(work => {
+                if (!work.coverMediaRef) work.coverMediaRef = workMediaId(writer.id, work.id);
+            }));
+            (data.webtoons || []).forEach(item => {
+                if (!item.imageMediaRef) item.imageMediaRef = webtoonMediaId(item.id);
+            });
+            return data;
+        }
+
+        function cloneLivDataForFirestore(data) {
+            ensureLivMediaRefs(data);
+            const copy = JSON.parse(JSON.stringify(data || {}));
+            (copy.writers || []).forEach(writer => (writer.works || []).forEach(work => {
+                if (isLivDataImage(work.coverImg)) work.coverImg = '';
+            }));
+            (copy.webtoons || []).forEach(item => {
+                if (isLivDataImage(item.image)) item.image = '';
+            });
+            return copy;
+        }
+
+        async function hydrateLivMedia(data) {
+            const hadSeparatedRefs = (data.writers || []).some(writer => (writer.works || []).some(work => !!work.coverMediaRef)) ||
+                (data.webtoons || []).some(item => !!item.imageMediaRef);
+            ensureLivMediaRefs(data);
+            const targets = [];
+            (data.writers || []).forEach(writer => (writer.works || []).forEach(work => {
+                if (isLivDataImage(work.coverImg)) return;
+                if (work.coverMediaRef) targets.push({ ref: work.coverMediaRef, item: work, key: 'coverImg' });
+            }));
+            (data.webtoons || []).forEach(item => {
+                if (isLivDataImage(item.image)) return;
+                if (item.imageMediaRef) targets.push({ ref: item.imageMediaRef, item, key: 'image' });
+            });
+
+            const missingRefs = [...new Set(targets.map(x => x.ref).filter(ref => !livMediaCache.has(ref)))];
+            for (let i = 0; i < missingRefs.length; i += 30) {
+                const chunk = missingRefs.slice(i, i + 30);
+                const snaps = await Promise.all(chunk.map(ref => db.collection(LIV_MEDIA_COLLECTION).doc(ref).get()));
+                snaps.forEach((snap, idx) => {
+                    const value = snap.exists && snap.data() ? snap.data().dataUrl : '';
+                    livMediaCache.set(chunk[idx], isLivDataImage(value) ? value : '');
+                });
+            }
+            targets.forEach(target => {
+                const value = livMediaCache.get(target.ref);
+                if (isLivDataImage(value)) target.item[target.key] = value;
+            });
+            if (hadSeparatedRefs) livMediaSeparationReady = true;
+        }
+
+        async function persistLivMedia(data) {
+            ensureLivMediaRefs(data);
+            const pending = new Map();
+            (data.writers || []).forEach(writer => (writer.works || []).forEach(work => {
+                if (isLivDataImage(work.coverImg) && livMediaCache.get(work.coverMediaRef) !== work.coverImg) {
+                    pending.set(work.coverMediaRef, { dataUrl: work.coverImg, kind: 'work-cover', writerId: writer.id, workId: work.id });
+                }
+            }));
+            (data.webtoons || []).forEach(item => {
+                if (isLivDataImage(item.image) && livMediaCache.get(item.imageMediaRef) !== item.image) {
+                    pending.set(item.imageMediaRef, { dataUrl: item.image, kind: 'webtoon-image', itemId: item.id });
+                }
+            });
+
+            const entries = [...pending.entries()];
+            for (let i = 0; i < entries.length; i += 100) {
+                const chunk = entries.slice(i, i + 100);
+                const batch = db.batch();
+                chunk.forEach(([ref, value]) => batch.set(db.collection(LIV_MEDIA_COLLECTION).doc(ref), {
+                    ...value,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }));
+                await batch.commit();
+                chunk.forEach(([ref, value]) => livMediaCache.set(ref, value.dataUrl));
+            }
+            livMediaSeparationReady = true;
+        }
 
         function countImportantData(data) {
             if (!data || typeof data !== 'object') return 0;
@@ -370,7 +457,7 @@
 
             dailyAutoBackupInProgress = true;
             try {
-                const backupData = cloneLivDataForDailyBackup(livData);
+                const backupData = livMediaSeparationReady ? cloneLivDataForFirestore(livData) : cloneLivDataForDailyBackup(livData);
                 const summary = getDailyBackupSummary(backupData);
                 const localKey = `liv_daily_backup_${dateKey}`;
 
@@ -423,13 +510,14 @@
             console.warn('Backup count check failed:', e);
         }
 
-        db.collection("config").doc("mainData").onSnapshot((doc) => {
+        db.collection("config").doc("mainData").onSnapshot(async (doc) => {
             document.getElementById('firebase-loading').style.display = 'none';
             if (doc.metadata.hasPendingWrites) return;
             firebaseLoadedOnce = true;
             if (doc.exists) {
                 livData = doc.data();
                 if(!livData.writers) livData.writers = []; if(!livData.extraTasks) livData.extraTasks = []; if(!livData.memos) livData.memos = []; if(!livData.webtoons) livData.webtoons = []; if(!livData.salesRecords) livData.salesRecords = [];
+                try { await hydrateLivMedia(livData); } catch(e) { console.warn('Separated media load skipped:', e); }
                 lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData));
                 
                 if (livData.writers.length > 0 || livData.memos.length > 0 || livData.extraTasks.length > 0) {
@@ -515,12 +603,14 @@
         }
         async function prepareLivDataForFirebaseSave() {
             await compactEmbeddedImagesForFirestore(false);
-            let size = livPayloadBytes(livData);
+            let payload = cloneLivDataForFirestore(livData);
+            let size = livPayloadBytes(payload);
             if (size > 850000) {
                 await compactEmbeddedImagesForFirestore(true);
-                size = livPayloadBytes(livData);
+                payload = cloneLivDataForFirestore(livData);
+                size = livPayloadBytes(payload);
             }
-            return size;
+            return { payload, size };
         }
 async function saveData() {
             if (!livData) return;
@@ -552,11 +642,15 @@ async function saveData() {
             }
 
             let payloadSize = 0;
+            let firebasePayload = null;
             try {
-                payloadSize = await prepareLivDataForFirebaseSave();
+                const prepared = await prepareLivDataForFirebaseSave();
+                payloadSize = prepared.size;
+                firebasePayload = prepared.payload;
             } catch(e) {
                 console.warn('Image compaction skipped:', e);
-                payloadSize = livPayloadBytes(livData);
+                firebasePayload = cloneLivDataForFirestore(livData);
+                payloadSize = livPayloadBytes(firebasePayload);
             }
 
             if (payloadSize > 1000000) {
@@ -565,12 +659,20 @@ async function saveData() {
                 return;
             }
 
+            try {
+                await persistLivMedia(livData);
+            } catch(err) {
+                console.error('Firebase media save failed:', err);
+                alert(`이미지 분리 저장에 실패했습니다.\n${err && err.message ? err.message : String(err || '')}\n\n기존 Firebase 데이터는 덮어쓰지 않았습니다.`);
+                return;
+            }
+
             if (hasBusinessData) {
-                try { localStorage.setItem('liv_auto_backup', JSON.stringify(livData)); }
+                try { localStorage.setItem('liv_auto_backup', JSON.stringify(firebasePayload)); }
                 catch(e) { console.warn('Local auto backup failed:', e); }
             }
 
-            db.collection("config").doc("mainData").set(livData)
+            db.collection("config").doc("mainData").set(firebasePayload)
                 .then(() => { lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData)); runDailyAutoBackup('save'); })
                 .catch(err => {
                     console.error('Firebase save failed:', err);
