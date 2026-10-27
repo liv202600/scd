@@ -10311,13 +10311,16 @@ window.parseSettlementPdfText = function(text, fileName) {
   if (!works.length || !totals.length) throw new Error('작품별 정산 표를 읽지 못했습니다.');
   const worksSettlementSum = works.reduce((sum,w)=>sum+w.sales,0);
   // Multi-page statements may repeat an overall total; choose the matching printed total.
-  const overall = totals.find(t=>Math.abs(t.sales-worksSettlementSum)<=1 && Math.abs(t.royalty-grossRoyalty)<=1);
+  // The sheet can truncate each displayed row while its overall total retains
+  // fractions until final truncation. The maximum difference is rows minus one.
+  const overall = totals.find(t=>t.sales >= worksSettlementSum && t.sales-worksSettlementSum < works.length
+    && Math.abs(t.royalty-grossRoyalty)<=1);
   if (!overall) throw new Error('작품별 금액과 정산서 합계가 맞지 않습니다.');
   const totalSettlement = overall.sales;
   if (Math.abs(works.reduce((sum,w)=>sum+w.grossRoyalty,0)-grossRoyalty)>1) throw new Error('작품별 최종 인세와 상단 인세가 맞지 않습니다.');
   const basis = text.match(/기준월\s*[:：]?\s*(\d{4})년\s*(\d{1,2})월/);
   return {id:Date.now()+Math.floor(Math.random()*1000000),fileName,month,author,totalSettlement,tax,incomeTax,localTax,grossRoyalty,authorPayout,
-    profit:totalSettlement-grossRoyalty,works,worksSettlementSum,crossCheckDiff:Math.abs(totalSettlement-worksSettlementSum),
+    profit:totalSettlement-grossRoyalty,works,worksSettlementSum,crossCheckDiff:Math.abs(totalSettlement-worksSettlementSum),roundingAdjustment:totalSettlement-worksSettlementSum,
     salesMonth:basis?`${basis[1]}-${basis[2].padStart(2,'0')}`:'',parserVersion:2,createdAt:getKstDateString()};
 };
 window.livSalesRecordKey = record => record.month+'|'+norm(record.author).toLocaleLowerCase();
