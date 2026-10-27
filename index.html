@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LIV 시스템</title>
+    <meta name="liv-build" content="2026-10-25-safe-sync">
     
     <!-- ★ 모바일 앱 설정 ★ -->
     <meta name="mobile-web-app-capable" content="yes">
@@ -268,11 +269,13 @@
                     <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="document.getElementById('import-input').click()">수동 복원</button>
                 </div>
                 <button class="btn" style="background:#ffe6eb; color:#e63946; font-size:0.7rem; font-weight:bold; border: 1px solid #ffb3c1;" onclick="restoreFromAutoBackup()">🚨 긴급 복구</button>
+                <button class="btn btn-del" style="font-size:0.7rem;" onclick="showLivRestorePoints()">서버 복원본 확인</button>
                 <div style="display:flex; gap:5px;">
                     <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="enableDriveAutoBackup()">Drive 자동 백업</button>
                     <button class="btn btn-del" style="flex:1; font-size:0.7rem;" onclick="runDriveBackupNow()">Drive 즉시 백업</button>
                 </div>
                 <button class="btn btn-del" style="font-size:0.7rem;" onclick="disableDriveAutoBackup()">Drive 자동 백업 끄기</button>
+                <button class="btn btn-del" style="font-size:0.7rem;" onclick="checkDriveBackupStatus()">Drive 백업 상태 확인</button>
                 <input type="file" id="import-input" style="display:none;" accept=".json" onchange="importData(event)">
             </div>
         </div>
@@ -322,215 +325,180 @@
         // 전체 데이터 삭제 사고 방지용 최소 안전장치
         // - 데이터를 복구/덮어쓰기하지 않음
         // - Firebase 저장 직전, 비어 있는 데이터가 기존 원격 데이터를 덮어쓰는 경우만 차단
+        // LIV sync safety v2026-10-25: server-confirmed reads, serialized writes,
+        // transactional pre-save copies, and no automatic local-data restoration.
         let firebaseLoadedOnce = false;
         let lastKnownNonEmptyCount = 0;
+        let loadedRemoteFingerprint = '';
+        let loadedBusinessFingerprint = '';
+        let firebaseSaveQueue = Promise.resolve();
+        let pendingLivSaves = 0;
+        let livUnsavedChanges = false;
+        let deferredLivSnapshot = null;
+        let livSnapshotGeneration = 0;
+        let livMediaLoading = false;
+        const LIV_RESTORE_COLLECTION = 'livRestorePoints';
         const LIV_MEDIA_COLLECTION = 'livMedia';
         const livMediaCache = new Map();
         let livMediaSeparationReady = false;
+        const livDomReady = document.readyState === 'loading'
+            ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }))
+            : Promise.resolve();
 
-        function workMediaId(writerId, workId) { return `work_${writerId}_${workId}`; }
-        function webtoonMediaId(itemId) { return `webtoon_${itemId}`; }
-
-        function ensureLivMediaRefs(data) {
-            if (!data || typeof data !== 'object') return data;
-            (data.writers || []).forEach(writer => (writer.works || []).forEach(work => {
-                if (!work.coverMediaRef) work.coverMediaRef = workMediaId(writer.id, work.id);
-            }));
-            (data.webtoons || []).forEach(item => {
-                if (!item.imageMediaRef) item.imageMediaRef = webtoonMediaId(item.id);
-            });
+        function livClone(data) { return JSON.parse(JSON.stringify(data)); }
+        function livDataFingerprint(data) {
+            function sort(value) {
+                if (Array.isArray(value)) return value.map(sort);
+                if (value && typeof value === 'object') {
+                    const result = {};
+                    Object.keys(value).sort().forEach(key => { if (value[key] !== undefined) result[key] = sort(value[key]); });
+                    return result;
+                }
+                return value;
+            }
+            // Exact canonical JSON, not a lossy short hash: Firestore returns fields in different orders.
+            return JSON.stringify(sort(data));
+        }
+        function livBusinessFingerprint(data) {
+            const copy = livClone(data);
+            delete copy.lastBackupTime; delete copy.dataRevision; delete copy.lastSavedAt;
+            delete copy.driveBackupMeta;
+            return livDataFingerprint(copy);
+        }
+        function livStatus(message, error = false) {
+            let el = document.getElementById('liv-sync-status');
+            if (!el) {
+                const sidebar = document.getElementById('main-sidebar');
+                if (!sidebar) return;
+                el = document.createElement('div'); el.id = 'liv-sync-status'; el.setAttribute('role', 'status');
+                el.style.cssText = 'padding:10px 12px;font-size:12px;line-height:1.5;white-space:pre-line';
+                sidebar.appendChild(el);
+            }
+            el.textContent = message; el.style.color = error ? '#b42318' : '#52616b';
+        }
+        function livLoadingError(message) {
+            livStatus(message, true);
+            const overlay = document.getElementById('firebase-loading');
+            if (overlay) {
+                overlay.textContent = message + '\n기존 데이터는 변경하지 않았습니다. 연결 확인 후 새로고침해 주세요.';
+                overlay.style.whiteSpace = 'pre-line'; overlay.style.textAlign = 'center';
+            }
+        }
+        function countImportantData(data) {
+            if (!data || typeof data !== 'object') return 0;
+            return ['writers','extraTasks','memos','webtoons','salesRecords'].reduce((n,k) => n + (Array.isArray(data[k]) ? data[k].length : 0), 0)
+                + (data.writers || []).reduce((n,w) => n + (Array.isArray(w.works) ? w.works.length : 0), 0);
+        }
+        function validateLivData(data) {
+            if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('데이터 형식이 올바르지 않습니다.');
+            for (const key of ['writers','extraTasks','memos','webtoons','salesRecords']) {
+                if (data[key] !== undefined && !Array.isArray(data[key])) throw new Error(key + ' 데이터 형식이 올바르지 않습니다.');
+                if (data[key] === undefined) data[key] = [];
+            }
+            for (const writer of data.writers) {
+                if (!writer || !Array.isArray(writer.works)) throw new Error('작품 목록 형식이 올바르지 않습니다.');
+            }
             return data;
         }
-
+        function getDailyBackupSummary(data) {
+            return { writers:data.writers.length, works:data.writers.reduce((n,w)=>n+w.works.length,0),
+                extraTasks:data.extraTasks.length, memos:data.memos.length, webtoons:data.webtoons.length, salesRecords:data.salesRecords.length };
+        }
+        function livMediaTargets(data) {
+            return (data.writers || []).flatMap(w => (w.works || []).map(item => ({item,key:'coverImg',refKey:'coverMediaRef'})))
+                .concat((data.webtoons || []).map(item => ({item,key:'image',refKey:'imageMediaRef'})));
+        }
         function cloneLivDataForFirestore(data) {
-            ensureLivMediaRefs(data);
-            const copy = JSON.parse(JSON.stringify(data || {}));
-            (copy.writers || []).forEach(writer => (writer.works || []).forEach(work => {
-                if (isLivDataImage(work.coverImg)) work.coverImg = '';
-            }));
-            (copy.webtoons || []).forEach(item => {
-                if (isLivDataImage(item.image)) item.image = '';
-            });
+            const copy = livClone(data);
+            for (const target of livMediaTargets(copy)) {
+                if (isLivDataImage(target.item[target.key]) && target.item[target.refKey]) target.item[target.key] = '';
+            }
             return copy;
         }
-
         async function hydrateLivMedia(data) {
-            const hadSeparatedRefs = (data.writers || []).some(writer => (writer.works || []).some(work => !!work.coverMediaRef)) ||
-                (data.webtoons || []).some(item => !!item.imageMediaRef);
-            ensureLivMediaRefs(data);
-            const targets = [];
-            (data.writers || []).forEach(writer => (writer.works || []).forEach(work => {
-                if (isLivDataImage(work.coverImg)) return;
-                if (work.coverMediaRef) targets.push({ ref: work.coverMediaRef, item: work, key: 'coverImg' });
-            }));
-            (data.webtoons || []).forEach(item => {
-                if (isLivDataImage(item.image)) return;
-                if (item.imageMediaRef) targets.push({ ref: item.imageMediaRef, item, key: 'image' });
-            });
-
-            const missingRefs = [...new Set(targets.map(x => x.ref).filter(ref => !livMediaCache.has(ref)))];
-            for (let i = 0; i < missingRefs.length; i += 30) {
-                const chunk = missingRefs.slice(i, i + 30);
-                const snaps = await Promise.all(chunk.map(ref => db.collection(LIV_MEDIA_COLLECTION).doc(ref).get()));
-                snaps.forEach((snap, idx) => {
-                    const value = snap.exists && snap.data() ? snap.data().dataUrl : '';
-                    livMediaCache.set(chunk[idx], isLivDataImage(value) ? value : '');
-                });
-            }
-            targets.forEach(target => {
-                const value = livMediaCache.get(target.ref);
-                if (isLivDataImage(value)) target.item[target.key] = value;
-            });
-            if (hadSeparatedRefs) livMediaSeparationReady = true;
-        }
-
-        async function persistLivMedia(data) {
-            ensureLivMediaRefs(data);
-            const pending = new Map();
-            (data.writers || []).forEach(writer => (writer.works || []).forEach(work => {
-                if (isLivDataImage(work.coverImg) && livMediaCache.get(work.coverMediaRef) !== work.coverImg) {
-                    pending.set(work.coverMediaRef, { dataUrl: work.coverImg, kind: 'work-cover', writerId: writer.id, workId: work.id });
-                }
-            }));
-            (data.webtoons || []).forEach(item => {
-                if (isLivDataImage(item.image) && livMediaCache.get(item.imageMediaRef) !== item.image) {
-                    pending.set(item.imageMediaRef, { dataUrl: item.image, kind: 'webtoon-image', itemId: item.id });
-                }
-            });
-
-            const entries = [...pending.entries()];
-            for (let i = 0; i < entries.length; i += 100) {
-                const chunk = entries.slice(i, i + 100);
-                const batch = db.batch();
-                chunk.forEach(([ref, value]) => batch.set(db.collection(LIV_MEDIA_COLLECTION).doc(ref), {
-                    ...value,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            const targets = livMediaTargets(data).filter(t => !t.item[t.key] && t.item[t.refKey]);
+            const refs = [...new Set(targets.map(t => t.item[t.refKey]))];
+            for (let i=0;i<refs.length;i+=20) {
+                await Promise.all(refs.slice(i,i+20).map(async ref => {
+                    if (livMediaCache.has(ref)) return;
+                    const snap = await db.collection(LIV_MEDIA_COLLECTION).doc(ref).get({source:'server'});
+                    livMediaCache.set(ref, snap.exists && isLivDataImage(snap.data().dataUrl) ? snap.data().dataUrl : '');
                 }));
-                await batch.commit();
-                chunk.forEach(([ref, value]) => livMediaCache.set(ref, value.dataUrl));
+            }
+            let missing = 0;
+            for (const t of targets) {
+                const image = livMediaCache.get(t.item[t.refKey]);
+                if (image) t.item[t.key] = image; else if (String(t.item[t.refKey]).startsWith('sha256_')) missing++;
+            }
+            livMediaSeparationReady = true;
+            if (missing) throw new Error('이미지 ' + missing + '개의 원본을 불러오지 못했습니다.');
+        }
+        async function persistLivMedia(data) {
+            // Immutable image documents keep old restore points valid and prevent a stale
+            // client from changing a cover before its main-document transaction is rejected.
+            for (const t of livMediaTargets(data)) {
+                const image = t.item[t.key];
+                if (!isLivDataImage(image) || livMediaCache.get(t.item[t.refKey]) === image) continue;
+                if (new Blob([image]).size > 900000) throw new Error('이미지 한 장의 용량이 너무 큽니다. 작은 이미지로 다시 등록해 주세요.');
+                const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(image));
+                const ref = 'sha256_' + Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+                if (livMediaCache.get(ref) !== image) {
+                    await db.collection(LIV_MEDIA_COLLECTION).doc(ref).set({dataUrl:image,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+                    livMediaCache.set(ref,image);
+                }
+                t.item[t.refKey] = ref;
             }
             livMediaSeparationReady = true;
         }
-
-        function countImportantData(data) {
-            if (!data || typeof data !== 'object') return 0;
-            const writers = Array.isArray(data.writers) ? data.writers.length : 0;
-            const works = Array.isArray(data.writers) ? data.writers.reduce((sum, w) => sum + (Array.isArray(w.works) ? w.works.length : 0), 0) : 0;
-            const webtoons = Array.isArray(data.webtoons) ? data.webtoons.length : 0;
-            const extraTasks = Array.isArray(data.extraTasks) ? data.extraTasks.length : 0;
-            const memos = Array.isArray(data.memos) ? data.memos.length : 0;
-            const salesRecords = Array.isArray(data.salesRecords) ? data.salesRecords.length : 0;
-            return writers + works + webtoons + extraTasks + memos + salesRecords;
+        function storeLivLocalBackup(data) {
+            // Quota errors affect this optional local copy, never server saving.
+            try { localStorage.setItem('liv_auto_backup', JSON.stringify(cloneLivDataForFirestore(data))); }
+            catch(e) { console.warn('기기 백업 공간 부족: 서버 백업은 별도로 유지합니다.',e); }
         }
-
-
-        // 일일 자동 백업: 앱을 열거나 저장할 때, 그날의 안전한 데이터 사본을 별도 보관
-        // - mainData를 덮어쓰지 않음
-        // - 기존 백업보다 데이터 수가 적은 사본은 덮어쓰지 않음
-        // - 실패해도 일반 저장 흐름을 막지 않음
-        let dailyAutoBackupInProgress = false;
-        let dailyAutoBackupLastSignature = '';
-
-        function cloneLivDataForDailyBackup(data) {
-            return JSON.parse(JSON.stringify(data || {}));
-        }
-
-        function getDailyBackupSummary(data) {
-            return {
-                writers: Array.isArray(data.writers) ? data.writers.length : 0,
-                works: Array.isArray(data.writers) ? data.writers.reduce((sum, w) => sum + (Array.isArray(w.works) ? w.works.length : 0), 0) : 0,
-                webtoons: Array.isArray(data.webtoons) ? data.webtoons.length : 0,
-                extraTasks: Array.isArray(data.extraTasks) ? data.extraTasks.length : 0,
-                memos: Array.isArray(data.memos) ? data.memos.length : 0,
-                salesRecords: Array.isArray(data.salesRecords) ? data.salesRecords.length : 0
-            };
-        }
-
-        async function runDailyAutoBackup(reason = 'auto') {
-            if (!firebaseLoadedOnce || !livData || dailyAutoBackupInProgress) return;
-            const dateKey = getKstDateString();
-            const importantCount = countImportantData(livData);
-            if (importantCount <= 0) return;
-
-            const signature = `${dateKey}|${importantCount}|${livData.lastBackupTime || ''}`;
-            if (dailyAutoBackupLastSignature === signature) return;
-
-            dailyAutoBackupInProgress = true;
-            try {
-                const backupData = livMediaSeparationReady ? cloneLivDataForFirestore(livData) : cloneLivDataForDailyBackup(livData);
-                const summary = getDailyBackupSummary(backupData);
-                const localKey = `liv_daily_backup_${dateKey}`;
-
-                try {
-                    const existingLocal = localStorage.getItem(localKey);
-                    const existingLocalCount = existingLocal ? countImportantData(JSON.parse(existingLocal)) : 0;
-                    if (existingLocalCount <= importantCount) {
-                        localStorage.setItem(localKey, JSON.stringify(backupData));
-                        localStorage.setItem('liv_daily_backup_latest_key', dateKey);
-                    }
-                } catch(e) {
-                    console.warn('Local daily backup skipped:', e);
-                }
-
-                try {
-                    const ref = db.collection('livDailyBackups').doc(dateKey);
-                    const oldSnap = await ref.get();
-                    const oldCount = oldSnap.exists ? countImportantData(oldSnap.data()) : 0;
-                    if (oldCount > importantCount) {
-                        console.warn('Daily Firebase backup kept existing larger backup:', { dateKey, oldCount, importantCount, reason });
-                        dailyAutoBackupLastSignature = signature;
-                        return;
-                    }
-
-                    const firebaseBackupData = cloneLivDataForDailyBackup(backupData);
-                    firebaseBackupData.dailyBackupMeta = {
-                        date: dateKey,
-                        reason,
-                        importantCount,
-                        summary,
-                        backedUpAtLocal: new Date().toLocaleString()
-                    };
-                    firebaseBackupData.dailyBackupUpdatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                    await ref.set(firebaseBackupData);
-                    dailyAutoBackupLastSignature = signature;
-                    console.log('Daily Firebase backup saved:', dateKey, summary);
-                } catch(e) {
-                    console.warn('Firebase daily backup skipped:', e);
-                    dailyAutoBackupLastSignature = signature;
-                }
-            } finally {
-                dailyAutoBackupInProgress = false;
+        async function applyLivSnapshot(doc) {
+            if (doc.metadata.hasPendingWrites || doc.metadata.fromCache) return;
+            if (pendingLivSaves || livUnsavedChanges) { deferredLivSnapshot = doc; return; }
+            if (!doc.exists) {
+                firebaseLoadedOnce = false;
+                livLoadingError('서버 원본을 찾지 못해 저장을 잠갔습니다. 백업을 확인해야 합니다.');
+                return;
             }
-        }
-
-        try {
-            const backupForGuard = localStorage.getItem('liv_auto_backup');
-            if (backupForGuard) lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(JSON.parse(backupForGuard)));
-        } catch(e) {
-            console.warn('Backup count check failed:', e);
-        }
-
-        db.collection("config").doc("mainData").onSnapshot(async (doc) => {
-            document.getElementById('firebase-loading').style.display = 'none';
-            if (doc.metadata.hasPendingWrites) return;
+            const generation = ++livSnapshotGeneration;
+            const remote = doc.data();
+            const next = validateLivData(livClone(remote));
+            const remoteFingerprint = livDataFingerprint(remote);
+            await livDomReady;
+            livMediaLoading = true;
+            let mediaWarning = '';
+            try { await hydrateLivMedia(next); }
+            catch(e) { mediaWarning = e.message; console.warn('이미지 로딩:',e); }
+            if (generation !== livSnapshotGeneration) return;
+            livMediaLoading = false;
+            if (pendingLivSaves || livUnsavedChanges) { deferredLivSnapshot = doc; return; }
+            livData = next;
+            loadedRemoteFingerprint = remoteFingerprint;
+            lastKnownNonEmptyCount = countImportantData(next);
+            // All renderers are installed and server data is assigned before revealing the desk.
+            renderSidebarWriters(); changeView(currentViewName, currentViewParam);
+            loadedBusinessFingerprint = livBusinessFingerprint(livData);
             firebaseLoadedOnce = true;
-            if (doc.exists) {
-                livData = doc.data();
-                if(!livData.writers) livData.writers = []; if(!livData.extraTasks) livData.extraTasks = []; if(!livData.memos) livData.memos = []; if(!livData.webtoons) livData.webtoons = []; if(!livData.salesRecords) livData.salesRecords = [];
-                try { await hydrateLivMedia(livData); } catch(e) { console.warn('Separated media load skipped:', e); }
-                lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData));
-                
-                if (livData.writers.length > 0 || livData.memos.length > 0 || livData.extraTasks.length > 0) {
-                    livData.lastBackupTime = new Date().toLocaleString(); try { localStorage.setItem('liv_auto_backup', JSON.stringify(livData)); } catch(e) { console.warn('Local auto backup failed:', e); }
-                }
-                runDailyAutoBackup('snapshot');
-                renderSidebarWriters(); changeView(currentViewName, currentViewParam);
-            } else {
-                const sv = localStorage.getItem('livDataFinal_v21'); if (sv) { livData = JSON.parse(sv); saveData(); }
-            }
+            const overlay = document.getElementById('firebase-loading');
+            if (overlay) overlay.style.display = 'none';
+            livStatus(mediaWarning ? '일정 동기화 완료 · ' + mediaWarning : '서버 동기화 완료', !!mediaWarning);
+            storeLivLocalBackup(next);
+            window.dispatchEvent(new Event('liv-data-ready'));
+        }
+        db.collection('config').doc('mainData').onSnapshot({includeMetadataChanges:true}, doc => {
+            applyLivSnapshot(doc).catch(e => livLoadingError('데이터 표시 오류: ' + e.message));
+        }, e => {
+            // Leave an already loaded view visible, but preserve and report failed synchronization.
+            if (!firebaseLoadedOnce) livLoadingError('서버 연결 실패: ' + e.message);
+            else livStatus('서버 연결 실패 · 저장 상태를 확인해 주세요.',true);
         });
-
-        
+        setTimeout(() => { if (!firebaseLoadedOnce) livLoadingError('서버 데이터를 아직 불러오지 못했습니다.'); }, 20000);
+        window.addEventListener('beforeunload', e => {
+            if (pendingLivSaves || livUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
+        });
 
         // Firestore 문서 용량 초과 방지: 이미지가 원격 저장 전체를 막지 않도록 저장 직전 자동 압축만 수행
         function isLivDataImage(value) {
@@ -577,116 +545,131 @@
             });
             return resizeLivDataUrl(original, maxWidth, quality);
         }
-        async function compactEmbeddedImagesForFirestore(deep = false) {
-            const coverMax = deep ? 90 : 120;
-            const coverQuality = deep ? 0.62 : 0.74;
-            const webtoonMax = deep ? 220 : 300;
-            const webtoonQuality = deep ? 0.68 : 0.82;
-
-            if (Array.isArray(livData.writers)) {
-                for (const writer of livData.writers) {
-                    if (!Array.isArray(writer.works)) continue;
-                    for (const work of writer.works) {
-                        if (isLivDataImage(work.coverImg) && (deep || work.coverImg.length > 18000)) {
-                            work.coverImg = await resizeLivDataUrl(work.coverImg, coverMax, coverQuality);
-                        }
+        function saveData() {
+            if (!firebaseLoadedOnce) return Promise.resolve(false);
+            let snapshot;
+            try { snapshot = validateLivData(livClone(livData)); }
+            catch(e) { livStatus(e.message,true); return Promise.resolve(false); }
+            pendingLivSaves++;
+            livUnsavedChanges = true;
+            livStatus('저장 중…');
+            const result = firebaseSaveQueue.then(() => saveDataSafely(snapshot));
+            firebaseSaveQueue = result.catch(e => { console.error(e); return false; });
+            return firebaseSaveQueue.then(async success => {
+                pendingLivSaves--;
+                if (!success) livUnsavedChanges = true;
+                if (!pendingLivSaves && success) {
+                    livUnsavedChanges = false;
+                    if (deferredLivSnapshot) {
+                        const deferred = deferredLivSnapshot; deferredLivSnapshot = null;
+                        await applyLivSnapshot(deferred);
                     }
                 }
-            }
-            if (Array.isArray(livData.webtoons)) {
-                for (const item of livData.webtoons) {
-                    if (isLivDataImage(item.image) && (deep || item.image.length > 45000)) {
-                        item.image = await resizeLivDataUrl(item.image, webtoonMax, webtoonQuality);
+                return success;
+            });
+        }
+        let livLastRestoreCleanup = 0;
+        async function pruneExpiredLivRestorePoints() {
+            if (Date.now() - livLastRestoreCleanup < 60 * 60 * 1000) return;
+            livLastRestoreCleanup = Date.now();
+            const cutoff = String(Date.now() - 72 * 60 * 60 * 1000);
+            try {
+                const old = await db.collection(LIV_RESTORE_COLLECTION)
+                    .where(firebase.firestore.FieldPath.documentId(), '<', cutoff).limit(100).get({source:'server'});
+                // Only this build's generated UUID restore points are eligible. Preserve
+                // pre-repair snapshots, existing daily backups, and any unrecognized names.
+                const expired = old.docs.filter(doc => /^\d{13}_[a-f0-9-]{36}$/.test(doc.id));
+                if (!expired.length) return;
+                const batch = db.batch(); expired.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            } catch(e) { console.warn('저장은 완료됐으며, 오래된 복원본 정리는 다음에 재시도합니다.',e); }
+        }
+        async function saveDataSafely(snapshot) {
+            const expectedFingerprint = loadedRemoteFingerprint;
+            if (!expectedFingerprint) { livStatus('서버 원본 확인 전에는 저장할 수 없습니다.',true); return false; }
+            try {
+                if (lastKnownNonEmptyCount && countImportantData(snapshot) === 0) throw new Error('전체 데이터가 빈 값으로 바뀌어 저장을 차단했습니다.');
+                await persistLivMedia(snapshot);
+                const payload = cloneLivDataForFirestore(snapshot);
+                if (livPayloadBytes(payload) > 900000) throw new Error('본문 데이터가 문서 용량 한도에 가까워 저장을 중단했습니다.');
+                const mainRef = db.collection('config').doc('mainData');
+                const restoreRef = db.collection(LIV_RESTORE_COLLECTION).doc(`${Date.now()}_${crypto.randomUUID()}`);
+                await db.runTransaction(async transaction => {
+                    const remote = await transaction.get(mainRef);
+                    if (!remote.exists || livDataFingerprint(remote.data()) !== expectedFingerprint) {
+                        const e = new Error('다른 기기의 변경과 충돌했습니다. 입력 내용은 이 화면에 남겨 두었습니다. 수동 백업 후 새로고침해 주세요.');
+                        e.code = 'liv/stale-data'; throw e;
                     }
-                }
-            }
-        }
-        async function prepareLivDataForFirebaseSave() {
-            await compactEmbeddedImagesForFirestore(false);
-            let payload = cloneLivDataForFirestore(livData);
-            let size = livPayloadBytes(payload);
-            if (size > 850000) {
-                await compactEmbeddedImagesForFirestore(true);
-                payload = cloneLivDataForFirestore(livData);
-                size = livPayloadBytes(payload);
-            }
-            return { payload, size };
-        }
-async function saveData() {
-            if (!livData) return;
-            if (!Array.isArray(livData.writers)) livData.writers = [];
-            if (!Array.isArray(livData.extraTasks)) livData.extraTasks = [];
-            if (!Array.isArray(livData.memos)) livData.memos = [];
-            if (!Array.isArray(livData.webtoons)) livData.webtoons = [];
-            if (!Array.isArray(livData.salesRecords)) livData.salesRecords = [];
-
-            const nowImportantCount = countImportantData(livData);
-            const hasBusinessData = nowImportantCount > 0;
-
-            if (!firebaseLoadedOnce) {
-                console.warn('Firebase 로딩 완료 전 저장 차단');
-                return;
-            }
-
-            if (lastKnownNonEmptyCount > 0 && nowImportantCount === 0) {
-                console.error('Blocked dangerous empty save:', { lastKnownNonEmptyCount, livData });
-                alert('데이터 전체 삭제 위험이 감지되어 저장을 차단했습니다. 기존 Firebase 데이터는 덮어쓰지 않았습니다.');
-                return;
-            }
-
-            if (!hasBusinessData) {
-                if(!confirm("🚨 데이터가 비어있습니다! 보호하시려면 '취소'를 누르세요.")) return;
-            } else {
-                lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, nowImportantCount);
-                livData.lastBackupTime = new Date().toLocaleString();
-            }
-
-            let payloadSize = 0;
-            let firebasePayload = null;
-            try {
-                const prepared = await prepareLivDataForFirebaseSave();
-                payloadSize = prepared.size;
-                firebasePayload = prepared.payload;
-            } catch(e) {
-                console.warn('Image compaction skipped:', e);
-                firebasePayload = cloneLivDataForFirestore(livData);
-                payloadSize = livPayloadBytes(firebasePayload);
-            }
-
-            if (payloadSize > 1000000) {
-                console.error('Firestore payload is still too large:', payloadSize);
-                alert('저장할 데이터 용량이 Firebase 한도에 너무 가까워 저장을 멈췄습니다. 표지/웹툰 이미지가 너무 많이 쌓인 상태라 추가 분리 작업이 필요합니다. 기존 Firebase 데이터는 덮어쓰지 않았습니다.');
-                return;
-            }
-
-            try {
-                await persistLivMedia(livData);
-            } catch(err) {
-                console.error('Firebase media save failed:', err);
-                alert(`이미지 분리 저장에 실패했습니다.\n${err && err.message ? err.message : String(err || '')}\n\n기존 Firebase 데이터는 덮어쓰지 않았습니다.`);
-                return;
-            }
-
-            if (hasBusinessData) {
-                try { localStorage.setItem('liv_auto_backup', JSON.stringify(firebasePayload)); }
-                catch(e) { console.warn('Local auto backup failed:', e); }
-            }
-
-            db.collection("config").doc("mainData").set(firebasePayload)
-                .then(() => { lastKnownNonEmptyCount = Math.max(lastKnownNonEmptyCount, countImportantData(livData)); runDailyAutoBackup('save'); })
-                .catch(err => {
-                    console.error('Firebase save failed:', err);
-                    const code = err && err.code ? err.code : 'unknown';
-                    const message = err && err.message ? err.message : String(err || '');
-                    alert(`저장에 실패했습니다.\n오류 코드: ${code}\n${message}\n\n기존 Firebase 데이터는 덮어쓰지 않았고, 가능한 경우 이 기기 자동 백업에는 보관했습니다.`);
+                    payload.dataRevision = Number(remote.data().dataRevision || 0) + 1;
+                    payload.lastSavedAt = new Date().toISOString();
+                    payload.lastBackupTime = new Date().toLocaleString();
+                    // Both writes succeed together or neither does. Store only raw data so
+                    // backup metadata cannot push a near-limit old document over its limit.
+                    transaction.set(restoreRef,remote.data());
+                    transaction.set(mainRef,payload);
                 });
-            renderSidebarWriters();
+                loadedRemoteFingerprint = livDataFingerprint(payload);
+                lastKnownNonEmptyCount = countImportantData(snapshot);
+                storeLivLocalBackup(payload);
+                livStatus('저장 완료 · 저장 전 복원본 보관 완료');
+                pruneExpiredLivRestorePoints();
+                return true;
+            } catch(e) {
+                console.error('Protected save failed',e);
+                livStatus('저장 실패: ' + e.message + '\n입력 내용은 화면에 남아 있습니다. 수동 백업해 주세요.',true);
+                alert('저장하지 못했습니다.\n' + e.message + '\n\n입력 내용은 이 화면에 남아 있습니다. 새로고침 전에 수동 백업으로 보관해 주세요.');
+                return false;
+            }
+        }
+        async function restoreLivData(candidate) {
+            if (!firebaseLoadedOnce || pendingLivSaves || livUnsavedChanges) { alert('먼저 현재 저장 상태를 확인해 주세요.'); return false; }
+            try {
+                const data = validateLivData(livClone(candidate));
+                if (!countImportantData(data)) throw new Error('빈 백업은 복원할 수 없습니다.');
+                await hydrateLivMedia(data);
+                if (!confirm('현재 데이터 전체를 선택한 백업으로 복원할까요? 현재 서버 원본은 저장 직전 복원본으로 보관합니다.')) return false;
+                livData = data;
+                const success = await saveData();
+                if (success) { changeView('dashboard'); alert('복원이 서버에 저장되었습니다.'); }
+                return success;
+            } catch(e) { alert('복원 실패: ' + e.message); return false; }
+        }
+        async function restoreFromAutoBackup() {
+            try {
+                const bk = localStorage.getItem('liv_auto_backup');
+                if (!bk) return alert('이 기기에 백업본이 없습니다.');
+                await restoreLivData(JSON.parse(bk));
+            } catch(e) { alert('기기 백업을 읽지 못했습니다: ' + e.message); }
         }
 
-        function restoreFromAutoBackup() {
-            const bk = localStorage.getItem('liv_auto_backup');
-            if (bk && confirm("자동 백업본을 불러올까요?")) { livData = JSON.parse(bk); saveData(); changeView('dashboard'); alert('복구되었습니다.'); }
-            else if(!bk) alert("백업본이 없습니다.");
+        async function showLivRestorePoints() {
+            const existing = document.getElementById('liv-recovery-dialog'); if (existing) existing.remove();
+            const dialog = document.createElement('dialog'); dialog.id = 'liv-recovery-dialog';
+            dialog.style.cssText = 'max-width:650px;width:90%;max-height:80vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:20px';
+            const heading=document.createElement('h3');heading.textContent='서버 복원본';dialog.appendChild(heading);
+            const close=document.createElement('button');close.textContent='닫기';close.onclick=()=>dialog.close();dialog.appendChild(close);
+            const description=document.createElement('p');description.textContent='백업을 먼저 내려받아 내용을 확인하세요. 전체 복원은 선택한 시점으로 모든 자료를 바꿉니다.';dialog.appendChild(description);
+            const list=document.createElement('div');list.textContent='복원본 불러오는 중…';dialog.appendChild(list);
+            document.body.appendChild(dialog);dialog.showModal();
+            try {
+                const results=await Promise.all([
+                    db.collection(LIV_RESTORE_COLLECTION).orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(60).get({source:'server'}),
+                    db.collection('livDailyBackups').orderBy(firebase.firestore.FieldPath.documentId(),'desc').limit(10).get({source:'server'})
+                ]);
+                list.textContent='';
+                const docs=results.flatMap(result=>result.docs);
+                if(!docs.length)list.textContent='서버에 복원본이 없습니다.';
+                docs.forEach(doc=>{
+                    const data=doc.data();const row=document.createElement('div');row.style.cssText='padding:10px 0;border-bottom:1px solid #eee';
+                    const label=document.createElement('div');
+                    const stamp=/^\d{13}_/.test(doc.id)?new Date(Number(doc.id.slice(0,13))).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):doc.id;
+                    label.textContent=stamp+' · 주요 자료 '+countImportantData(data)+'개';row.appendChild(label);
+                    const download=document.createElement('button');download.textContent='JSON 다운로드';
+                    download.onclick=async()=>{try {const copy=validateLivData(livClone(data));await hydrateLivMedia(copy);const url=URL.createObjectURL(new Blob([JSON.stringify(copy)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='LIV_restore_'+doc.id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){alert('백업 다운로드 실패: '+e.message)}};
+                    row.appendChild(download);
+                    const restore=document.createElement('button');restore.textContent='전체 복원';restore.onclick=async()=>{if(await restoreLivData(data))dialog.close();};row.appendChild(restore);list.appendChild(row);
+                });
+            }catch(e){list.textContent='복원본을 읽지 못했습니다: '+e.message;}
         }
 
         const msStatuses = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
@@ -721,7 +704,7 @@ async function saveData() {
         function handleExtraTaskClick(e, id, view) { if(e) e.stopPropagation(); clearTimeout(extraTaskClickTimer); extraTaskClickTimer = setTimeout(() => editExtraTask(null, id, view), 220); }
         function handleExtraTaskDblClick(e, id, view) { if(e) e.stopPropagation(); clearTimeout(extraTaskClickTimer); completeExtraTask(id, view); }
         function exportData() { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(livData)],{type:"application/json"})); a.download=`liv.json`; a.click(); }
-        function importData(e) { const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=x=>{ try{ livData=JSON.parse(x.target.result); saveData(); changeView('dashboard'); }catch(err){alert('오류')} }; r.readAsText(f); }
+        async function importData(e) { const f=e.target.files[0]; if(!f)return; try { await restoreLivData(JSON.parse(await f.text())); } catch(err) { alert('백업 파일을 읽지 못했습니다: '+err.message); } finally { e.target.value=''; } }
 
         function openMobileSidebar() { const sb = document.getElementById('main-sidebar'); if(sb) sb.classList.add('mobile-open'); }
         function closeSidebarMobile() { const sb = document.getElementById('main-sidebar'); if(sb) sb.classList.remove('mobile-open'); }
@@ -1774,7 +1757,7 @@ function parseSettlementPdfText(text,fileName) {
 }
 function drawSalesChart(monthKeys,byMonth) { const canvas=document.getElementById('sales-chart'); if(!canvas) return; const wrap=canvas.parentElement; const dpr=window.devicePixelRatio||1; const cssWidth=Math.max(wrap.clientWidth||700,700), cssHeight=280; canvas.style.width=cssWidth+'px'; canvas.style.height=cssHeight+'px'; canvas.width=Math.floor(cssWidth*dpr); canvas.height=Math.floor(cssHeight*dpr); const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cssWidth,cssHeight); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cssWidth,cssHeight); const pad={left:52,right:24,top:24,bottom:44}, w=cssWidth-pad.left-pad.right, h=cssHeight-pad.top-pad.bottom; ctx.strokeStyle='#ececec'; for(let i=0;i<5;i++){ const y=pad.top+(h/4)*i; ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+w,y); ctx.stroke(); } if(!monthKeys.length){ ctx.fillStyle='#888'; ctx.font='14px Pretendard, sans-serif'; ctx.fillText('등록된 매출 데이터가 없습니다.', pad.left+16, pad.top+28); return; } const max=Math.max(...monthKeys.map(k=>byMonth[k].sales),1); const step=monthKeys.length>1 ? w/(monthKeys.length-1):0; ctx.beginPath(); monthKeys.forEach((k,i)=>{ const x=pad.left+step*i, y=pad.top+h-(byMonth[k].sales/max)*h; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }); ctx.strokeStyle='#ff85a2'; ctx.lineWidth=3; ctx.stroke(); monthKeys.forEach((k,i)=>{ const x=pad.left+step*i, y=pad.top+h-(byMonth[k].sales/max)*h; ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fillStyle='#ff85a2'; ctx.fill(); ctx.fillStyle='#666'; ctx.font='12px Pretendard, sans-serif'; const label=k.slice(5).replace('-','/'); ctx.fillText(label, x-14, cssHeight-18); ctx.fillStyle='#333'; ctx.font='11px Pretendard, sans-serif'; const val=formatWon(byMonth[k].sales).replace('원',''); ctx.fillText(val, x-ctx.measureText(val).width/2, y-10); }); }
 
-document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(initMonthlySystemTasks, 50); });
+document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoadedOnce) initMonthlySystemTasks(); });
 
     </script>
 
@@ -3559,7 +3542,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     if (!list.length) {
       try {
         const backup = JSON.parse(localStorage.getItem('liv_webtoons_backup') || '[]');
-        if (Array.isArray(backup) && backup.length) {
+        if (false && Array.isArray(backup) && backup.length) {
           livData.webtoons = backup;
           list = livData.webtoons;
         }
@@ -3893,6 +3876,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
 
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
+      if (!firebaseLoadedOnce) return;
       cleanupDuplicateSettlementTasks();
       if (typeof saveData === 'function') saveData();
       if (currentViewName === 'dashboard') renderDashboard(document.getElementById('main-view'));
@@ -3972,12 +3956,29 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   const WEBAPP_URL_KEY = 'liv_drive_apps_script_webapp_url';
   const SECRET_KEY = 'liv_drive_apps_script_secret';
   const ENABLED_KEY = 'liv_drive_auto_backup_enabled';
-  const LAST_BACKUP_KEY = 'liv_drive_last_backup_at';
+  const LAST_BACKUP_KEY = 'liv_drive_last_confirmed_backup_at';
+  const LAST_REQUEST_KEY = 'liv_drive_last_backup_at';
+  const LAST_FILE_KEY = 'liv_drive_last_confirmed_file';
   const LAST_ERROR_KEY = 'liv_drive_last_error_at';
   const BACKUP_INTERVAL_MS = 60 * 60 * 1000;
   const CHECK_INTERVAL_MS = 60 * 1000;
+  let lastAttemptAt = 0;
   const STARTUP_CHECK_DELAY_MS = 15000;
 
+  const driveSessionSettings = new Map();
+  function driveGet(key) {
+    if (driveSessionSettings.has(key)) return driveSessionSettings.get(key);
+    try { return localStorage.getItem(key); } catch(e) { return null; }
+  }
+  function driveSet(key, value) {
+    driveSessionSettings.set(key, value);
+    try { localStorage.setItem(key,value); }
+    catch(e) { console.warn('Drive 백업은 계속 진행하지만 이 기기의 설정 기록 공간이 부족합니다.',e); }
+  }
+  function driveRemove(key) {
+    driveSessionSettings.set(key,null);
+    try { localStorage.removeItem(key); } catch(e) {}
+  }
   let driveBackupTimer = null;
   let driveBackupInProgress = false;
 
@@ -3986,28 +3987,28 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   }
 
   function getWebAppUrl(interactive) {
-    let url = localStorage.getItem(WEBAPP_URL_KEY) || '';
+    let url = driveGet(WEBAPP_URL_KEY) || '';
     if (!url && interactive) {
       url = prompt('Google Drive 자동 백업용 Apps Script 웹앱 URL을 입력하세요.\n\n※ Apps Script 배포 후 받은 /exec 로 끝나는 URL입니다.\n※ 예: https://script.google.com/macros/s/xxxxx/exec');
       url = normalizeWebAppUrl(url);
-      if (url) localStorage.setItem(WEBAPP_URL_KEY, url);
+      if (url) driveSet(WEBAPP_URL_KEY, url);
     }
     return normalizeWebAppUrl(url);
   }
 
   function getBackupSecret(interactive) {
-    let secret = localStorage.getItem(SECRET_KEY) || '';
+    let secret = driveGet(SECRET_KEY) || '';
     if (!secret && interactive) {
       secret = prompt('Apps Script 백업 비밀번호를 입력하세요.\n\n※ Apps Script 코드의 LIV_BACKUP_SECRET 값과 똑같이 입력해야 합니다.\n※ 남이 네 백업 URL로 장난치는 것을 막기 위한 간단한 비밀번호입니다.');
       secret = String(secret || '').trim();
-      if (secret) localStorage.setItem(SECRET_KEY, secret);
+      if (secret) driveSet(SECRET_KEY, secret);
     }
     return String(secret || '').trim();
   }
 
   function resetDriveAppsScriptSettings() {
-    localStorage.removeItem(WEBAPP_URL_KEY);
-    localStorage.removeItem(SECRET_KEY);
+    driveRemove(WEBAPP_URL_KEY);
+    driveRemove(SECRET_KEY);
   }
 
   function getKstBackupStamp() {
@@ -4034,24 +4035,33 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   }
 
   function getLastDriveBackupTime() {
-    const last = Date.parse(localStorage.getItem(LAST_BACKUP_KEY) || '');
+    const last = Date.parse(driveGet(LAST_BACKUP_KEY) || '');
     return Number.isFinite(last) ? last : 0;
   }
 
   async function postJsonToAppsScript(url, body) {
-    // Apps Script Web App does not reliably support normal CORS preflight.
-    // text/plain + no-cors lets the browser send the backup without OAuth popups.
-    await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body)
-    });
-    return true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    try {
+      const response = await fetch(url, {
+        method: 'POST', mode: 'cors', redirect: 'follow', credentials: 'omit',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body), signal: controller.signal
+      });
+      if (!response.ok || response.type === 'opaque') throw new Error('Drive 백업 결과를 확인하지 못했습니다.');
+      const result = await response.json();
+      if (result.ok !== true || !result.fileId || !result.fileName) {
+        throw new Error(result.error || 'Drive 파일 생성 확인 응답이 없습니다.');
+      }
+      return result;
+    } catch(e) {
+      throw new Error('Drive 백업 완료를 확인하지 못했습니다. 웹앱 URL·비밀번호·배포 권한을 확인해 주세요. (' + e.message + ')');
+    } finally { clearTimeout(timer); }
   }
 
   async function doDriveBackupToAppsScript(reason, interactive) {
-    if (driveBackupInProgress) return null;
+    if (driveBackupInProgress) throw new Error('이미 Drive 백업이 진행 중입니다.');
+    if (!firebaseLoadedOnce || pendingLivSaves || livUnsavedChanges || livMediaLoading) throw new Error('서버 동기화와 저장이 끝난 뒤 백업할 수 있습니다.');
     if (!livData || typeof livData !== 'object') throw new Error('백업할 livData가 없습니다.');
     if (typeof countImportantData === 'function' && countImportantData(livData) <= 0) {
       throw new Error('백업할 주요 데이터가 비어 있어 Drive 백업을 중단했습니다.');
@@ -4071,24 +4081,34 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
       const stamp = getKstBackupStamp();
       const fileName = `${DRIVE_FILE_PREFIX}${stamp}.json`;
       const payload = getDriveBackupPayload(reason || 'hourly-auto');
-      await postJsonToAppsScript(url, {
+      driveSet(LAST_REQUEST_KEY, new Date().toISOString());
+      const receipt = await postJsonToAppsScript(url, {
         secret,
         fileName,
         payload
       });
-      localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString());
-      localStorage.removeItem(LAST_ERROR_KEY);
+      driveSet(LAST_BACKUP_KEY, new Date().toISOString());
+      driveSet(LAST_FILE_KEY, JSON.stringify(receipt));
+      driveRemove(LAST_ERROR_KEY);
       console.log('LIV Drive backup sent to Apps Script:', fileName);
-      return { name: fileName };
+      livStatus('Drive 백업 확인 완료 · ' + receipt.fileName);
+      return { name: receipt.fileName, fileId: receipt.fileId };
+    } catch(e) {
+      try { driveSet(LAST_ERROR_KEY, new Date().toISOString() + ' / ' + e.message); } catch(_) {}
+      livStatus(e.message,true);
+      throw e;
     } finally {
       driveBackupInProgress = false;
     }
   }
 
   async function runDriveAutoBackupIfDue(reason) {
-    if (localStorage.getItem(ENABLED_KEY) !== 'true') return null;
+    if (driveGet(ENABLED_KEY) !== 'true') return null;
     const last = getLastDriveBackupTime();
     if (last && Date.now() - last < BACKUP_INTERVAL_MS) return null;
+    if (Date.now() - lastAttemptAt < 5 * 60 * 1000) return null;
+    if (!firebaseLoadedOnce || pendingLivSaves || livUnsavedChanges || livMediaLoading) return null;
+    lastAttemptAt = Date.now();
     return doDriveBackupToAppsScript(reason || 'hourly-auto', false);
   }
 
@@ -4096,7 +4116,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
     if (driveBackupTimer) clearInterval(driveBackupTimer);
     driveBackupTimer = setInterval(() => {
       runDriveAutoBackupIfDue('hourly-auto').catch(e => {
-        localStorage.setItem(LAST_ERROR_KEY, new Date().toISOString() + ' / ' + (e && e.message ? e.message : e));
+        driveSet(LAST_ERROR_KEY, new Date().toISOString() + ' / ' + (e && e.message ? e.message : e));
         console.warn('Hourly Drive backup skipped:', e);
       });
     }, CHECK_INTERVAL_MS);
@@ -4105,11 +4125,11 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   window.enableDriveAutoBackup = async function() {
     try {
       await doDriveBackupToAppsScript('enable-now', true);
-      localStorage.setItem(ENABLED_KEY, 'true');
+      driveSet(ENABLED_KEY, 'true');
       startDriveAutoBackupTimer();
       alert('Google Drive 자동 백업을 켰습니다.\n\n이제 Google 로그인창 없이, 프로그램이 열려 있는 동안 1시간마다 Apps Script가 Drive에 JSON 백업을 저장합니다.\n최근 3일치만 남기고 오래된 백업은 Apps Script가 자동 삭제합니다.');
     } catch(e) {
-      localStorage.setItem(ENABLED_KEY, 'false');
+      driveSet(ENABLED_KEY, 'false');
       console.error(e);
       alert('Drive 자동 백업 설정에 실패했습니다.\n' + (e && e.message ? e.message : e));
     }
@@ -4118,7 +4138,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   window.runDriveBackupNow = async function() {
     try {
       const result = await doDriveBackupToAppsScript('manual-now', true);
-      alert('Google Drive 백업 요청을 보냈습니다.\n\nDrive의 LIV_AUTO_BACKUP_JSON 폴더에서 새 JSON 파일을 확인하세요.\n파일명: ' + (result && result.name ? result.name : 'LIV_backup_날짜_시간.json'));
+      alert('Google Drive에 백업 파일이 생성된 것을 확인했습니다.\n\nDrive의 LIV_AUTO_BACKUP_JSON 폴더에서 새 JSON 파일을 확인하세요.\n파일명: ' + (result && result.name ? result.name : 'LIV_backup_날짜_시간.json'));
     } catch(e) {
       console.error(e);
       alert('Drive 즉시 백업에 실패했습니다.\n' + (e && e.message ? e.message : e));
@@ -4126,7 +4146,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   };
 
   window.disableDriveAutoBackup = function() {
-    localStorage.setItem(ENABLED_KEY, 'false');
+    driveSet(ENABLED_KEY, 'false');
     if (driveBackupTimer) clearInterval(driveBackupTimer);
     driveBackupTimer = null;
     alert('Google Drive 자동 백업을 껐습니다.');
@@ -4140,15 +4160,15 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   };
 
   window.checkDriveBackupStatus = function() {
-    const enabled = localStorage.getItem(ENABLED_KEY) === 'true';
-    const last = localStorage.getItem(LAST_BACKUP_KEY) || '없음';
-    const lastError = localStorage.getItem(LAST_ERROR_KEY) || '없음';
-    const url = localStorage.getItem(WEBAPP_URL_KEY) || '없음';
-    alert('Drive 자동 백업 상태\n\n사용 여부: ' + (enabled ? '켜짐' : '꺼짐') + '\n마지막 백업 요청: ' + last + '\n마지막 자동 백업 오류: ' + lastError + '\nApps Script URL: ' + url);
+    const enabled = driveGet(ENABLED_KEY) === 'true';
+    const last = driveGet(LAST_BACKUP_KEY) || '없음';
+    const lastError = driveGet(LAST_ERROR_KEY) || '없음';
+    const url = driveGet(WEBAPP_URL_KEY) || '없음';
+    alert('Drive 자동 백업 상태\n\n사용 여부: ' + (enabled ? '켜짐' : '꺼짐') + '\n마지막 확인된 백업: ' + last + '\n마지막 자동 백업 오류: ' + lastError + '\nApps Script URL: ' + url);
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    if (localStorage.getItem(ENABLED_KEY) === 'true') {
+    if (driveGet(ENABLED_KEY) === 'true') {
       startDriveAutoBackupTimer();
       setTimeout(() => {
         runDriveAutoBackupIfDue('startup-auto').catch(e => console.warn('Startup Drive backup skipped:', e));
@@ -4327,6 +4347,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); setTimeout(init
   };
 
   function refreshAfterSettlementOverride() {
+    if (!firebaseLoadedOnce) return;
     try {
       if (typeof window.ensureMonthlySettlementTasks === 'function') window.ensureMonthlySettlementTasks();
       if (typeof saveData === 'function') saveData();
