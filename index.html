@@ -672,7 +672,7 @@
             }catch(e){list.textContent='복원본을 읽지 못했습니다: '+e.message;}
         }
 
-        const msStatuses = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
+        const msStatuses = ['원고 준비', '1교', '작가 교정', '2교', '출간 준비', '출간 완료'];
         const coverStatuses = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
         const platforms = ['리디', '시리즈', '예스24', '알라딘', '교보문고', '미스터블루', '봄툰', '북큐브', '스토린랩'];
         const webtoonStatuses = ['구두 확정', '계약서 작성 완료', '캐시트 전달 완료', '론칭 완료'];
@@ -1150,7 +1150,7 @@
 
         function renderProgress(c) {
             let msData = {}; let cvData = {};
-            const msStatuses2 = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
+            const msStatuses2 = ['원고 준비', '1교', '작가 교정', '2교', '출간 준비', '출간 완료'];
             const coverStatuses2 = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
             
             msStatuses2.forEach(s => msData[s] = []);
@@ -1243,7 +1243,7 @@
             let h=''; w.works.filter(x=>!x.parentId).forEach(p=>{ h+=getRowHtml(w.id,p,false); w.works.filter(c=>c.parentId===p.id).forEach(c=>{ h+=getRowHtml(w.id,c,true); }); }); return h;
         }
 
-        const msStatuses2 = ['계약 완료', '원고 피드백', '원고 입고 대기', '1교 대기', '1교 중', '1교 완료', '작교 대기', '작교 완료', '2교 대기', '2교 중', '2교 완료', '최종고 완성', '이펍 제작 완료', '출간 등록 완료', '출간 대기', '출간 완료'];
+        const msStatuses2 = ['원고 준비', '1교', '작가 교정', '2교', '출간 준비', '출간 완료'];
         const coverStatuses2 = ['제안서 입고 전', '제안서 입고 완료', '제작 중', '제작 완료'];
 
         function getRowHtml(wId, w, isC) {
@@ -1311,8 +1311,8 @@
                         <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">작품명</label><input class="input-text" value="${escapeHtml(work.title)}" onchange="updateWork(${writer.id}, ${work.id}, 'title', this.value)"></div>
                         <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">인세율(%)</label><input type="number" class="input-text" value="${work.royalty||''}" onchange="updateWork(${writer.id}, ${work.id}, 'royalty', this.value)"></div>
                         <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">후속권</label><select class="input-select" onchange="updateWork(${writer.id}, ${work.id}, 'sequel', this.value)"><option value="N" ${work.sequel==='N'?'selected':''}>N</option><option value="Y" ${work.sequel==='Y'?'selected':''}>Y</option></select></div>
-                        <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">작업 상태</label><select class="input-select" style="background-color:${msB}; font-weight:bold;" onchange="updateWork(${writer.id}, ${work.id}, 'msStatus', this.value)">${msStatuses.map(s=>`<option ${work.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>
-                        <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">표지 상태</label><select class="input-select" style="background-color:${cvB}; font-weight:bold;" onchange="updateWork(${writer.id}, ${work.id}, 'coverStatus', this.value)">${coverStatuses.map(s=>`<option ${work.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>
+                        <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">작업 상태</label><select class="input-select" style="background-color:${msB}; font-weight:bold;" onchange="updateWork(${writer.id}, ${work.id}, 'msStatus', this.value)">${msStatuses.map(s=>`<option ${livPublicationProgress(work).status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+                        <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">표지 상태</label><select class="input-select" style="background-color:${cvB}; font-weight:bold;" onchange="updateWork(${writer.id}, ${work.id}, 'coverStatus', this.value)">${coverStatuses.map(s=>`<option ${livPublicationProgress(work).coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>
                         <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">출간일</label><input type="date" class="input-date" value="${work.pubDate||''}" onchange="updateWork(${writer.id}, ${work.id}, 'pubDate', this.value)"></div>
                         <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">표지일</label><input type="date" class="input-date" value="${work.coverDate||''}" onchange="updateWork(${writer.id}, ${work.id}, 'coverDate', this.value)"></div>
                         <div><label style="font-size:0.75rem; font-weight:bold; color:#666;">1교일</label><input type="date" class="input-date" value="${work.proofDate||''}" onchange="updateWork(${writer.id}, ${work.id}, 'proofDate', this.value)"></div>
@@ -1495,7 +1495,7 @@
         function addWork(wId) { const t=prompt("제목:"); if(!t)return; livData.writers.find(x=>x.id===wId).works.push({id:Date.now(), title:t, royalty:70, sequel:'N', msStatus:'계약 완료', coverStatus:'제안서 입고 전', pubDate:'', coverDate:'', proofDate:'', proofDate2:'', coverImg:'', platforms:[]}); saveData(); changeView('writer', currentWriterFilter); }
         function deleteWork(wId, wkId) { if(!confirm('삭제할까요?'))return; const w=livData.writers.find(x=>x.id===wId); w.works=w.works.filter(x=>x.id!==wkId&&x.parentId!==wkId); saveData(); changeView('writer', currentWriterFilter); }
         function deleteWriter(wId) { if(!confirm('계정을 삭제할까요?'))return; livData.writers=livData.writers.filter(w=>w.id!==wId); saveData(); changeView('dashboard'); }
-        function updateWork(wId, workId, key, val) { const w = livData.writers.find(x => x.id === wId); const work = w.works.find(x => x.id === workId); if(!work) return; work[key] = val; saveData(); if (['msStatus', 'coverStatus', 'sequel', 'title'].includes(key) || currentViewName === 'work-detail') { changeView(currentViewName, currentViewParam); } }
+        function updateWork(wId, workId, key, val) { const w = livData.writers.find(x => x.id === wId); const work = w.works.find(x => x.id === workId); if(!work) return; if(['msStatus','coverStatus'].includes(key)) livSetWorkStage(work,key,val); else work[key] = val; saveData(); if (['msStatus', 'coverStatus', 'sequel', 'title'].includes(key) || currentViewName === 'work-detail') { changeView(currentViewName, currentViewParam); } }
         function togglePlatform(wId, workId, p) { const wk=livData.writers.find(x=>x.id===wId).works.find(x=>x.id===workId); if(!wk.platforms)wk.platforms=[]; if(wk.platforms.includes(p))wk.platforms=wk.platforms.filter(x=>x!==p); else wk.platforms.push(p); saveData(); changeView(currentViewName, currentViewParam); }
         function revertStatus(wId, workId) { updateWork(wId, workId, 'msStatus', '출간 대기'); }
         function openWriterModal() { document.getElementById('writer-modal').classList.add('show'); closeSidebarMobile(); }
@@ -1679,7 +1679,7 @@ function uploadWorkCover(inp,wId,wkId) {
     alert('표지 이미지를 처리하지 못했습니다. 다른 이미지 파일로 다시 시도해 주세요.');
   });
 }
-function openWorkEditModal(wId, workId) { gwEnsureModals(); const {writer,work}=getWorkRef(wId,workId); if(!writer||!work) return; currentEditingWork={wId:Number(wId),workId:Number(workId),tempCover:work.coverImg||''}; document.getElementById('work-edit-writer').value=writer.name||''; document.getElementById('work-edit-title').value=work.title||''; document.getElementById('work-edit-royalty').value=work.royalty||''; document.getElementById('work-edit-sequel').value=work.sequel||'N'; document.getElementById('work-edit-ms').value=work.msStatus||msStatuses2[0]; document.getElementById('work-edit-coverstatus').value=work.coverStatus||coverStatuses2[0]; document.getElementById('work-edit-pub').value=work.pubDate||''; document.getElementById('work-edit-cover').value=work.coverDate||''; document.getElementById('work-edit-proof1').value=work.proofDate||''; document.getElementById('work-edit-proof2').value=work.proofDate2||''; document.getElementById('work-edit-preview').src=getWorkCoverSrc(work); document.getElementById('work-edit-platforms').innerHTML = platforms.map(p=>`<label><input type="checkbox" value="${p}" ${work.platforms&&work.platforms.includes(p)?'checked':''}> ${p}</label>`).join(''); document.getElementById('work-edit-modal').classList.add('show'); }
+function openWorkEditModal(wId, workId) { gwEnsureModals(); const {writer,work}=getWorkRef(wId,workId); if(!writer||!work) return; currentEditingWork={wId:Number(wId),workId:Number(workId),tempCover:work.coverImg||''}; document.getElementById('work-edit-writer').value=writer.name||''; document.getElementById('work-edit-title').value=work.title||''; document.getElementById('work-edit-royalty').value=work.royalty||''; document.getElementById('work-edit-sequel').value=work.sequel||'N'; document.getElementById('work-edit-ms').value=livPublicationProgress(work).status; document.getElementById('work-edit-coverstatus').value=livPublicationProgress(work).coverStatus; document.getElementById('work-edit-pub').value=work.pubDate||''; document.getElementById('work-edit-cover').value=work.coverDate||''; document.getElementById('work-edit-proof1').value=work.proofDate||''; document.getElementById('work-edit-proof2').value=work.proofDate2||''; document.getElementById('work-edit-preview').src=getWorkCoverSrc(work); document.getElementById('work-edit-platforms').innerHTML = platforms.map(p=>`<label><input type="checkbox" value="${p}" ${work.platforms&&work.platforms.includes(p)?'checked':''}> ${p}</label>`).join(''); document.getElementById('work-edit-modal').classList.add('show'); }
 function closeWorkEditModal() { document.getElementById('work-edit-modal').classList.remove('show'); currentEditingWork=null; }
 function handleWorkEditFile(e) {
   const file=e.target.files&&e.target.files[0];
@@ -1692,7 +1692,7 @@ function handleWorkEditFile(e) {
     alert('표지 이미지를 처리하지 못했습니다. 다른 이미지 파일로 다시 시도해 주세요.');
   });
 }
-function saveWorkEditModal() { if(!currentEditingWork) return; const {writer,work}=getWorkRef(currentEditingWork.wId,currentEditingWork.workId); work.title=document.getElementById('work-edit-title').value.trim()||work.title; work.royalty=Number(document.getElementById('work-edit-royalty').value||work.royalty||0); work.sequel=document.getElementById('work-edit-sequel').value; work.msStatus=document.getElementById('work-edit-ms').value; work.coverStatus=document.getElementById('work-edit-coverstatus').value; work.pubDate=document.getElementById('work-edit-pub').value; work.coverDate=document.getElementById('work-edit-cover').value; work.proofDate=document.getElementById('work-edit-proof1').value; work.proofDate2=document.getElementById('work-edit-proof2').value; work.platforms=[...document.querySelectorAll('#work-edit-platforms input:checked')].map(el=>el.value); if(currentEditingWork.tempCover) work.coverImg=currentEditingWork.tempCover; saveData(); closeWorkEditModal(); changeView('writer', writer.id); }
+function saveWorkEditModal() { if(!currentEditingWork) return; const {writer,work}=getWorkRef(currentEditingWork.wId,currentEditingWork.workId); work.title=document.getElementById('work-edit-title').value.trim()||work.title; work.royalty=Number(document.getElementById('work-edit-royalty').value||work.royalty||0); work.sequel=document.getElementById('work-edit-sequel').value; livSetWorkStage(work,'msStatus',document.getElementById('work-edit-ms').value); livSetWorkStage(work,'coverStatus',document.getElementById('work-edit-coverstatus').value); work.pubDate=document.getElementById('work-edit-pub').value; work.coverDate=document.getElementById('work-edit-cover').value; work.proofDate=document.getElementById('work-edit-proof1').value; work.proofDate2=document.getElementById('work-edit-proof2').value; work.platforms=[...document.querySelectorAll('#work-edit-platforms input:checked')].map(el=>el.value); if(currentEditingWork.tempCover) work.coverImg=currentEditingWork.tempCover; saveData(); closeWorkEditModal(); changeView('writer', writer.id); }
 
 function renderWebtoon(c) { gwSetupUi(); if(!livData.webtoons) livData.webtoons=[]; c.innerHTML = `<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><div><h2 style="margin:0 0 6px;">웹툰</h2><div style="font-size:0.84rem; color:#666;">등록 버튼을 누르면 팝업에서 내용을 입력하고, 저장 후에는 확정된 정보 형태로 카드가 표시됩니다.</div></div><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-list" class="webtoon-card-grid"></div>`; const box=document.getElementById('webtoon-list'); if(!livData.webtoons.length) { box.innerHTML='<div class="card" style="text-align:center; padding:40px; color:#888; width:100%;">등록된 웹툰 계약 작품이 없습니다.</div>'; return; } box.innerHTML = livData.webtoons.map(item=>{ const {writer,work}=getWorkRef(item.writerId,item.workId); const title=work?work.title:(item.title||'미지정 작품'); const writerName=writer?writer.name:(item.writerName||'미상'); const stIdx=Math.max(0, webtoonStatuses.indexOf(item.status)); return `<div class="card webtoon-card"><img src="${getWebtoonCoverSrc(item)}" class="webtoon-cover"><div class="clickable-title" style="font-weight:900; font-size:1.03rem; line-height:1.4;" onclick="openWorkPage(${item.writerId}, ${item.workId})">${escapeHtml(title)}</div><div class="webtoon-info-box"><div><b>작가</b> ${escapeHtml(writerName)}</div><div><b>에이전시</b> ${escapeHtml(item.agency||'-')}</div><div><b>계약 비율</b> ${escapeHtml(item.ratio||'-')}</div><div><b>MG 수령일</b> ${item.mgDate||'-'}</div><div><b>MG 금액</b> ${item.mgAmount ? formatWon(item.mgAmount) : '-'}</div></div><div class="webtoon-progress">${webtoonStatuses.map((s,idx)=>`<span class="step ${idx<=stIdx?'active':''}">${escapeHtml(s)}</span>`).join('')}</div><div style="display:flex; gap:8px; margin-top:auto;"><button class="btn btn-del" style="flex:1;" onclick="openWebtoonModal(${item.id})">수정</button><button class="btn-del" style="flex:1;" onclick="deleteWebtoon(${item.id})">삭제</button></div></div>`; }).join(''); }
 function openWebtoonModal(id=null) { gwEnsureModals(); currentEditingWebtoon=id; const item=id?(livData.webtoons||[]).find(x=>x.id===id):null; document.getElementById('webtoon-modal-title').innerText=item?'웹툰 계약 수정':'웹툰 계약 등록'; document.getElementById('wt-modal-work').innerHTML=getAllWorkOptions(); document.getElementById('wt-modal-work').value=item?`${item.writerId}|${item.workId}`:''; document.getElementById('wt-modal-agency').value=item?.agency||''; document.getElementById('wt-modal-ratio').value=item?.ratio||''; document.getElementById('wt-modal-status').value=item?.status||webtoonStatuses[0]; document.getElementById('wt-modal-mgdate').value=item?.mgDate||''; document.getElementById('wt-modal-mgamount').value=item?.mgAmount||''; document.getElementById('wt-modal-preview').src=getWebtoonCoverSrc(item||{}); document.getElementById('webtoon-modal').classList.add('show'); }
@@ -2188,6 +2188,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
   };
 
   window.getRowHtml = function(wId, w, isC) {
+    const progress = livPublicationProgress(w);
+    w = {...w, msStatus:progress.status, coverStatus:progress.coverStatus};
     const rc = isC ? 'row-child' : '', px = isC ? `<span class="child-indicator">└</span>` : '', bT = (w.title || '').replace(/\s*\d+권$/,'').replace(/'/g,"\\'");
     const msB = getStatusColor(w.msStatus,'ms'), cvB = getStatusColor(w.coverStatus,'cover');
     const coverSrc = getWorkCoverSrc(w);
@@ -10186,25 +10188,42 @@ window.openLivWriterSettings = function(writerId) {
 <script>
 /* Publication navigator derives progress from saved work and calendar completion. */
 function livPublicationProgress(work) {
-  const stages = ['계약 완료','원고 피드백','원고 입고 대기','1교 대기','1교 중','1교 완료','작교 대기','작교 완료','2교 대기','2교 중','2교 완료','최종고 완성','이펍 제작 완료','출간 등록 완료','출간 대기','출간 완료'];
+  const stages = ['원고 준비','1교','작가 교정','2교','출간 준비','출간 완료'];
+  const legacy = {'계약 완료':0,'원고 피드백':0,'원고 입고 대기':0,'1교 대기':1,'1교 중':1,'1교 완료':2,'작교 대기':2,'작교 완료':3,'2교 대기':3,'2교 중':3,'2교 완료':4,'최종고 완성':4,'이펍 제작 완료':4,'출간 등록 완료':4,'출간 대기':4};
   const flags = work.completedDates || {};
   let rank = stages.indexOf(work.msStatus);
-  if (flags.proofDate) rank = Math.max(rank, 6);
-  if (flags.proofDate2) rank = Math.max(rank, 10);
-  if (flags.pubDate) rank = 15;
-  const status = stages[rank] || work.msStatus || '상태 미입력';
-  const published = rank === 15;
+  if (rank < 0) rank = legacy[work.msStatus] ?? 0;
+  if (rank === 0 && work.proofDate) rank = 1;
+  if (flags.proofDate) rank = Math.max(rank, 2);
+  if (flags.proofDate2) rank = Math.max(rank, 4);
+  if (flags.pubDate) rank = 5;
+  const published = rank === 5;
   const coverDone = !!flags.coverDate || work.coverStatus === '제작 완료';
   const steps = [
-    {key:'proofDate',label:'1교',done:!!flags.proofDate || rank >= 5},
-    {key:'proofDate2',label:'2교',done:!!flags.proofDate2 || rank >= 10},
+    {key:'proofDate',label:'1교',done:!!flags.proofDate || rank >= 2},
+    {key:'proofDate2',label:'2교',done:!!flags.proofDate2 || rank >= 4},
     {key:'coverDate',label:'표지',done:coverDone},
     {key:'pubDate',label:'출간',done:published}
   ].map(step => ({...step,date:work[step.key] || ''}));
   const next = steps.filter(step => !step.done && step.date).sort((a,b)=>a.date.localeCompare(b.date))[0] || null;
-  const nextStage = published ? '출간 완료' : rank === 10 ? '최종고 확인'
-    : rank >= 14 ? '출간 대기' : rank >= 0 ? stages[rank + 1] : '원고 상태 확인';
-  return {status,published,coverStatus:coverDone?'제작 완료':work.coverStatus || '상태 미입력',steps,next,nextStage};
+  return {status:stages[rank],published,coverStatus:coverDone?'제작 완료':work.coverStatus || '제안서 입고 전',steps,next,nextStage:stages[Math.min(rank+1,5)]};
+}
+// Explicit manual corrections also clear contradictory calendar completion flags.
+function livSetWorkStage(work, key, value) {
+  const progress = livPublicationProgress(work);
+  if (value === (key === 'msStatus' ? progress.status : progress.coverStatus)) return;
+  const flags = work.completedDates || {};
+  if (key === 'msStatus') {
+    const ranks = ['원고 준비','1교','작가 교정','2교','출간 준비','출간 완료'];
+    const rank = ranks.indexOf(value);
+    if (rank >= 0) {
+      if (rank < 5) flags.pubDate = false;
+      if (rank < 4) flags.proofDate2 = false;
+      if (rank < 2) flags.proofDate = false;
+    }
+  } else if (value !== '제작 완료') flags.coverDate = false;
+  work.completedDates = flags;
+  work[key] = value;
 }
 window.renderUpcoming = function(c) {
   const items = [];
