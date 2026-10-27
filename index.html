@@ -1617,7 +1617,7 @@ function gwEnsureModals() {
 }
 
 function getWorkCoverSrc(work) { return (work && work.coverImg) ? work.coverImg : DEFAULT_WORK_COVER; }
-function getWebtoonCoverSrc(item) { if(item && item.image) return item.image; const ref = item ? getWorkRef(item.writerId, item.workId) : {}; return getWorkCoverSrc(ref.work); }
+function getWebtoonCoverSrc(item) { return (item && item.image) ? item.image : DEFAULT_WORK_COVER; }
 
 function initMonthlySystemTasks() {
   if(!livData.extraTasks) livData.extraTasks=[];
