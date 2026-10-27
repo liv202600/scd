@@ -1233,7 +1233,7 @@
             let h=''; 
             lst.forEach(w=>{ 
                 const pStyle = w.proofStyle || "정보 없음"; const eTime = w.emailTime || "정보 없음";
-                h+=`<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${escapeHtml(w.name)}</h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${pStyle}</span><span style="margin-left:12px;">${eTime}</span></div></div><div style="display:flex; gap:8px;"><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`; 
+                h+=`<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${escapeHtml(w.name)}</h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${pStyle}</span><span style="margin-left:12px;">${eTime}</span></div></div><div style="display:flex; gap:8px;"><button class="btn" onclick="openLivWriterSettings(${w.id})">설정 수정</button><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`; 
             });
             c.innerHTML = h;
         }
@@ -2002,7 +2002,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     lst.forEach(w=>{
       const original = (livData.writers||[]).find(x=>x.id===w.id) || w;
       const pStyle=w.proofStyle||"정보 없음", eTime=w.emailTime||"정보 없음";
-      h+=`<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${escapeHtml(w.name)} <span style="font-size:.9rem; color:#777;">(${countMainWorks(original)}작품)</span></h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${escapeHtml(pStyle)}</span><span style="margin-left:12px;">${escapeHtml(eTime)}</span><span style="margin-left:12px; color:#111;">누적 매출 ${won(writerSales(original))}</span></div></div><div style="display:flex; gap:8px;"><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`;
+      h+=`<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${escapeHtml(w.name)} <span style="font-size:.9rem; color:#777;">(${countMainWorks(original)}작품)</span></h2><div style="font-size:0.85rem; font-weight:bold; color:var(--main-pink);"><span>${escapeHtml(pStyle)}</span><span style="margin-left:12px;">${escapeHtml(eTime)}</span><span style="margin-left:12px; color:#111;">누적 매출 ${won(writerSales(original))}</span></div></div><div style="display:flex; gap:8px;"><button class="btn" onclick="openLivWriterSettings(${w.id})">설정 수정</button><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`;
     });
     c.innerHTML=h;
   };
@@ -2292,7 +2292,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     lst.forEach(w => {
       const original = (livData.writers || []).find(x => x.id === w.id) || w;
       const pStyle = w.proofStyle || '정보 없음', eTime = w.emailTime || '정보 없음';
-      h += `<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${escapeHtml(w.name)} <span style="font-size:.9rem; color:#777;">(${getMainWorkCount(original)}작품)</span></h2><div style="font-size:.85rem; font-weight:bold; color:var(--main-pink);"><span>${escapeHtml(pStyle)}</span><span style="margin-left:12px;">${escapeHtml(eTime)}</span><span style="margin-left:12px; color:#111;">누적 매출 ${safeWon(getWriterSalesTotal(original))}</span></div></div><div style="display:flex; gap:8px;"><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`;
+      h += `<div style="display:flex; flex-direction:column; gap:10px;"><div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; padding:20px; margin-bottom:0; background:var(--soft-pink); border:2px solid var(--main-pink);"><div><h2 style="margin:0; margin-bottom:8px;">${escapeHtml(w.name)} <span style="font-size:.9rem; color:#777;">(${getMainWorkCount(original)}작품)</span></h2><div style="font-size:.85rem; font-weight:bold; color:var(--main-pink);"><span>${escapeHtml(pStyle)}</span><span style="margin-left:12px;">${escapeHtml(eTime)}</span><span style="margin-left:12px; color:#111;">누적 매출 ${safeWon(getWriterSalesTotal(original))}</span></div></div><div style="display:flex; gap:8px;"><button class="btn" onclick="openLivWriterSettings(${w.id})">설정 수정</button><button class="btn btn-black" onclick="addWork(${w.id})">+ 새 작품 추가</button><button class="btn-del" style="height:32px; line-height:30px;" onclick="deleteWriter(${w.id})">계정 삭제</button></div></div><div class="card" style="padding:0; border:none; box-shadow:none; background:transparent; margin-bottom:0;"><div class="table-wrap"><table class="liv-table"><thead><tr><th style="width:32%;">표지 / 작품명</th><th class="desktop-only-td" style="width:8%;">인세</th><th class="desktop-only-td" style="width:10%;">후속권</th><th style="width:20%;">상태</th><th style="width:25%;">일정</th><th class="desktop-only-td" style="width:5%; text-align:center;">관리</th></tr></thead><tbody>${generateWorkRows(w)}</tbody></table></div></div></div>`;
     });
     c.innerHTML = h;
   };
@@ -10133,6 +10133,52 @@ function openLivRecurringActions(taskId,view) {
     extraTaskClickTimer=setTimeout(()=>openLivRecurringActions(id,view),350);
 };})();
 
+</script>
+
+<script>
+/* Writer preferences: edit only the selected writer's settings. */
+window.closeLivWriterSettings = function() {
+  document.getElementById('liv-writer-settings')?.remove();
+};
+window.openLivWriterSettings = function(writerId) {
+  const writer = (livData.writers || []).find(w => String(w.id) === String(writerId));
+  if (!writer) return;
+  closeLivWriterSettings();
+  const modal = document.createElement('div');
+  modal.id = 'liv-writer-settings';
+  modal.className = 'modal-overlay show';
+  modal.innerHTML = `<div class="modal-content">
+    <h3 style="color:var(--main-pink); margin-top:0;">${escapeHtml(writer.name)} 설정 수정</h3>
+    <label for="liv-writer-proof">교정 스타일</label>
+    <select id="liv-writer-proof" class="input-select" style="margin:8px 0 16px;">
+      <option value="">선택해 주세요</option><option>꼼꼼 교정</option><option>러프 교정</option>
+    </select>
+    <label for="liv-writer-email">메일 수신 시간</label>
+    <select id="liv-writer-email" class="input-select" style="margin-top:8px;">
+      <option value="">선택해 주세요</option><option>상시 연락</option><option>평일 주간만</option>
+    </select>
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-del" style="flex:1;" onclick="closeLivWriterSettings()">취소</button>
+      <button class="btn btn-black" style="flex:1;" id="liv-writer-settings-save">저장</button>
+    </div></div>`;
+  document.body.appendChild(modal);
+  const proof = modal.querySelector('#liv-writer-proof');
+  const email = modal.querySelector('#liv-writer-email');
+  // Legacy feedback variants map to the corresponding proofreading level.
+  proof.value = /꼼꼼 교정$/.test(writer.proofStyle || '') ? '꼼꼼 교정'
+    : /러프 교정$/.test(writer.proofStyle || '') ? '러프 교정' : '';
+  email.value = ['상시 연락', '평일 주간만'].includes(writer.emailTime) ? writer.emailTime : '';
+  modal.querySelector('#liv-writer-settings-save').onclick = function() {
+    const current = (livData.writers || []).find(w => String(w.id) === String(writerId));
+    if (!current) { closeLivWriterSettings(); return; }
+    if (!proof.value || !email.value) return alert('교정 스타일과 메일 수신 시간을 선택하세요.');
+    current.proofStyle = proof.value;
+    current.emailTime = email.value;
+    saveData();
+    closeLivWriterSettings();
+    changeView('writer', currentWriterFilter);
+  };
+};
 </script>
 </body>
 </html>
