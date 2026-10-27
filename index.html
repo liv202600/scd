@@ -2483,9 +2483,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     coverStatuses2.forEach(s => cvData[s] = []);
 
     livData.writers.forEach(w => (w.works || []).forEach(wk => {
-      if (wk.msStatus === '출간 완료') return;
-      if (wk.msStatus && msData[wk.msStatus]) msData[wk.msStatus].push({ title:wk.title, writer:w.name, wId:w.id, workId:wk.id });
-      if (wk.coverStatus && cvData[wk.coverStatus]) cvData[wk.coverStatus].push({ title:wk.title, writer:w.name, wId:w.id, workId:wk.id });
+      const progress = livPublicationProgress(wk);
+      if (progress.published) return;
+      if (msData[progress.status]) msData[progress.status].push({ title:wk.title, writer:w.name, wId:w.id, workId:wk.id });
+      if (cvData[progress.coverStatus]) cvData[progress.coverStatus].push({ title:wk.title, writer:w.name, wId:w.id, workId:wk.id });
     }));
 
     const isNarrow = window.matchMedia('(max-width: 1200px), (orientation: portrait)').matches;
@@ -2496,6 +2497,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     const accent = isMs ? 'var(--main-pink)' : '#ffbba1';
 
     let html = `<h2 style="margin-bottom:15px;">작업 진척도 네비게이터</h2>
+      <div style="font-size:.85rem; color:#666; margin-bottom:15px;">작품 정보와 캘린더 완료 표시를 자동 반영합니다.</div>
       <div style="display:flex; gap:10px; margin-bottom:20px;">
         <button class="btn ${isMs ? 'btn-black' : 'btn-del'}" onclick="switchProgressTab('ms')">📖 원고 진행 상황</button>
         <button class="btn ${!isMs ? 'btn-black' : 'btn-del'}" onclick="switchProgressTab('cv')">🎨 표지 진행 상황</button>
@@ -10178,6 +10180,61 @@ window.openLivWriterSettings = function(writerId) {
     closeLivWriterSettings();
     changeView('writer', currentWriterFilter);
   };
+};
+</script>
+
+<script>
+/* Publication navigator derives progress from saved work and calendar completion. */
+function livPublicationProgress(work) {
+  const stages = ['계약 완료','원고 피드백','원고 입고 대기','1교 대기','1교 중','1교 완료','작교 대기','작교 완료','2교 대기','2교 중','2교 완료','최종고 완성','이펍 제작 완료','출간 등록 완료','출간 대기','출간 완료'];
+  const flags = work.completedDates || {};
+  let rank = stages.indexOf(work.msStatus);
+  if (flags.proofDate) rank = Math.max(rank, 6);
+  if (flags.proofDate2) rank = Math.max(rank, 10);
+  if (flags.pubDate) rank = 15;
+  const status = stages[rank] || work.msStatus || '상태 미입력';
+  const published = rank === 15;
+  const coverDone = !!flags.coverDate || work.coverStatus === '제작 완료';
+  const steps = [
+    {key:'proofDate',label:'1교',done:!!flags.proofDate || rank >= 5},
+    {key:'proofDate2',label:'2교',done:!!flags.proofDate2 || rank >= 10},
+    {key:'coverDate',label:'표지',done:coverDone},
+    {key:'pubDate',label:'출간',done:published}
+  ].map(step => ({...step,date:work[step.key] || ''}));
+  const next = steps.filter(step => !step.done && step.date).sort((a,b)=>a.date.localeCompare(b.date))[0] || null;
+  const nextStage = published ? '출간 완료' : rank === 10 ? '최종고 확인'
+    : rank >= 14 ? '출간 대기' : rank >= 0 ? stages[rank + 1] : '원고 상태 확인';
+  return {status,published,coverStatus:coverDone?'제작 완료':work.coverStatus || '상태 미입력',steps,next,nextStage};
+}
+window.renderUpcoming = function(c) {
+  const items = [];
+  (livData.writers || []).forEach(writer => (writer.works || []).forEach(work => {
+    const progress = livPublicationProgress(work);
+    if (!progress.published) items.push({writer,work,progress});
+  }));
+  items.sort((a,b)=>(a.work.pubDate || '9999').localeCompare(b.work.pubDate || '9999') || String(a.work.title).localeCompare(String(b.work.title),'ko'));
+  const today = getKstDateString();
+  const chip = step => `<span style="padding:5px 8px; border-radius:5px; background:${step.done?'#e8f0eb':'#f4f6f8'}; color:${step.done?'#356347':'#555'};">${step.done?'✓ ':''}${step.label} ${step.done?'완료':step.date?escapeHtml(step.date):'일정 미입력'}</span>`;
+  let html = `<h2 style="margin-bottom:12px;">출간 일정 네비게이터</h2><div style="font-size:.85rem; color:#666; margin-bottom:20px; line-height:1.6;">작품 정보와 월별 캘린더의 완료 표시를 자동 반영합니다. 완료된 출간은 목록에서 제외됩니다.</div>`;
+  if (!items.length) html += '<div class="card" style="text-align:center; padding:40px; color:#888;">예정된 출간 일정이 없습니다.</div>';
+  html += '<div style="display:flex; flex-direction:column; gap:12px;">';
+  items.forEach(({writer,work,progress}) => {
+    let timing = '출간일 미정';
+    if (work.pubDate) {
+      const days = Math.round((parseDateString(work.pubDate)-parseDateString(today))/86400000);
+      timing = `${days===0?'D-Day':days>0?'D-'+days:'D+'+Math.abs(days)} · ${escapeHtml(work.pubDate)}`;
+    }
+    const next = progress.next;
+    const nextText = next ? `${next.label} · ${next.date}${next.date<today?' (미완료 · 예정일 지남)':''}` : '다음 일정 입력 필요';
+    html += `<div class="card" style="padding:18px; margin:0; cursor:pointer;" onclick="openWorkPage(${writer.id}, ${work.id})">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;"><b>${timing}</b><span>${escapeHtml(writer.name)}</span></div>
+      <div class="clickable-title" style="font-size:1.1rem; font-weight:800; color:var(--main-pink); margin:12px 0;">${escapeHtml(work.title)}</div>
+      <div style="font-size:.85rem; line-height:1.8;">원고: <b>${escapeHtml(progress.status)}</b> · 표지: <b>${escapeHtml(progress.coverStatus)}</b></div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; font-size:.8rem; margin:10px 0;">${progress.steps.map(chip).join('')}</div>
+      <div style="font-size:.85rem; line-height:1.8;">다음 단계: <b>${escapeHtml(progress.nextStage)}</b><br>다음 일정: <b>${escapeHtml(nextText)}</b></div>
+    </div>`;
+  });
+  c.innerHTML = html + '</div>';
 };
 </script>
 </body>
