@@ -6281,6 +6281,11 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
                 item.dataset.livV9Copied = copied ? '1' : '0';
 
                 item.classList.toggle('liv-v9-copied', !!copied);
+                if (copied && workTarget && workTarget.kind === 'work') {
+                    const completed = !!(work._livCopiedCompleted && work._livCopiedCompleted[workTarget.key + ':' + date]);
+                    item.style.textDecoration = completed ? 'line-through' : '';
+                    item.style.opacity = completed ? '0.6' : '';
+                }
                 return;
             }
 
@@ -6458,34 +6463,35 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         }
     }, true);
 
-    document.addEventListener('click', function (event) {
+    function copiedScheduleTarget(event) {
         const item = event.target.closest('.event-item, .week-evt-item');
-        if (!item) return;
-
+        if (!item) return null;
         const date = getDateFromItem(item);
         const workTarget = getWorkTarget(item, date);
-
         if (workTarget && workTarget.kind === 'work') {
-            const handled = deleteCopiedWork(workTarget);
-
-            if (handled) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return false;
-            }
+            const work = getWork(workTarget.writerId, workTarget.workId).work;
+            if (work && isCopiedWorkOccurrence(work, workTarget.key, date)) return { item, work, target: workTarget };
         }
-
         const extraTarget = getExtraTarget(item, date);
-
-        if (extraTarget && extraTarget.kind === 'extra') {
-            const handled = deleteCopiedExtra(extraTarget);
-
-            if (handled) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return false;
-            }
+        const task = extraTarget && getExtra(extraTarget.extraId);
+        return isCopiedExtra(task) ? { item, task } : null;
+    }
+    document.addEventListener('click', function(event) {
+        if (!copiedScheduleTarget(event)) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+    }, true);
+    document.addEventListener('dblclick', function(event) {
+        const found = copiedScheduleTarget(event);
+        if (!found) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (found.task) found.task.completed = !found.task.completed;
+        else {
+            const {work, target} = found;
+            if (!work._livCopiedCompleted) work._livCopiedCompleted = {};
+            const occurrence = target.key + ':' + target.date;
+            work._livCopiedCompleted[occurrence] = !work._livCopiedCompleted[occurrence];
         }
+        save(); rerenderCalendar();
     }, true);
 
     window.copyWorkDateTaskSafe = function (event, writerId, workId, key, sourceDate) {
@@ -8522,6 +8528,11 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
                 item.dataset.livV9Copied = copied ? '1' : '0';
 
                 item.classList.toggle('liv-v9-copied', !!copied);
+                if (copied && workTarget && workTarget.kind === 'work') {
+                    const completed = !!(work._livCopiedCompleted && work._livCopiedCompleted[workTarget.key + ':' + date]);
+                    item.style.textDecoration = completed ? 'line-through' : '';
+                    item.style.opacity = completed ? '0.6' : '';
+                }
                 return;
             }
 
@@ -8699,34 +8710,35 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         }
     }, true);
 
-    document.addEventListener('click', function (event) {
+    function copiedScheduleTarget(event) {
         const item = event.target.closest('.event-item, .week-evt-item');
-        if (!item) return;
-
+        if (!item) return null;
         const date = getDateFromItem(item);
         const workTarget = getWorkTarget(item, date);
-
         if (workTarget && workTarget.kind === 'work') {
-            const handled = deleteCopiedWork(workTarget);
-
-            if (handled) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return false;
-            }
+            const work = getWork(workTarget.writerId, workTarget.workId).work;
+            if (work && isCopiedWorkOccurrence(work, workTarget.key, date)) return { item, work, target: workTarget };
         }
-
         const extraTarget = getExtraTarget(item, date);
-
-        if (extraTarget && extraTarget.kind === 'extra') {
-            const handled = deleteCopiedExtra(extraTarget);
-
-            if (handled) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return false;
-            }
+        const task = extraTarget && getExtra(extraTarget.extraId);
+        return isCopiedExtra(task) ? { item, task } : null;
+    }
+    document.addEventListener('click', function(event) {
+        if (!copiedScheduleTarget(event)) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+    }, true);
+    document.addEventListener('dblclick', function(event) {
+        const found = copiedScheduleTarget(event);
+        if (!found) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (found.task) found.task.completed = !found.task.completed;
+        else {
+            const {work, target} = found;
+            if (!work._livCopiedCompleted) work._livCopiedCompleted = {};
+            const occurrence = target.key + ':' + target.date;
+            work._livCopiedCompleted[occurrence] = !work._livCopiedCompleted[occurrence];
         }
+        save(); rerenderCalendar();
     }, true);
 
     window.copyWorkDateTaskSafe = function (event, writerId, workId, key, sourceDate) {
