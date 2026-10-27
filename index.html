@@ -4387,6 +4387,13 @@ function livMonthlyDates(start,end,mode,day,week,weekday) {
     const span=(ey-sy)*12+em-sm;if(span>119)throw Error('등록 기간은 최대 10년입니다.');
     if(mode==='date'&&(!Number.isInteger(day)||day<1||day>31))throw Error('날짜는 1~31일로 입력해 주세요.');
     if(mode==='weekday'&&(!Number.isInteger(week)||week<1||week>5||!Number.isInteger(weekday)||weekday<0||weekday>6))throw Error('요일 반복 조건을 확인해 주세요.');
+    if(mode==='weekly') {
+        if(!Number.isInteger(weekday)||weekday<0||weekday>6)throw Error('요일을 선택해 주세요.');
+        const date=new Date(start+'T00:00:00Z');
+        date.setUTCDate(date.getUTCDate()+(weekday-date.getUTCDay()+7)%7);
+        while(date.toISOString().slice(0,10)<=end){dates.push(date.toISOString().slice(0,10));date.setUTCDate(date.getUTCDate()+7)}
+        return dates;
+    }
     for(let offset=0;offset<=span;offset++){
         const first=new Date(Date.UTC(sy,sm-1+offset,1));const year=first.getUTCFullYear(),month=first.getUTCMonth();
         const n=mode==='date'?day:1+(weekday-first.getUTCDay()+7)%7+(week-1)*7;
@@ -4399,11 +4406,11 @@ function openLivMonthlyTaskDialog(){
     const old=document.getElementById('liv-monthly-dialog');if(old)old.remove();
     const dialog=document.createElement('dialog');dialog.id='liv-monthly-dialog';dialog.style.cssText='width:min(460px,90vw);max-height:85vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:22px';
     const today=getKstDateString();
-    dialog.innerHTML=`<h3>월 반복 일정 한 번에 등록</h3>
+    dialog.innerHTML=`<h3>반복 일정 한 번에 등록</h3>
     <p>선택한 기간의 일정을 미리 만듭니다. 각 일정은 따로 완료·삭제할 수 있어요.</p>
     <label>시작일 <input type="date" id="liv-repeat-start"></label><br><br>
     <label>종료일 <input type="date" id="liv-repeat-end"></label><br><br>
-    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option></select></label><br><br>
+    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option><option value="weekly">매주 무슨 요일</option></select></label><br><br>
     <div id="liv-repeat-date-row"><label>매월 <input id="liv-repeat-day" type="number" min="1" max="31" style="width:65px">일</label></div>
     <div id="liv-repeat-week-row" hidden><select id="liv-repeat-week">${[1,2,3,4,5].map(n=>`<option value="${n}">${n}번째</option>`).join('')}</select> <select id="liv-repeat-weekday">${['일','월','화','수','목','금','토'].map((d,i)=>`<option value="${i}">${d}요일</option>`).join('')}</select></div>
     <p style="font-size:12px;color:#666">해당 날짜나 5번째 요일이 없는 달은 건너뜁니다. ‘두 번째 월요일’은 그달의 두 번째 월요일을 뜻해요.</p>
@@ -4413,7 +4420,7 @@ function openLivMonthlyTaskDialog(){
     field('start').value=document.getElementById('dash-date').value||today;
     const start=field('start').value;field('end').value=start.slice(0,4)+'-12-31';field('day').value=Number(start.slice(8));
     const getDates=()=>livMonthlyDates(field('start').value,field('end').value,field('mode').value,Number(field('day').value),Number(field('week').value),Number(field('weekday').value));
-    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value!=='weekday';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
+    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value==='date';field('week').hidden=field('mode').value==='weekly';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
     dialog.addEventListener('input',preview);dialog.addEventListener('change',preview);field('close').onclick=()=>dialog.close();
     field('submit').onclick=async()=>{
         const title=document.getElementById('dash-title').value.trim(),writerId=document.getElementById('dash-writer').value,type=document.getElementById('dash-type').value;
@@ -4430,9 +4437,40 @@ function openLivMonthlyTaskDialog(){
     };
     preview();dialog.showModal();
 }
-(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='월 반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
+(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
 </script>
 
+<script>
+
+function livRemoveRecurringTasks(tasks, selectedId, all) {
+    const selected=tasks.find(t=>String(t.id)===String(selectedId));
+    if(!selected || !selected.recurrenceGroup) return tasks;
+    return tasks.filter(t=>all ? t.recurrenceGroup!==selected.recurrenceGroup : String(t.id)!==String(selectedId));
+}
+function openLivRecurringActions(taskId,view) {
+    const task=livData.extraTasks.find(t=>String(t.id)===String(taskId));if(!task)return;
+    const old=document.getElementById('liv-recurring-actions');if(old)old.remove();
+    const dialog=document.createElement('dialog');dialog.id='liv-recurring-actions';dialog.style.cssText='max-width:90vw;border:1px solid #ddd;border-radius:12px;padding:22px';
+    const title=document.createElement('h3');title.textContent=task.title;dialog.appendChild(title);
+    const description=document.createElement('p');description.textContent=task.date+' · 같은 반복 일정 '+livData.extraTasks.filter(t=>t.recurrenceGroup===task.recurrenceGroup).length+'개';dialog.appendChild(description);
+    const action=(label,callback)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=callback;dialog.appendChild(b)};
+    action(task.completed?'완료 해제':'완료',async()=>{task.completed=!task.completed;if(await saveData()){dialog.close();changeView(view)}});
+    const remove=async all=>{
+        if(!confirm(all?'같은 반복으로 등록한 일정 전체를 삭제할까요? 완료된 일정도 포함됩니다.':'이 날짜의 일정 하나만 삭제할까요?'))return;
+        livData.extraTasks=livRemoveRecurringTasks(livData.extraTasks,task.id,all);
+        if(await saveData()){dialog.close();changeView(view)}
+    };
+    action('이 일정만 삭제',()=>remove(false));action('반복 일정 전체 삭제',()=>remove(true));action('닫기',()=>dialog.close());
+    document.body.appendChild(dialog);dialog.showModal();
+}
+(function(){const original=window.handleExtraTaskClick;window.handleExtraTaskClick=function(event,id,view){
+    const task=(livData.extraTasks||[]).find(t=>String(t.id)===String(id));
+    if(!task || !task.recurrenceGroup)return original(event,id,view);
+    if(event)event.stopPropagation();clearTimeout(extraTaskClickTimer);
+    extraTaskClickTimer=setTimeout(()=>openLivRecurringActions(id,view),350);
+};})();
+
+</script>
 </body> 바로 위에 붙이기
 
      이 코드 하나에 포함된 기능:
@@ -6528,7 +6566,7 @@ function openLivMonthlyTaskDialog(){
         }
         const extraTarget = getExtraTarget(item, date);
         const task = extraTarget && getExtra(extraTarget.extraId);
-        return isCopiedExtra(task) ? { item, task } : null;
+        return isCopiedExtra(task) && !task.recurrenceGroup ? { item, task } : null;
     }
     let copiedMenuTimer;
     function finishCopiedSchedule(found) {
@@ -6709,6 +6747,13 @@ function livMonthlyDates(start,end,mode,day,week,weekday) {
     const span=(ey-sy)*12+em-sm;if(span>119)throw Error('등록 기간은 최대 10년입니다.');
     if(mode==='date'&&(!Number.isInteger(day)||day<1||day>31))throw Error('날짜는 1~31일로 입력해 주세요.');
     if(mode==='weekday'&&(!Number.isInteger(week)||week<1||week>5||!Number.isInteger(weekday)||weekday<0||weekday>6))throw Error('요일 반복 조건을 확인해 주세요.');
+    if(mode==='weekly') {
+        if(!Number.isInteger(weekday)||weekday<0||weekday>6)throw Error('요일을 선택해 주세요.');
+        const date=new Date(start+'T00:00:00Z');
+        date.setUTCDate(date.getUTCDate()+(weekday-date.getUTCDay()+7)%7);
+        while(date.toISOString().slice(0,10)<=end){dates.push(date.toISOString().slice(0,10));date.setUTCDate(date.getUTCDate()+7)}
+        return dates;
+    }
     for(let offset=0;offset<=span;offset++){
         const first=new Date(Date.UTC(sy,sm-1+offset,1));const year=first.getUTCFullYear(),month=first.getUTCMonth();
         const n=mode==='date'?day:1+(weekday-first.getUTCDay()+7)%7+(week-1)*7;
@@ -6721,11 +6766,11 @@ function openLivMonthlyTaskDialog(){
     const old=document.getElementById('liv-monthly-dialog');if(old)old.remove();
     const dialog=document.createElement('dialog');dialog.id='liv-monthly-dialog';dialog.style.cssText='width:min(460px,90vw);max-height:85vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:22px';
     const today=getKstDateString();
-    dialog.innerHTML=`<h3>월 반복 일정 한 번에 등록</h3>
+    dialog.innerHTML=`<h3>반복 일정 한 번에 등록</h3>
     <p>선택한 기간의 일정을 미리 만듭니다. 각 일정은 따로 완료·삭제할 수 있어요.</p>
     <label>시작일 <input type="date" id="liv-repeat-start"></label><br><br>
     <label>종료일 <input type="date" id="liv-repeat-end"></label><br><br>
-    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option></select></label><br><br>
+    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option><option value="weekly">매주 무슨 요일</option></select></label><br><br>
     <div id="liv-repeat-date-row"><label>매월 <input id="liv-repeat-day" type="number" min="1" max="31" style="width:65px">일</label></div>
     <div id="liv-repeat-week-row" hidden><select id="liv-repeat-week">${[1,2,3,4,5].map(n=>`<option value="${n}">${n}번째</option>`).join('')}</select> <select id="liv-repeat-weekday">${['일','월','화','수','목','금','토'].map((d,i)=>`<option value="${i}">${d}요일</option>`).join('')}</select></div>
     <p style="font-size:12px;color:#666">해당 날짜나 5번째 요일이 없는 달은 건너뜁니다. ‘두 번째 월요일’은 그달의 두 번째 월요일을 뜻해요.</p>
@@ -6735,7 +6780,7 @@ function openLivMonthlyTaskDialog(){
     field('start').value=document.getElementById('dash-date').value||today;
     const start=field('start').value;field('end').value=start.slice(0,4)+'-12-31';field('day').value=Number(start.slice(8));
     const getDates=()=>livMonthlyDates(field('start').value,field('end').value,field('mode').value,Number(field('day').value),Number(field('week').value),Number(field('weekday').value));
-    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value!=='weekday';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
+    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value==='date';field('week').hidden=field('mode').value==='weekly';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
     dialog.addEventListener('input',preview);dialog.addEventListener('change',preview);field('close').onclick=()=>dialog.close();
     field('submit').onclick=async()=>{
         const title=document.getElementById('dash-title').value.trim(),writerId=document.getElementById('dash-writer').value,type=document.getElementById('dash-type').value;
@@ -6752,9 +6797,40 @@ function openLivMonthlyTaskDialog(){
     };
     preview();dialog.showModal();
 }
-(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='월 반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
+(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
 </script>
 
+<script>
+
+function livRemoveRecurringTasks(tasks, selectedId, all) {
+    const selected=tasks.find(t=>String(t.id)===String(selectedId));
+    if(!selected || !selected.recurrenceGroup) return tasks;
+    return tasks.filter(t=>all ? t.recurrenceGroup!==selected.recurrenceGroup : String(t.id)!==String(selectedId));
+}
+function openLivRecurringActions(taskId,view) {
+    const task=livData.extraTasks.find(t=>String(t.id)===String(taskId));if(!task)return;
+    const old=document.getElementById('liv-recurring-actions');if(old)old.remove();
+    const dialog=document.createElement('dialog');dialog.id='liv-recurring-actions';dialog.style.cssText='max-width:90vw;border:1px solid #ddd;border-radius:12px;padding:22px';
+    const title=document.createElement('h3');title.textContent=task.title;dialog.appendChild(title);
+    const description=document.createElement('p');description.textContent=task.date+' · 같은 반복 일정 '+livData.extraTasks.filter(t=>t.recurrenceGroup===task.recurrenceGroup).length+'개';dialog.appendChild(description);
+    const action=(label,callback)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=callback;dialog.appendChild(b)};
+    action(task.completed?'완료 해제':'완료',async()=>{task.completed=!task.completed;if(await saveData()){dialog.close();changeView(view)}});
+    const remove=async all=>{
+        if(!confirm(all?'같은 반복으로 등록한 일정 전체를 삭제할까요? 완료된 일정도 포함됩니다.':'이 날짜의 일정 하나만 삭제할까요?'))return;
+        livData.extraTasks=livRemoveRecurringTasks(livData.extraTasks,task.id,all);
+        if(await saveData()){dialog.close();changeView(view)}
+    };
+    action('이 일정만 삭제',()=>remove(false));action('반복 일정 전체 삭제',()=>remove(true));action('닫기',()=>dialog.close());
+    document.body.appendChild(dialog);dialog.showModal();
+}
+(function(){const original=window.handleExtraTaskClick;window.handleExtraTaskClick=function(event,id,view){
+    const task=(livData.extraTasks||[]).find(t=>String(t.id)===String(id));
+    if(!task || !task.recurrenceGroup)return original(event,id,view);
+    if(event)event.stopPropagation();clearTimeout(extraTaskClickTimer);
+    extraTaskClickTimer=setTimeout(()=>openLivRecurringActions(id,view),350);
+};})();
+
+</script>
 </body> 바로 위에 붙이기
 
      이 코드 하나에 포함된 기능:
@@ -8850,7 +8926,7 @@ function openLivMonthlyTaskDialog(){
         }
         const extraTarget = getExtraTarget(item, date);
         const task = extraTarget && getExtra(extraTarget.extraId);
-        return isCopiedExtra(task) ? { item, task } : null;
+        return isCopiedExtra(task) && !task.recurrenceGroup ? { item, task } : null;
     }
     let copiedMenuTimer;
     function finishCopiedSchedule(found) {
@@ -9597,6 +9673,13 @@ function livMonthlyDates(start,end,mode,day,week,weekday) {
     const span=(ey-sy)*12+em-sm;if(span>119)throw Error('등록 기간은 최대 10년입니다.');
     if(mode==='date'&&(!Number.isInteger(day)||day<1||day>31))throw Error('날짜는 1~31일로 입력해 주세요.');
     if(mode==='weekday'&&(!Number.isInteger(week)||week<1||week>5||!Number.isInteger(weekday)||weekday<0||weekday>6))throw Error('요일 반복 조건을 확인해 주세요.');
+    if(mode==='weekly') {
+        if(!Number.isInteger(weekday)||weekday<0||weekday>6)throw Error('요일을 선택해 주세요.');
+        const date=new Date(start+'T00:00:00Z');
+        date.setUTCDate(date.getUTCDate()+(weekday-date.getUTCDay()+7)%7);
+        while(date.toISOString().slice(0,10)<=end){dates.push(date.toISOString().slice(0,10));date.setUTCDate(date.getUTCDate()+7)}
+        return dates;
+    }
     for(let offset=0;offset<=span;offset++){
         const first=new Date(Date.UTC(sy,sm-1+offset,1));const year=first.getUTCFullYear(),month=first.getUTCMonth();
         const n=mode==='date'?day:1+(weekday-first.getUTCDay()+7)%7+(week-1)*7;
@@ -9609,11 +9692,11 @@ function openLivMonthlyTaskDialog(){
     const old=document.getElementById('liv-monthly-dialog');if(old)old.remove();
     const dialog=document.createElement('dialog');dialog.id='liv-monthly-dialog';dialog.style.cssText='width:min(460px,90vw);max-height:85vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:22px';
     const today=getKstDateString();
-    dialog.innerHTML=`<h3>월 반복 일정 한 번에 등록</h3>
+    dialog.innerHTML=`<h3>반복 일정 한 번에 등록</h3>
     <p>선택한 기간의 일정을 미리 만듭니다. 각 일정은 따로 완료·삭제할 수 있어요.</p>
     <label>시작일 <input type="date" id="liv-repeat-start"></label><br><br>
     <label>종료일 <input type="date" id="liv-repeat-end"></label><br><br>
-    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option></select></label><br><br>
+    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option><option value="weekly">매주 무슨 요일</option></select></label><br><br>
     <div id="liv-repeat-date-row"><label>매월 <input id="liv-repeat-day" type="number" min="1" max="31" style="width:65px">일</label></div>
     <div id="liv-repeat-week-row" hidden><select id="liv-repeat-week">${[1,2,3,4,5].map(n=>`<option value="${n}">${n}번째</option>`).join('')}</select> <select id="liv-repeat-weekday">${['일','월','화','수','목','금','토'].map((d,i)=>`<option value="${i}">${d}요일</option>`).join('')}</select></div>
     <p style="font-size:12px;color:#666">해당 날짜나 5번째 요일이 없는 달은 건너뜁니다. ‘두 번째 월요일’은 그달의 두 번째 월요일을 뜻해요.</p>
@@ -9623,7 +9706,7 @@ function openLivMonthlyTaskDialog(){
     field('start').value=document.getElementById('dash-date').value||today;
     const start=field('start').value;field('end').value=start.slice(0,4)+'-12-31';field('day').value=Number(start.slice(8));
     const getDates=()=>livMonthlyDates(field('start').value,field('end').value,field('mode').value,Number(field('day').value),Number(field('week').value),Number(field('weekday').value));
-    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value!=='weekday';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
+    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value==='date';field('week').hidden=field('mode').value==='weekly';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
     dialog.addEventListener('input',preview);dialog.addEventListener('change',preview);field('close').onclick=()=>dialog.close();
     field('submit').onclick=async()=>{
         const title=document.getElementById('dash-title').value.trim(),writerId=document.getElementById('dash-writer').value,type=document.getElementById('dash-type').value;
@@ -9640,9 +9723,40 @@ function openLivMonthlyTaskDialog(){
     };
     preview();dialog.showModal();
 }
-(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='월 반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
+(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
 </script>
 
+<script>
+
+function livRemoveRecurringTasks(tasks, selectedId, all) {
+    const selected=tasks.find(t=>String(t.id)===String(selectedId));
+    if(!selected || !selected.recurrenceGroup) return tasks;
+    return tasks.filter(t=>all ? t.recurrenceGroup!==selected.recurrenceGroup : String(t.id)!==String(selectedId));
+}
+function openLivRecurringActions(taskId,view) {
+    const task=livData.extraTasks.find(t=>String(t.id)===String(taskId));if(!task)return;
+    const old=document.getElementById('liv-recurring-actions');if(old)old.remove();
+    const dialog=document.createElement('dialog');dialog.id='liv-recurring-actions';dialog.style.cssText='max-width:90vw;border:1px solid #ddd;border-radius:12px;padding:22px';
+    const title=document.createElement('h3');title.textContent=task.title;dialog.appendChild(title);
+    const description=document.createElement('p');description.textContent=task.date+' · 같은 반복 일정 '+livData.extraTasks.filter(t=>t.recurrenceGroup===task.recurrenceGroup).length+'개';dialog.appendChild(description);
+    const action=(label,callback)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=callback;dialog.appendChild(b)};
+    action(task.completed?'완료 해제':'완료',async()=>{task.completed=!task.completed;if(await saveData()){dialog.close();changeView(view)}});
+    const remove=async all=>{
+        if(!confirm(all?'같은 반복으로 등록한 일정 전체를 삭제할까요? 완료된 일정도 포함됩니다.':'이 날짜의 일정 하나만 삭제할까요?'))return;
+        livData.extraTasks=livRemoveRecurringTasks(livData.extraTasks,task.id,all);
+        if(await saveData()){dialog.close();changeView(view)}
+    };
+    action('이 일정만 삭제',()=>remove(false));action('반복 일정 전체 삭제',()=>remove(true));action('닫기',()=>dialog.close());
+    document.body.appendChild(dialog);dialog.showModal();
+}
+(function(){const original=window.handleExtraTaskClick;window.handleExtraTaskClick=function(event,id,view){
+    const task=(livData.extraTasks||[]).find(t=>String(t.id)===String(id));
+    if(!task || !task.recurrenceGroup)return original(event,id,view);
+    if(event)event.stopPropagation();clearTimeout(extraTaskClickTimer);
+    extraTaskClickTimer=setTimeout(()=>openLivRecurringActions(id,view),350);
+};})();
+
+</script>
 </body> 바로 위
 
      핵심 수정:
@@ -9926,6 +10040,13 @@ function livMonthlyDates(start,end,mode,day,week,weekday) {
     const span=(ey-sy)*12+em-sm;if(span>119)throw Error('등록 기간은 최대 10년입니다.');
     if(mode==='date'&&(!Number.isInteger(day)||day<1||day>31))throw Error('날짜는 1~31일로 입력해 주세요.');
     if(mode==='weekday'&&(!Number.isInteger(week)||week<1||week>5||!Number.isInteger(weekday)||weekday<0||weekday>6))throw Error('요일 반복 조건을 확인해 주세요.');
+    if(mode==='weekly') {
+        if(!Number.isInteger(weekday)||weekday<0||weekday>6)throw Error('요일을 선택해 주세요.');
+        const date=new Date(start+'T00:00:00Z');
+        date.setUTCDate(date.getUTCDate()+(weekday-date.getUTCDay()+7)%7);
+        while(date.toISOString().slice(0,10)<=end){dates.push(date.toISOString().slice(0,10));date.setUTCDate(date.getUTCDate()+7)}
+        return dates;
+    }
     for(let offset=0;offset<=span;offset++){
         const first=new Date(Date.UTC(sy,sm-1+offset,1));const year=first.getUTCFullYear(),month=first.getUTCMonth();
         const n=mode==='date'?day:1+(weekday-first.getUTCDay()+7)%7+(week-1)*7;
@@ -9938,11 +10059,11 @@ function openLivMonthlyTaskDialog(){
     const old=document.getElementById('liv-monthly-dialog');if(old)old.remove();
     const dialog=document.createElement('dialog');dialog.id='liv-monthly-dialog';dialog.style.cssText='width:min(460px,90vw);max-height:85vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:22px';
     const today=getKstDateString();
-    dialog.innerHTML=`<h3>월 반복 일정 한 번에 등록</h3>
+    dialog.innerHTML=`<h3>반복 일정 한 번에 등록</h3>
     <p>선택한 기간의 일정을 미리 만듭니다. 각 일정은 따로 완료·삭제할 수 있어요.</p>
     <label>시작일 <input type="date" id="liv-repeat-start"></label><br><br>
     <label>종료일 <input type="date" id="liv-repeat-end"></label><br><br>
-    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option></select></label><br><br>
+    <label>반복 방식 <select id="liv-repeat-mode"><option value="date">매월 같은 날짜</option><option value="weekday">매월 몇째 주 무슨 요일</option><option value="weekly">매주 무슨 요일</option></select></label><br><br>
     <div id="liv-repeat-date-row"><label>매월 <input id="liv-repeat-day" type="number" min="1" max="31" style="width:65px">일</label></div>
     <div id="liv-repeat-week-row" hidden><select id="liv-repeat-week">${[1,2,3,4,5].map(n=>`<option value="${n}">${n}번째</option>`).join('')}</select> <select id="liv-repeat-weekday">${['일','월','화','수','목','금','토'].map((d,i)=>`<option value="${i}">${d}요일</option>`).join('')}</select></div>
     <p style="font-size:12px;color:#666">해당 날짜나 5번째 요일이 없는 달은 건너뜁니다. ‘두 번째 월요일’은 그달의 두 번째 월요일을 뜻해요.</p>
@@ -9952,7 +10073,7 @@ function openLivMonthlyTaskDialog(){
     field('start').value=document.getElementById('dash-date').value||today;
     const start=field('start').value;field('end').value=start.slice(0,4)+'-12-31';field('day').value=Number(start.slice(8));
     const getDates=()=>livMonthlyDates(field('start').value,field('end').value,field('mode').value,Number(field('day').value),Number(field('week').value),Number(field('weekday').value));
-    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value!=='weekday';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
+    function preview(){field('date-row').hidden=field('mode').value!=='date';field('week-row').hidden=field('mode').value==='date';field('week').hidden=field('mode').value==='weekly';try{const dates=getDates();field('preview').textContent=dates.length+'개 일정: '+dates.join(', ')}catch(e){field('preview').textContent=e.message}}
     dialog.addEventListener('input',preview);dialog.addEventListener('change',preview);field('close').onclick=()=>dialog.close();
     field('submit').onclick=async()=>{
         const title=document.getElementById('dash-title').value.trim(),writerId=document.getElementById('dash-writer').value,type=document.getElementById('dash-type').value;
@@ -9969,8 +10090,39 @@ function openLivMonthlyTaskDialog(){
     };
     preview();dialog.showModal();
 }
-(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='월 반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
+(function(){const original=window.renderDashboard;window.renderDashboard=function(container){original(container);const adder=container.querySelector('.schedule-adder');if(adder){adder.style.flexWrap='wrap';const button=document.createElement('button');button.className='btn';button.textContent='반복 등록';button.onclick=openLivMonthlyTaskDialog;adder.appendChild(button)}}})();
 </script>
 
+<script>
+
+function livRemoveRecurringTasks(tasks, selectedId, all) {
+    const selected=tasks.find(t=>String(t.id)===String(selectedId));
+    if(!selected || !selected.recurrenceGroup) return tasks;
+    return tasks.filter(t=>all ? t.recurrenceGroup!==selected.recurrenceGroup : String(t.id)!==String(selectedId));
+}
+function openLivRecurringActions(taskId,view) {
+    const task=livData.extraTasks.find(t=>String(t.id)===String(taskId));if(!task)return;
+    const old=document.getElementById('liv-recurring-actions');if(old)old.remove();
+    const dialog=document.createElement('dialog');dialog.id='liv-recurring-actions';dialog.style.cssText='max-width:90vw;border:1px solid #ddd;border-radius:12px;padding:22px';
+    const title=document.createElement('h3');title.textContent=task.title;dialog.appendChild(title);
+    const description=document.createElement('p');description.textContent=task.date+' · 같은 반복 일정 '+livData.extraTasks.filter(t=>t.recurrenceGroup===task.recurrenceGroup).length+'개';dialog.appendChild(description);
+    const action=(label,callback)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=callback;dialog.appendChild(b)};
+    action(task.completed?'완료 해제':'완료',async()=>{task.completed=!task.completed;if(await saveData()){dialog.close();changeView(view)}});
+    const remove=async all=>{
+        if(!confirm(all?'같은 반복으로 등록한 일정 전체를 삭제할까요? 완료된 일정도 포함됩니다.':'이 날짜의 일정 하나만 삭제할까요?'))return;
+        livData.extraTasks=livRemoveRecurringTasks(livData.extraTasks,task.id,all);
+        if(await saveData()){dialog.close();changeView(view)}
+    };
+    action('이 일정만 삭제',()=>remove(false));action('반복 일정 전체 삭제',()=>remove(true));action('닫기',()=>dialog.close());
+    document.body.appendChild(dialog);dialog.showModal();
+}
+(function(){const original=window.handleExtraTaskClick;window.handleExtraTaskClick=function(event,id,view){
+    const task=(livData.extraTasks||[]).find(t=>String(t.id)===String(id));
+    if(!task || !task.recurrenceGroup)return original(event,id,view);
+    if(event)event.stopPropagation();clearTimeout(extraTaskClickTimer);
+    extraTaskClickTimer=setTimeout(()=>openLivRecurringActions(id,view),350);
+};})();
+
+</script>
 </body>
 </html>
