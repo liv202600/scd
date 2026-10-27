@@ -1705,7 +1705,7 @@ function getSalesAggregates() { if(!livData.salesRecords) livData.salesRecords=[
 function toggleSalesMonthSection(month, section) { const el=document.getElementById(`sales-${section}-${month}`); if(el) el.classList.toggle('show'); }
 function openSalesDetailModal(month) { const data=getSalesAggregates().byMonth[month]; if(!data) return; const works=Object.entries(data.works).sort((a,b)=>b[1]-a[1]); document.getElementById('sales-detail-title').innerText=`${month} 작품별 매출 상세`; document.getElementById('sales-detail-body').innerHTML=`<div class="sales-metrics" style="margin-bottom:14px;"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${formatWon(data.sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${formatWon(data.tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${formatWon(data.author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${formatWon(data.profit)}</div></div></div><div class="card" style="padding:0; margin:0; box-shadow:none;"><div style="padding:14px 16px; border-bottom:1px solid #eee; font-weight:800;">작품별 정산액 합계</div>${works.length ? works.map(([t,v])=>`<div style="display:flex; justify-content:space-between; gap:12px; padding:12px 16px; border-top:1px solid #f2f2f2;"><span>${escapeHtml(t)}</span><b>${formatWon(v)}</b></div>`).join('') : '<div style="padding:16px; color:#888;">추출된 작품별 데이터가 없습니다.</div>'}</div>`; document.getElementById('sales-detail-modal').classList.add('show'); }
 function closeSalesDetailModal() { document.getElementById('sales-detail-modal').classList.remove('show'); }
-function renderSales(c) { gwSetupUi(); if(!livData.salesRecords) livData.salesRecords=[]; const {totals,byMonth}=getSalesAggregates(); const chartMonths=Object.keys(byMonth).sort(); const monthKeys=[...chartMonths].sort((a,b)=>b.localeCompare(a)); c.innerHTML=`<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;"><div><h2 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">매출</h2><div style="font-size:0.85rem; color:#666;">작가별 정산서 PDF를 넣으면 월별 전체 매출, 원천징수, 작가 인세, 출판사 이익을 자동 집계합니다. 계산은 정산액 합계 - 원천징수 - 작가 인세 기준으로 다시 한 번 교차검증합니다.</div></div><input type="file" accept="application/pdf" multiple onchange="importSettlementPdfs(this.files)" class="input-text" style="height:auto!important; padding:8px; max-width:340px;"></div></div><div class="sales-summary-grid"><div class="sales-summary-box"><div class="sales-summary-label">전체 매출</div><div class="sales-summary-value">${formatWon(totals.sales)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">원천징수</div><div class="sales-summary-value">${formatWon(totals.tax)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">작가님 인세</div><div class="sales-summary-value">${formatWon(totals.author)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">출판사 이익</div><div class="sales-summary-value" style="color:var(--main-pink);">${formatWon(totals.profit)}</div></div></div><div class="card"><h3 style="margin-top:0;">월별 성장세</h3><div class="sales-chart-wrap"><canvas id="sales-chart" height="280"></canvas></div></div><div class="card"><h3 style="margin-top:0;">월별 내역</h3>${monthKeys.length ? monthKeys.map(k => `<div class="sales-month-card"><div class="sales-month-head"><div><div style="font-size:1.08rem; font-weight:900; color:var(--main-pink);">${k}</div><div style="font-size:.78rem; color:#777; margin-top:4px;">최신 월이 위에 표시됩니다.</div></div><div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-del" onclick="openSalesDetailModal('${k}')">작품별 매출 보기</button><button class="btn btn-del" onclick="toggleSalesMonthSection('${k}','pdf')">PDF 목록 보기</button></div></div><div class="sales-metrics"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${formatWon(byMonth[k].sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${formatWon(byMonth[k].tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${formatWon(byMonth[k].author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${formatWon(byMonth[k].profit)}</div></div></div><div id="sales-pdf-${k}" class="sales-toggle-list">${byMonth[k].records.map(r => `<div class="sales-file-item"><div><b>${escapeHtml(r.fileName)}</b><div style="font-size:.78rem; color:#666;">${escapeHtml(r.author||'')} / 정산액 합계 ${formatWon(r.totalSettlement)} / 원천징수 ${formatWon(r.tax)} / 작가 인세 ${formatWon(r.authorPayout)}</div></div><button class="btn-del" onclick="deleteSalesRecord(${r.id})">삭제</button></div>`).join('')}</div></div>`).join('') : '<div style="color:#888; padding:20px 0;">등록된 매출 PDF가 없습니다.</div>'}</div>`; drawSalesChart(chartMonths,byMonth); }
+function renderSales(c) { gwSetupUi(); if(!livData.salesRecords) livData.salesRecords=[]; const {totals,byMonth}=getSalesAggregates(); const chartMonths=Object.keys(byMonth).sort(); const monthKeys=[...chartMonths].sort((a,b)=>b.localeCompare(a)); c.innerHTML=`<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;"><div><h2 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">매출</h2><div style="font-size:0.85rem; color:#666;">작가별 정산서 PDF를 넣으면 월별 전체 매출, 원천징수, 작가 인세, 출판사 이익을 자동 집계합니다. 계산은 정산액 합계 - 원천징수 - 작가 인세 기준으로 다시 한 번 교차검증합니다.</div></div><input type="file" accept="application/pdf" multiple onchange="importSettlementPdfs(this.files)" class="input-text" style="height:auto!important; padding:8px; max-width:340px;"></div></div><div class="sales-summary-grid"><div class="sales-summary-box"><div class="sales-summary-label">전체 매출</div><div class="sales-summary-value">${formatWon(totals.sales)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">원천징수</div><div class="sales-summary-value">${formatWon(totals.tax)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">작가님 인세</div><div class="sales-summary-value">${formatWon(totals.author)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">출판사 이익</div><div class="sales-summary-value" style="color:var(--main-pink);">${formatWon(totals.profit)}</div></div></div><div class="card"><h3 style="margin-top:0;">월별 성장세</h3><div class="sales-chart-wrap"><canvas id="sales-chart" height="280"></canvas></div></div><div class="card"><h3 style="margin-top:0;">월별 내역</h3>${monthKeys.length ? monthKeys.map(k => `<div class="sales-month-card"><div class="sales-month-head"><div><div style="font-size:1.08rem; font-weight:900; color:var(--main-pink);">${k}</div><div style="font-size:.78rem; color:#777; margin-top:4px;">최신 월이 위에 표시됩니다.</div></div><div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-del" onclick="openSalesDetailModal('${k}')">작품별 매출 보기</button><button class="btn btn-del" onclick="toggleSalesMonthSection('${k}','pdf')">PDF 목록 보기</button><button class="btn btn-del" onclick="deleteSalesMonth('${k}')">이 월 PDF 일괄 삭제</button></div></div><div class="sales-metrics"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${formatWon(byMonth[k].sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${formatWon(byMonth[k].tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${formatWon(byMonth[k].author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${formatWon(byMonth[k].profit)}</div></div></div><div id="sales-pdf-${k}" class="sales-toggle-list">${byMonth[k].records.map(r => `<div class="sales-file-item"><div><b>${escapeHtml(r.fileName)}</b><div style="font-size:.78rem; color:#666;">${escapeHtml(r.author||'')} / 정산액 합계 ${formatWon(r.totalSettlement)} / 원천징수 ${formatWon(r.tax)} / 작가 인세 ${formatWon(r.authorPayout)}</div></div><button class="btn-del" onclick="deleteSalesRecord(${r.id})">삭제</button></div>`).join('')}</div></div>`).join('') : '<div style="color:#888; padding:20px 0;">등록된 매출 PDF가 없습니다.</div>'}</div>`; drawSalesChart(chartMonths,byMonth); }
 function deleteSalesRecord(id) { if(!confirm('삭제할까요?')) return; livData.salesRecords=(livData.salesRecords||[]).filter(r=>r.id!==id); saveData(); changeView('sales'); }
 async function importSettlementPdfs(files) { if(!files||!files.length) return; pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; for(const file of files){ const text=await extractPdfText(file); const rec=parseSettlementPdfText(text,file.name); if(rec) livData.salesRecords.push(rec); } saveData(); changeView('sales'); }
 function parseSettlementPdfText(text,fileName) {
@@ -2045,7 +2045,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     if(!livData.salesRecords) livData.salesRecords=[];
     const data=getSalesAggregates(), totals=data.totals, byMonth=data.byMonth;
     const chartMonths=Object.keys(byMonth).sort(), monthKeys=[...chartMonths].sort((a,b)=>b.localeCompare(a));
-    c.innerHTML=`<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;"><h2 style="margin:0;">매출</h2><input type="file" accept="application/pdf" multiple onchange="importSettlementPdfs(this.files)" class="input-text" style="height:auto!important; padding:8px; max-width:340px;"></div></div><div class="sales-summary-grid"><div class="sales-summary-box"><div class="sales-summary-label">전체 매출</div><div class="sales-summary-value">${won(totals.sales)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">원천징수</div><div class="sales-summary-value">${won(totals.tax)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">작가님 인세</div><div class="sales-summary-value">${won(totals.author)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">출판사 이익</div><div class="sales-summary-value" style="color:var(--main-pink);">${won(totals.profit)}</div></div></div><div class="card"><h3 style="margin-top:0;">월별 성장세</h3><div class="sales-chart-wrap"><canvas id="sales-chart" height="280"></canvas></div></div><div class="card"><h3 style="margin-top:0;">월별 내역</h3>${monthKeys.length ? monthKeys.map(k=>`<div class="sales-month-card"><div class="sales-month-head"><div style="font-size:1.08rem; font-weight:900; color:var(--main-pink);">${k}</div><div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-del" onclick="openSalesDetailModal('${k}')">작품별 매출 보기</button><button class="btn btn-del" onclick="toggleSalesMonthSection('${k}','pdf')">PDF 목록 보기</button></div></div><div class="sales-metrics"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${won(byMonth[k].sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${won(byMonth[k].tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${won(byMonth[k].author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${won(byMonth[k].profit)}</div></div></div><div id="sales-pdf-${k}" class="sales-toggle-list">${byMonth[k].records.map(r=>`<div class="sales-file-item"><div><b>${escapeHtml(r.fileName)}</b><div style="font-size:.78rem; color:#666;">${escapeHtml(r.author||'')} / 정산액 합계 ${won(r.totalSettlement)} / 원천징수 ${won(r.tax)} / 작가 인세 ${won(r.authorPayout)}</div></div><button class="btn-del" onclick="deleteSalesRecord(${r.id})">삭제</button></div>`).join('')}</div></div>`).join('') : '<div style="color:#888; padding:20px 0;">등록된 매출 PDF가 없습니다.</div>'}</div>`;
+    c.innerHTML=`<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;"><h2 style="margin:0;">매출</h2><input type="file" accept="application/pdf" multiple onchange="importSettlementPdfs(this.files)" class="input-text" style="height:auto!important; padding:8px; max-width:340px;"></div></div><div class="sales-summary-grid"><div class="sales-summary-box"><div class="sales-summary-label">전체 매출</div><div class="sales-summary-value">${won(totals.sales)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">원천징수</div><div class="sales-summary-value">${won(totals.tax)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">작가님 인세</div><div class="sales-summary-value">${won(totals.author)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">출판사 이익</div><div class="sales-summary-value" style="color:var(--main-pink);">${won(totals.profit)}</div></div></div><div class="card"><h3 style="margin-top:0;">월별 성장세</h3><div class="sales-chart-wrap"><canvas id="sales-chart" height="280"></canvas></div></div><div class="card"><h3 style="margin-top:0;">월별 내역</h3>${monthKeys.length ? monthKeys.map(k=>`<div class="sales-month-card"><div class="sales-month-head"><div style="font-size:1.08rem; font-weight:900; color:var(--main-pink);">${k}</div><div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-del" onclick="openSalesDetailModal('${k}')">작품별 매출 보기</button><button class="btn btn-del" onclick="toggleSalesMonthSection('${k}','pdf')">PDF 목록 보기</button><button class="btn btn-del" onclick="deleteSalesMonth('${k}')">이 월 PDF 일괄 삭제</button></div></div><div class="sales-metrics"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${won(byMonth[k].sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${won(byMonth[k].tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${won(byMonth[k].author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${won(byMonth[k].profit)}</div></div></div><div id="sales-pdf-${k}" class="sales-toggle-list">${byMonth[k].records.map(r=>`<div class="sales-file-item"><div><b>${escapeHtml(r.fileName)}</b><div style="font-size:.78rem; color:#666;">${escapeHtml(r.author||'')} / 정산액 합계 ${won(r.totalSettlement)} / 원천징수 ${won(r.tax)} / 작가 인세 ${won(r.authorPayout)}</div></div><button class="btn-del" onclick="deleteSalesRecord(${r.id})">삭제</button></div>`).join('')}</div></div>`).join('') : '<div style="color:#888; padding:20px 0;">등록된 매출 PDF가 없습니다.</div>'}</div>`;
     drawSalesChart(chartMonths,byMonth);
   };
 
@@ -2253,7 +2253,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     c.innerHTML = `<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;"><h2 style="margin:0;">매출</h2><input type="file" accept="application/pdf" multiple onchange="importSettlementPdfs(this.files)" class="input-text" style="height:auto!important; padding:8px; max-width:340px;"></div></div>
       <div class="sales-summary-grid"><div class="sales-summary-box"><div class="sales-summary-label">전체 매출</div><div class="sales-summary-value">${safeWon(totals.sales)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">원천징수</div><div class="sales-summary-value">${safeWon(totals.tax)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">작가님 인세</div><div class="sales-summary-value">${safeWon(totals.author)}</div></div><div class="sales-summary-box"><div class="sales-summary-label">출판사 이익</div><div class="sales-summary-value" style="color:var(--main-pink);">${safeWon(totals.profit)}</div></div></div>
       <div class="card"><h3 style="margin-top:0;">월별 성장세</h3><div class="sales-chart-wrap"><canvas id="sales-chart" height="280"></canvas></div></div>
-      <div class="card"><h3 style="margin-top:0;">월별 내역</h3>${monthKeys.length ? monthKeys.map(k => `<div class="sales-month-card"><div class="sales-month-head"><div style="font-size:1.08rem; font-weight:900; color:var(--main-pink);">${k}</div><div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-del" onclick="openSalesDetailModal('${k}')">작품별 매출 보기</button><button class="btn btn-del" onclick="toggleSalesMonthSection('${k}','pdf')">PDF 목록 보기</button></div></div><div class="sales-metrics"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${safeWon(byMonth[k].sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${safeWon(byMonth[k].tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${safeWon(byMonth[k].author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${safeWon(byMonth[k].profit)}</div></div></div><div id="sales-pdf-${k}" class="sales-toggle-list">${byMonth[k].records.map(r => `<div class="sales-file-item"><div><b>${escapeHtml(r.fileName)}</b><div style="font-size:.78rem; color:#666;">${escapeHtml(r.author||'')} / 정산액 합계 ${safeWon(r.totalSettlement)} / 원천징수 ${safeWon(r.tax)} / 작가 인세 ${safeWon(r.authorPayout)}</div></div><button class="btn-del" onclick="deleteSalesRecord(${r.id})">삭제</button></div>`).join('')}</div></div>`).join('') : '<div style="color:#888; padding:20px 0;">등록된 매출 PDF가 없습니다.</div>'}</div>`;
+      <div class="card"><h3 style="margin-top:0;">월별 내역</h3>${monthKeys.length ? monthKeys.map(k => `<div class="sales-month-card"><div class="sales-month-head"><div style="font-size:1.08rem; font-weight:900; color:var(--main-pink);">${k}</div><div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn btn-del" onclick="openSalesDetailModal('${k}')">작품별 매출 보기</button><button class="btn btn-del" onclick="toggleSalesMonthSection('${k}','pdf')">PDF 목록 보기</button><button class="btn btn-del" onclick="deleteSalesMonth('${k}')">이 월 PDF 일괄 삭제</button></div></div><div class="sales-metrics"><div class="sales-metric-box"><div class="k">매출</div><div class="v">${safeWon(byMonth[k].sales)}</div></div><div class="sales-metric-box"><div class="k">원천징수</div><div class="v">${safeWon(byMonth[k].tax)}</div></div><div class="sales-metric-box"><div class="k">작가 인세</div><div class="v">${safeWon(byMonth[k].author)}</div></div><div class="sales-metric-box"><div class="k">출판사 이익</div><div class="v" style="color:var(--main-pink);">${safeWon(byMonth[k].profit)}</div></div></div><div id="sales-pdf-${k}" class="sales-toggle-list">${byMonth[k].records.map(r => `<div class="sales-file-item"><div><b>${escapeHtml(r.fileName)}</b><div style="font-size:.78rem; color:#666;">${escapeHtml(r.author||'')} / 정산액 합계 ${safeWon(r.totalSettlement)} / 원천징수 ${safeWon(r.tax)} / 작가 인세 ${safeWon(r.authorPayout)}</div></div><button class="btn-del" onclick="deleteSalesRecord(${r.id})">삭제</button></div>`).join('')}</div></div>`).join('') : '<div style="color:#888; padding:20px 0;">등록된 매출 PDF가 없습니다.</div>'}</div>`;
     drawSalesChart(chartMonths, byMonth);
   };
 
@@ -10255,6 +10255,109 @@ window.renderUpcoming = function(c) {
   });
   c.innerHTML = html + '</div>';
 };
+</script>
+
+<script>
+/* Monthly statement import: read printed totals, never recalculate withholding. */
+(function(){
+const legacyParser = window.parseSettlementPdfText;
+const norm = value => String(value || '').normalize('NFC').replace(/\s+/g,' ').trim();
+window.parseSettlementPdfText = function(text, fileName) {
+  text = String(text).normalize('NFC'); fileName = String(fileName).normalize('NFC');
+  if (!/지방소득세/.test(text) || !/최종\s*지급액/.test(text)) {
+    const record = legacyParser(text,fileName);
+    if (!record || !record.author || record.author === '미상' || !record.works.length || !record.totalSettlement)
+      throw new Error('정산서의 작가·작품·금액을 확인할 수 없습니다.');
+    return record;
+  }
+  const lines = text.split(/[\r\n]+/).map(norm).filter(Boolean);
+  const monthMatch = text.match(/(\d{4})년\s*(\d{1,2})월\s*정산서/)
+    || fileName.match(/(\d{2,4})년\s*(\d{1,2})월/);
+  if (!monthMatch || +monthMatch[2]<1 || +monthMatch[2]>12) throw new Error('정산월을 읽지 못했습니다.');
+  const year = monthMatch[1].length===2?'20'+monthMatch[1]:monthMatch[1];
+  const month = `${year}-${monthMatch[2].padStart(2,'0')}`;
+  const money = '(-?[\\d,]+(?:\\.\\d+)?)';
+  const summaryRe = new RegExp('^(.+?)\\s+\\d+\\s*(?:작품|건)\\s+'+money+'\\s*원\\s+'+money+'\\s*원\\s+'+money+'\\s*원\\s+'+money+'\\s*원$');
+  const summary = lines.map(line=>line.match(summaryRe)).find(Boolean);
+  if (!summary) throw new Error('상단의 최종 인세·소득세·지방소득세·지급액을 읽지 못했습니다.');
+  const amount = value => Number(value.replace(/,/g,''));
+  const author = norm(summary[1]);
+  const grossRoyalty = amount(summary[2]), incomeTax = amount(summary[3]), localTax = amount(summary[4]), authorPayout = amount(summary[5]);
+  const tax = incomeTax + localTax;
+  if (Math.abs(grossRoyalty-tax-authorPayout)>1) throw new Error('상단 인세·세금·지급액이 서로 맞지 않습니다.');
+  const token = '-?[\\d,]+(?:\\.\\d+)?(?:원)?';
+  const rowRe = new RegExp('^(.+?)\\s+((?:'+token+'\\s+){9}'+token+')\\s+(\\d+(?:\\.\\d+)?)\\s*%\\s+('+token+')$');
+  const totalRe = new RegExp('^합계\\s+((?:'+token+'\\s+){9}'+token+')\\s+-\\s+('+token+')$');
+  const read = value => amount(value.replace(/원/g,''));
+  const works = []; const totals = []; let pendingTitle = '';
+  for (const line of lines) {
+    const total = line.match(totalRe);
+    if (total) {
+      const nums = total[1].trim().split(/\s+/).map(read);
+      if (Math.abs(nums.slice(0,9).reduce((a,b)=>a+b,0)-nums[9])>1) throw new Error('합계 플랫폼 금액이 정산액과 맞지 않습니다.');
+      totals.push({sales:nums[9],royalty:read(total[2])}); pendingTitle=''; continue;
+    }
+    const row = line.match(rowRe);
+    if (row) {
+      const nums = row[2].trim().split(/\s+/).map(read);
+      if (Math.abs(nums.slice(0,9).reduce((a,b)=>a+b,0)-nums[9])>1) throw new Error('작품별 플랫폼 금액과 정산액 합계가 맞지 않습니다.');
+      works.push({title:norm(pendingTitle+' '+row[1]),sales:nums[9],royaltyRate:+row[3],grossRoyalty:read(row[4]),platformSales:nums.slice(0,9)});
+      pendingTitle=''; continue;
+    }
+    if (/정산서|기준월|정산일|작가명|작품 수|최종 인세|최종 지급액|소득세|작품명|시리즈|네이버|출처|문의|원 단위/.test(line) || summaryRe.test(line) || /^\d+$/.test(line)) { pendingTitle=''; continue; }
+    if (/^합계/.test(line)) throw new Error('합계 행을 읽지 못했습니다.');
+    pendingTitle = norm(pendingTitle+' '+line);
+  }
+  if (!works.length || !totals.length) throw new Error('작품별 정산 표를 읽지 못했습니다.');
+  const worksSettlementSum = works.reduce((sum,w)=>sum+w.sales,0);
+  // Multi-page statements may repeat an overall total; choose the matching printed total.
+  const overall = totals.find(t=>Math.abs(t.sales-worksSettlementSum)<=1 && Math.abs(t.royalty-grossRoyalty)<=1);
+  if (!overall) throw new Error('작품별 금액과 정산서 합계가 맞지 않습니다.');
+  const totalSettlement = overall.sales;
+  if (Math.abs(works.reduce((sum,w)=>sum+w.grossRoyalty,0)-grossRoyalty)>1) throw new Error('작품별 최종 인세와 상단 인세가 맞지 않습니다.');
+  const basis = text.match(/기준월\s*[:：]?\s*(\d{4})년\s*(\d{1,2})월/);
+  return {id:Date.now()+Math.floor(Math.random()*1000000),fileName,month,author,totalSettlement,tax,incomeTax,localTax,grossRoyalty,authorPayout,
+    profit:totalSettlement-grossRoyalty,works,worksSettlementSum,crossCheckDiff:Math.abs(totalSettlement-worksSettlementSum),
+    salesMonth:basis?`${basis[1]}-${basis[2].padStart(2,'0')}`:'',parserVersion:2,createdAt:getKstDateString()};
+};
+window.livSalesRecordKey = record => record.month+'|'+norm(record.author).toLocaleLowerCase();
+window.importSettlementPdfs = async function(files) {
+  if (!files?.length || window.__livSalesImportBusy) return;
+  if (!window.pdfjsLib) return alert('PDF 읽기 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.');
+  window.__livSalesImportBusy = true;
+  const parsed = new Map(), errors = [];
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    for (const file of Array.from(files)) {
+      try {
+        const record = parseSettlementPdfText(await extractPdfText(file),file.name);
+        const key = livSalesRecordKey(record);
+        if (parsed.has(key)) throw new Error('선택한 파일에 같은 정산월·작가의 정산서가 중복되어 있습니다.');
+        parsed.set(key,record);
+      } catch(error) { errors.push(file.name+': '+error.message); }
+    }
+    const existing = livData.salesRecords || [];
+    const replacing = existing.filter(record=>parsed.has(livSalesRecordKey(record))).length;
+    if (replacing && !confirm(`같은 정산월·작가의 기존 내역 ${replacing}건을 새 PDF 내용으로 교체할까요?`)) return;
+    if (parsed.size) {
+      livData.salesRecords = existing.filter(record=>!parsed.has(livSalesRecordKey(record))).concat([...parsed.values()]);
+      saveData(); changeView('sales');
+    }
+    alert(`PDF ${parsed.size}개 입력${replacing?' (기존 내역 교체 포함)':''}${errors.length?'\n등록하지 못한 파일:\n'+errors.join('\n'):''}`);
+  } finally {
+    window.__livSalesImportBusy = false;
+    document.querySelectorAll('input[type="file"][onchange*="importSettlementPdfs"]').forEach(input=>input.value='');
+  }
+};
+window.livSalesWithoutMonth = (records,month) => records.filter(record=>record.month!==month);
+window.deleteSalesMonth = function(month) {
+  const records = livData.salesRecords || [];
+  const count = records.filter(record=>record.month===month).length;
+  if (!count || !confirm(`${month} 정산월의 PDF 등록 내역 ${count}건을 모두 삭제할까요?\n해당 PDF에서 입력된 매출 집계도 함께 삭제됩니다.`)) return;
+  livData.salesRecords = livSalesWithoutMonth(records,month);
+  saveData(); changeView('sales');
+};
+})();
 </script>
 </body>
 </html>
