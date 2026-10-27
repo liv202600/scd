@@ -5215,12 +5215,12 @@ function openLivMonthlyTaskDialog(){
     const ORDER = [
         'settlement-top',
         'ev-pub',
-        'ev-meeting',
         'ev-proof1',
         'ev-proof2',
         'ev-cover',
-        'ev-email',
         'ev-task',
+        'ev-meeting',
+        'ev-email',
         'ev-personal'
     ];
 
@@ -6371,14 +6371,7 @@ function openLivMonthlyTaskDialog(){
     function priority(item) {
         const text = cleanText(item.textContent);
 
-        if (
-            item.classList.contains('ev-settlement') ||
-            text.includes('정산') ||
-            text.includes('정산서') ||
-            text.includes('정산금')
-        ) {
-            return 0;
-        }
+        if (item.classList.contains('ev-settlement')) return 0;
 
         for (let i = 1; i < ORDER.length; i++) {
             if (item.classList.contains(ORDER[i])) return i;
@@ -7544,12 +7537,12 @@ function openLivMonthlyTaskDialog(){
     const ORDER = [
         'settlement-top',
         'ev-pub',
-        'ev-meeting',
         'ev-proof1',
         'ev-proof2',
         'ev-cover',
-        'ev-email',
         'ev-task',
+        'ev-meeting',
+        'ev-email',
         'ev-personal'
     ];
 
@@ -8700,14 +8693,7 @@ function openLivMonthlyTaskDialog(){
     function priority(item) {
         const text = cleanText(item.textContent);
 
-        if (
-            item.classList.contains('ev-settlement') ||
-            text.includes('정산') ||
-            text.includes('정산서') ||
-            text.includes('정산금')
-        ) {
-            return 0;
-        }
+        if (item.classList.contains('ev-settlement')) return 0;
 
         for (let i = 1; i < ORDER.length; i++) {
             if (item.classList.contains(ORDER[i])) return i;
