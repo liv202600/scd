@@ -330,6 +330,8 @@
         let firebaseLoadedOnce = false;
         let lastKnownNonEmptyCount = 0;
         let loadedRemoteFingerprint = '';
+        let loadedRemoteBusinessFingerprint = '';
+        let lastAcceptedLivRevision = 0;
         let loadedBusinessFingerprint = '';
         let firebaseSaveQueue = Promise.resolve();
         let pendingLivSaves = 0;
@@ -465,18 +467,25 @@
             }
             const generation = ++livSnapshotGeneration;
             const remote = doc.data();
-            const next = validateLivData(livClone(remote));
+            const revision = Number(remote.dataRevision || 0);
+            // Older acknowledgements can arrive after a newer queued save has committed.
+            // They must never roll the screen or the comparison baseline backwards.
+            if (revision > 0 && revision < lastAcceptedLivRevision) return;
             const remoteFingerprint = livDataFingerprint(remote);
+            if (firebaseLoadedOnce && remoteFingerprint === loadedRemoteFingerprint) return;
+            const next = validateLivData(livClone(remote));
             await livDomReady;
             livMediaLoading = true;
             let mediaWarning = '';
             try { await hydrateLivMedia(next); }
             catch(e) { mediaWarning = e.message; console.warn('이미지 로딩:',e); }
-            if (generation !== livSnapshotGeneration) return;
+            if (generation !== livSnapshotGeneration || (revision > 0 && revision < lastAcceptedLivRevision)) return;
             livMediaLoading = false;
             if (pendingLivSaves || livUnsavedChanges) { deferredLivSnapshot = doc; return; }
             livData = next;
             loadedRemoteFingerprint = remoteFingerprint;
+            loadedRemoteBusinessFingerprint = livBusinessFingerprint(remote);
+            lastAcceptedLivRevision = Math.max(lastAcceptedLivRevision, revision);
             lastKnownNonEmptyCount = countImportantData(next);
             // All renderers are installed and server data is assigned before revealing the desk.
             renderSidebarWriters(); changeView(currentViewName, currentViewParam);
@@ -585,7 +594,7 @@
             } catch(e) { console.warn('저장은 완료됐으며, 오래된 복원본 정리는 다음에 재시도합니다.',e); }
         }
         async function saveDataSafely(snapshot) {
-            const expectedFingerprint = loadedRemoteFingerprint;
+            const expectedFingerprint = loadedRemoteBusinessFingerprint;
             if (!expectedFingerprint) { livStatus('서버 원본 확인 전에는 저장할 수 없습니다.',true); return false; }
             try {
                 if (lastKnownNonEmptyCount && countImportantData(snapshot) === 0) throw new Error('전체 데이터가 빈 값으로 바뀌어 저장을 차단했습니다.');
@@ -596,10 +605,15 @@
                 const restoreRef = db.collection(LIV_RESTORE_COLLECTION).doc(`${Date.now()}_${crypto.randomUUID()}`);
                 await db.runTransaction(async transaction => {
                     const remote = await transaction.get(mainRef);
-                    if (!remote.exists || livDataFingerprint(remote.data()) !== expectedFingerprint) {
+                    if (!remote.exists || livBusinessFingerprint(remote.data()) !== expectedFingerprint) {
                         const e = new Error('다른 기기의 변경과 충돌했습니다. 입력 내용은 이 화면에 남겨 두었습니다. 수동 백업 후 새로고침해 주세요.');
                         e.code = 'liv/stale-data'; throw e;
                     }
+                    // Backup receipts are not user edits. Preserve the current remote
+                    // receipt while allowing a business-identical document to be saved.
+                    if (Object.prototype.hasOwnProperty.call(remote.data(), 'driveBackupMeta')) {
+                        payload.driveBackupMeta = livClone(remote.data().driveBackupMeta);
+                    } else delete payload.driveBackupMeta;
                     payload.dataRevision = Number(remote.data().dataRevision || 0) + 1;
                     payload.lastSavedAt = new Date().toISOString();
                     payload.lastBackupTime = new Date().toLocaleString();
@@ -609,6 +623,8 @@
                     transaction.set(mainRef,payload);
                 });
                 loadedRemoteFingerprint = livDataFingerprint(payload);
+                loadedRemoteBusinessFingerprint = livBusinessFingerprint(payload);
+                lastAcceptedLivRevision = Math.max(lastAcceptedLivRevision, Number(payload.dataRevision || 0));
                 lastKnownNonEmptyCount = countImportantData(snapshot);
                 storeLivLocalBackup(payload);
                 livStatus('저장 완료 · 저장 전 복원본 보관 완료');
