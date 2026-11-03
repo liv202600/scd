@@ -251,6 +251,7 @@
             <div class="nav-item active" data-view="dashboard" onclick="changeView('dashboard')">데스크</div>
             <div class="nav-item" data-view="upcoming" onclick="changeView('upcoming')">출간 일정 네비게이터</div>
             <div class="nav-item" data-view="progress" onclick="changeView('progress')">진척도 네비게이터</div>
+            <div class="nav-item" data-view="registration" onclick="changeView('registration')">등록 네비게이터</div>
             <div class="nav-item" data-view="published" onclick="changeView('published')">출간 완료작 보관소</div>
             <div class="nav-item" data-view="calendar" onclick="changeView('calendar')">월간 스케줄러</div>
             <div class="nav-item" data-view="week-calendar" onclick="changeView('week-calendar')">주간 스케줄러</div>
@@ -747,6 +748,7 @@
             if(v==='dashboard') renderDashboard(m);
             else if(v==='upcoming') renderUpcoming(m); 
             else if(v==='progress') renderProgress(m);
+            else if(v==='registration') renderRegistrationNavigator(m);
             else if(v==='published') renderPublished(m); 
             else if(v==='calendar') renderCalendar(m);
             else if(v==='week-calendar') {
@@ -10394,6 +10396,78 @@ window.deleteSalesMonth = function(month) {
   saveData(); changeView('sales');
 };
 })();
+</script>
+
+<script>
+/* CP registration navigator: existing launch checkboxes are the source of truth. */
+let livRegistrationFilter = 'all';
+function livRegistrationDayNumber(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+    const date = new Date(value+'T00:00:00Z');
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10)===value ? date.getTime()/86400000 : null;
+}
+function getLivRegistrationGroups(writers, sites, today) {
+    const todayNumber = livRegistrationDayNumber(today);
+    const groups = sites.map(site=>({site,items:[]}));
+    for (const writer of writers || []) for (const work of writer.works || []) {
+        if (work.msStatus!=='출간 완료' && !work.completedDates?.pubDate) continue;
+        const published = livRegistrationDayNumber(work.pubDate);
+        if (published!==null && todayNumber!==null && published>todayNumber) continue;
+        const days = published!==null && todayNumber!==null ? todayNumber-published : null;
+        for (const group of groups) {
+            if (Array.isArray(work.platforms) && work.platforms.includes(group.site)) continue;
+            group.items.push({writerId:writer.id,workId:work.id,writerName:writer.name,title:work.title,
+                pubDate:published===null?'':work.pubDate,daysSincePub:days,urgent:days!==null&&days>=14});
+        }
+    }
+    for (const group of groups) group.items.sort((a,b)=>(a.pubDate||'9999').localeCompare(b.pubDate||'9999')
+        || String(a.title||'').localeCompare(String(b.title||''),'ko') || String(a.writerName||'').localeCompare(String(b.writerName||''),'ko'));
+    return groups;
+}
+function setLivRegistrationFilter(site) {
+    livRegistrationFilter=site;renderRegistrationNavigator(document.getElementById('main-view'));
+}
+function completeLivRegistration(writerId,workId,site) {
+    if (!platforms.includes(site)) return;
+    const writer=(livData.writers||[]).find(w=>String(w.id)===String(writerId));
+    const work=writer?.works?.find(w=>String(w.id)===String(workId));
+    if (!work) return;
+    if (!Array.isArray(work.platforms)) work.platforms=[];
+    if (work.platforms.includes(site)) return;
+    work.platforms.push(site);saveData();renderRegistrationNavigator(document.getElementById('main-view'));
+}
+function renderRegistrationNavigator(container) {
+    const groups=getLivRegistrationGroups(livData.writers,platforms,getKstDateString());
+    const unique=new Set(groups.flatMap(group=>group.items.map(item=>String(item.writerId)+':'+String(item.workId))));
+    const selected=livRegistrationFilter==='all'?groups:groups.filter(group=>group.site===livRegistrationFilter);
+    let html=`<h2 style="margin-bottom:12px;">등록 네비게이터</h2>
+      <div style="font-size:.85rem; color:#666; line-height:1.7; margin-bottom:18px;">론칭 플랫폼의 체크 상태를 기준으로 미등록 작품을 표시합니다. 출간일이 오래된 순이며, 출간 후 14일 이상 지나면 <b style="color:#c62828;">급건</b>입니다. 후속권은 각 권별로 확인합니다.</div>
+      <div class="card" style="padding:14px; margin-bottom:15px;"><b>미등록 작품 ${unique.size}권</b> · 플랫폼별 미등록 ${groups.reduce((sum,group)=>sum+group.items.length,0)}건</div>
+      <div style="display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px;">
+        <button class="btn ${livRegistrationFilter==='all'?'btn-black':''}" onclick="setLivRegistrationFilter('all')">전체</button>
+        ${groups.map(group=>`<button class="btn ${livRegistrationFilter===group.site?'btn-black':''}" onclick="setLivRegistrationFilter('${group.site}')">${escapeHtml(group.site)} ${group.items.length}</button>`).join('')}
+      </div>`;
+    for (const group of selected) {
+        if (!group.items.length && livRegistrationFilter==='all') continue;
+        html+=`<section class="card" style="padding:18px; margin-bottom:15px;">
+          <h3 style="margin:0 0 12px;">${escapeHtml(group.site)} · 미등록 ${group.items.length}권</h3>`;
+        if (!group.items.length) html+='<p style="color:#777;">미등록 작품이 없습니다.</p>';
+        for (const item of group.items) {
+            const color=item.urgent?'#c62828':'#333';
+            html+=`<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 0; border-top:1px solid #eee; color:${color};">
+              <div style="min-width:0; flex:1;">
+                <div style="font-size:.8rem; margin-bottom:5px;">${item.pubDate||'출간일 미입력'}${item.daysSincePub!==null?' · 출간 '+item.daysSincePub+'일 경과':''}${item.urgent?' · <b>급건</b>':''}</div>
+                <button style="border:0; background:transparent; padding:0; text-align:left; color:inherit; font:inherit; font-weight:800; cursor:pointer; overflow-wrap:anywhere;" onclick="openWorkPage(${item.writerId},${item.workId})">${escapeHtml(item.title||'제목 미입력')}</button>
+                <div style="font-size:.8rem; margin-top:4px;">${escapeHtml(item.writerName||'')}</div>
+              </div>
+              <button class="btn" onclick="completeLivRegistration(${item.writerId},${item.workId},'${group.site}')">등록 완료</button>
+            </div>`;
+        }
+        html+='</section>';
+    }
+    if (!unique.size && livRegistrationFilter==='all') html+='<div class="card" style="padding:30px; text-align:center; color:#777;">모든 출간 작품의 플랫폼 등록이 완료되었습니다.</div>';
+    container.innerHTML=html;
+}
 </script>
 </body>
 </html>
