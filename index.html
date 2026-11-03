@@ -1055,8 +1055,22 @@
         }
 
         /* ★ 출간 완료작 보관소 - 임의 추가 버튼 완벽 삭제 ★ */
+        function isPublishedSeriesFullyRegistered(writer, rootWork) {
+            const ids = new Set([String(rootWork.id)]);
+            let changed = true;
+            while (changed) {
+                changed = false;
+                for (const work of writer.works || []) {
+                    if (work.parentId != null && ids.has(String(work.parentId)) && !ids.has(String(work.id))) {
+                        ids.add(String(work.id)); changed = true;
+                    }
+                }
+            }
+            return (writer.works || []).filter(work => ids.has(String(work.id))).every(work =>
+                work.msStatus === '출간 완료' && Array.isArray(work.platforms) && platforms.every(platform => work.platforms.includes(platform)));
+        }
         function renderPublished(c) {
-            c.innerHTML = `<div class="card" style="margin-bottom:20px;"><h2 style="margin-top:0; padding-bottom:10px; border-bottom:2px solid #eee;">출간 완료작 보관소 <span id="published-count" style="font-size:1rem; color:var(--main-pink);"></span></h2><div style="font-size:0.85rem; color:#666;">출간이 완료된 작품들의 론칭 플랫폼을 한눈에 확인하세요. (모든 플랫폼 론칭 완료 시 맨 하단으로 이동)</div></div><div id="published-container" class="card" style="padding:0; border:none; box-shadow:none; background:transparent;"></div>`;
+            c.innerHTML = `<div class="card" style="margin-bottom:20px;"><h2 style="margin-top:0; padding-bottom:10px; border-bottom:2px solid #eee;">출간 완료작 보관소 <span id="published-count" style="font-size:1rem; color:var(--main-pink);"></span></h2><div style="font-size:0.85rem; color:#666;">출간이 완료된 작품들의 론칭 플랫폼을 한눈에 확인하세요. (후속권까지 모든 플랫폼 론칭 완료 시 맨 하단으로 이동)</div></div><div id="published-container" class="card" style="padding:0; border:none; box-shadow:none; background:transparent;"></div>`;
             const pc = document.getElementById('published-container');
             
             let parentPublished = [];
@@ -1074,8 +1088,11 @@
                 });
             });
 
+            parentPublished.forEach(item => {
+                item.seriesAllChecked = isPublishedSeriesFullyRegistered(item.writer, item.work);
+            });
             parentPublished.sort((a, b) => {
-                if (a.allChecked !== b.allChecked) return a.allChecked ? 1 : -1;
+                if (a.seriesAllChecked !== b.seriesAllChecked) return a.seriesAllChecked ? 1 : -1;
                 return a.pubDate.localeCompare(b.pubDate); 
             });
 
