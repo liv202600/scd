@@ -10401,6 +10401,7 @@ window.deleteSalesMonth = function(month) {
 <script>
 /* CP registration navigator: existing launch checkboxes are the source of truth. */
 let livRegistrationFilter = 'all';
+const livRegistrationOpenSites = new Set();
 function livRegistrationDayNumber(value) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
     const date = new Date(value+'T00:00:00Z');
@@ -10464,8 +10465,10 @@ function renderRegistrationNavigator(container) {
       </div>`;
     for (const group of selected) {
         if (!group.items.length && livRegistrationFilter==='all') continue;
-        html+=`<section class="card" style="padding:18px; margin-bottom:15px;">
-          <h3 style="margin:0 0 12px;">${escapeHtml(group.site)} · 미등록 ${group.items.length}권</h3>`;
+        html+=`<details class="card liv-registration-platform" style="padding:18px; margin-bottom:12px;" ${livRegistrationOpenSites.has(group.site)?'open':''}
+          ontoggle="if(this.open) livRegistrationOpenSites.add('${group.site}'); else livRegistrationOpenSites.delete('${group.site}');">
+          <summary style="cursor:pointer; font-size:1.05rem; font-weight:800;">${escapeHtml(group.site)} · 미등록 ${group.items.length}권</summary>
+          <div style="margin-top:12px;">`;
         if (!group.items.length) html+='<p style="color:#777;">미등록 작품이 없습니다.</p>';
         for (const item of group.items) {
             const color=item.urgent?'#c62828':'#333';
@@ -10478,7 +10481,7 @@ function renderRegistrationNavigator(container) {
               <button class="btn" onclick="completeLivRegistration(${item.writerId},${item.workId},'${group.site}')">등록 완료</button>
             </div>`;
         }
-        html+='</section>';
+        html+='</div></details>';
     }
     if (!unique.size && livRegistrationFilter==='all') html+='<div class="card" style="padding:30px; text-align:center; color:#777;">모든 출간 작품의 플랫폼 등록이 완료되었습니다.</div>';
     container.innerHTML=html;
