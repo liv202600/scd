@@ -10406,18 +10406,33 @@ function livRegistrationDayNumber(value) {
     const date = new Date(value+'T00:00:00Z');
     return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10)===value ? date.getTime()/86400000 : null;
 }
+function getLivRegistrationPublicationDate(writer, work) {
+    if (livRegistrationDayNumber(work.pubDate)!==null) return {date:work.pubDate,inherited:false};
+    // Only linked volumes share a fallback date; titles alone never join unrelated works.
+    const seen=new Set([String(work.id)]);
+    let first=work;
+    while (first.parentId!=null) {
+        const parent=(writer.works||[]).find(item=>String(item.id)===String(first.parentId));
+        if (!parent || seen.has(String(parent.id))) return {date:'',inherited:false};
+        seen.add(String(parent.id));first=parent;
+    }
+    const isPublished=first.msStatus==='출간 완료'||!!first.completedDates?.pubDate;
+    return first!==work && isPublished && livRegistrationDayNumber(first.pubDate)!==null
+        ? {date:first.pubDate,inherited:true} : {date:'',inherited:false};
+}
 function getLivRegistrationGroups(writers, sites, today) {
     const todayNumber = livRegistrationDayNumber(today);
     const groups = sites.map(site=>({site,items:[]}));
     for (const writer of writers || []) for (const work of writer.works || []) {
         if (work.msStatus!=='출간 완료' && !work.completedDates?.pubDate) continue;
-        const published = livRegistrationDayNumber(work.pubDate);
+        const publication = getLivRegistrationPublicationDate(writer,work);
+        const published = livRegistrationDayNumber(publication.date);
         if (published!==null && todayNumber!==null && published>todayNumber) continue;
         const days = published!==null && todayNumber!==null ? todayNumber-published : null;
         for (const group of groups) {
             if (Array.isArray(work.platforms) && work.platforms.includes(group.site)) continue;
             group.items.push({writerId:writer.id,workId:work.id,writerName:writer.name,title:work.title,
-                pubDate:published===null?'':work.pubDate,daysSincePub:days,urgent:days!==null&&days>=14});
+                pubDate:published===null?'':publication.date,inheritedPubDate:publication.inherited,daysSincePub:days,urgent:days!==null&&days>=14});
         }
     }
     for (const group of groups) group.items.sort((a,b)=>(a.pubDate||'9999').localeCompare(b.pubDate||'9999')
@@ -10456,7 +10471,7 @@ function renderRegistrationNavigator(container) {
             const color=item.urgent?'#c62828':'#333';
             html+=`<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 0; border-top:1px solid #eee; color:${color};">
               <div style="min-width:0; flex:1;">
-                <div style="font-size:.8rem; margin-bottom:5px;">${item.pubDate||'출간일 미입력'}${item.daysSincePub!==null?' · 출간 '+item.daysSincePub+'일 경과':''}${item.urgent?' · <b>급건</b>':''}</div>
+                <div style="font-size:.8rem; margin-bottom:5px;">${item.pubDate||'출간일 미입력'}${item.inheritedPubDate?' (1권 기준)':''}${item.daysSincePub!==null?' · 출간 '+item.daysSincePub+'일 경과':''}${item.urgent?' · <b>급건</b>':''}</div>
                 <button style="border:0; background:transparent; padding:0; text-align:left; color:inherit; font:inherit; font-weight:800; cursor:pointer; overflow-wrap:anywhere;" onclick="openWorkPage(${item.writerId},${item.workId})">${escapeHtml(item.title||'제목 미입력')}</button>
                 <div style="font-size:.8rem; margin-top:4px;">${escapeHtml(item.writerName||'')}</div>
               </div>
