@@ -1697,6 +1697,68 @@ function gwEnsureModals() {
 function getWorkCoverSrc(work) { return (work && work.coverImg) ? work.coverImg : DEFAULT_WORK_COVER; }
 function getWebtoonCoverSrc(item) { return (item && item.image) ? item.image : DEFAULT_WORK_COVER; }
 
+const webtoonDisplayCovers = new Map();
+
+function enhanceWebtoonDisplayCover(img) {
+  const source = img.getAttribute('src');
+  const width = img.naturalWidth;
+  const height = img.naturalHeight;
+  if (!source || source === DEFAULT_WORK_COVER || img.dataset.coverEnhanced || !width || !height || width >= 600) return;
+  img.dataset.coverEnhanced = 'true';
+
+  const cached = webtoonDisplayCovers.get(source);
+  if (cached) {
+    img.src = cached;
+    return;
+  }
+
+  const enhance = () => {
+    if (!img.isConnected || img.getAttribute('src') !== source) return;
+    try {
+      let enhanced = webtoonDisplayCovers.get(source);
+      if (!enhanced) {
+        const scale = Math.min(3, 900 / width, 1350 / height);
+        if (scale <= 1) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const original = image.data.slice();
+        const stride = canvas.width * 4;
+        for (let y = 1; y < canvas.height - 1; y++) {
+          for (let x = 1; x < canvas.width - 1; x++) {
+            const pixel = y * stride + x * 4;
+            if (original[pixel + 3] !== 255) continue;
+            for (let channel = 0; channel < 3; channel++) {
+              const offset = pixel + channel;
+              const average = (original[offset - 4] + original[offset + 4] +
+                original[offset - stride] + original[offset + stride]) / 4;
+              const detail = original[offset] - average;
+              image.data[offset] = original[offset] + Math.max(-10, Math.min(10, detail * 0.7));
+            }
+          }
+        }
+        ctx.putImageData(image, 0, 0);
+        enhanced = canvas.toDataURL('image/webp', 0.95);
+        if (enhanced === 'data:,') return;
+        if (webtoonDisplayCovers.size >= 32) webtoonDisplayCovers.delete(webtoonDisplayCovers.keys().next().value);
+        webtoonDisplayCovers.set(source, enhanced);
+      }
+      img.src = enhanced;
+    } catch (error) {
+      // A cover that cannot be processed still displays from its saved source.
+    }
+  };
+
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(enhance, { timeout: 700 });
+  else setTimeout(enhance, 0);
+}
+
 function initMonthlySystemTasks() {
   if(!livData.extraTasks) livData.extraTasks=[];
   const years=[2025,2026,2027];
@@ -3371,7 +3433,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     document.getElementById('webtoon-info-title').innerText = title;
     const body = document.getElementById('webtoon-info-body');
     body.innerHTML = `
-      <div class="webtoon-info-modal-cover"><img src="${escapeHtml(img)}" alt="대표 이미지"></div>
+      <div class="webtoon-info-modal-cover"><img src="${escapeHtml(img)}" onload="enhanceWebtoonDisplayCover(this)" alt="대표 이미지"></div>
       <div class="webtoon-info-modal-line"><b>작가</b> ${escapeHtml(writerName)}</div>
       <div class="webtoon-info-modal-line"><b>에이전시</b> ${escapeHtml(item.agency || '-')}</div>
       <div class="webtoon-info-modal-line"><b>계약 비율</b> ${escapeHtml(item.ratio || '-')}</div>
@@ -3857,7 +3919,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         const cover = work?.coverImg || getWebtoonCoverSrc(item);
         const status = normalizeWtDesktopFix(item.status);
         return `<article class="webtoon-mobile-card">
-          <img src="${escapeHtml(cover)}" loading="lazy" alt="">
+          <img src="${escapeHtml(cover)}" loading="lazy" onload="enhanceWebtoonDisplayCover(this)" alt="">
           <h4>${escapeHtml(title)}</h4>
           <div style="font-size:.72rem; color:#666; overflow-wrap:anywhere;">${escapeHtml(writer?.name || item.writerName || '')}</div>
           <div class="webtoon-current-status">${escapeHtml(status)}</div>
@@ -3887,10 +3949,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
       const writerName = writer ? writer.name : (item.writerName || '미상');
       const status = normalizeWtDesktopFix(item.status);
       const idx = Math.max(0, WT_STEPS_DESKTOP_FIX.indexOf(status));
-      const img = getWebtoonImageDesktopFix(item);
+      const img = item.image || work?.coverImg || getWebtoonImageDesktopFix(item);
 
       return `<div class="card webtoon-card">
-        <div class="webtoon-cover-frame"><img src="${img}" alt="대표 이미지"></div>
+        <div class="webtoon-cover-frame"><img src="${escapeHtml(img)}" loading="lazy" onload="enhanceWebtoonDisplayCover(this)" alt="대표 이미지"></div>
         <div class="clickable-title" style="font-weight:900; font-size:1.03rem; line-height:1.4;" onclick="openWorkPage(${item.writerId}, ${item.workId})">${escapeHtml(title)}</div>
         <div class="webtoon-info-box">
           <div><b>작가</b> ${escapeHtml(writerName)}</div>
