@@ -3584,6 +3584,29 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     if (main) renderWebtoon(main);
   };
 
+  function getWebtoonAgencyGroups(list) {
+    const groups = new Map();
+    for (const item of list) {
+      const name = String(item.agency ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+      const key = name.replace(/\s/g, '').toLowerCase();
+      if (!groups.has(key)) groups.set(key, { key, name: name || '에이전시 미지정', items: [] });
+      groups.get(key).items.push(item);
+    }
+    const stage = item => WT_STEPS_DESKTOP_FIX.indexOf(normalizeWtDesktopFix(String(item.status ?? '').trim()));
+    for (const group of groups.values()) {
+      group.items.sort((a, b) => stage(b) - stage(a));
+    }
+    return [...groups.values()].sort((a, b) =>
+      Number(!a.key) - Number(!b.key) || a.name.localeCompare(b.name, 'ko'));
+  }
+
+  function renderWebtoonAgencyGroups(list, listClass, renderItem) {
+    return getWebtoonAgencyGroups(list).map(group => `<section style="margin-bottom:24px;">
+      <h3 style="margin:0 0 10px; font-size:1.05rem;">${escapeHtml(group.name)} <small style="color:#666;">${group.items.length}작품</small></h3>
+      <div class="${listClass}">${group.items.map(renderItem).join('')}</div>
+    </section>`).join('');
+  }
+
   window.renderWebtoon = function(c) {
     if (typeof gwSetupUi === 'function') gwSetupUi();
     let list = ensureWebtoonListDesktopFix();
@@ -3599,21 +3622,21 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     }
 
     if (isPhoneAppModeDesktopFix()) {
-      c.innerHTML = `<div class="card" style="margin-bottom:14px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><h2 style="margin:0;">웹툰</h2><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-mobile-list" class="webtoon-mobile-list"></div>`;
+      c.innerHTML = `<div class="card" style="margin-bottom:14px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><h2 style="margin:0;">웹툰</h2><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-mobile-list"></div>`;
       const mobileBox = document.getElementById('webtoon-mobile-list');
       if (!list.length) {
         mobileBox.innerHTML = `<div class="card" style="text-align:center; padding:36px; color:#888; width:100%;">등록된 웹툰 계약 작품이 없습니다.</div>`;
         return;
       }
-      mobileBox.innerHTML = list.map(item => {
+      mobileBox.innerHTML = renderWebtoonAgencyGroups(list, 'webtoon-mobile-list', item => {
         const ref = getWorkRef(item.writerId, item.workId);
         const title = ref.work ? ref.work.title : (item.title || '미지정 작품');
         return `<div class="webtoon-mobile-title" onclick="openWebtoonMobileInfoModal(${item.id})">${escapeHtml(title)}</div>`;
-      }).join('');
+      });
       return;
     }
 
-    c.innerHTML = `<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><h2 style="margin:0;">웹툰</h2><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-list" class="webtoon-card-grid"></div>`;
+    c.innerHTML = `<div class="card" style="margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;"><h2 style="margin:0;">웹툰</h2><button class="btn btn-black" onclick="openWebtoonModal()">+ 웹툰 등록</button></div></div><div id="webtoon-list"></div>`;
     const box = document.getElementById('webtoon-list');
 
     if (!list.length) {
@@ -3621,7 +3644,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
       return;
     }
 
-    box.innerHTML = list.map(item => {
+    box.innerHTML = renderWebtoonAgencyGroups(list, 'webtoon-card-grid', item => {
       const ref = getWorkRef(item.writerId, item.workId);
       const writer = ref.writer;
       const work = ref.work;
@@ -3647,7 +3670,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
           <button class="btn-del" style="flex:1;" onclick="deleteWebtoon(${item.id})">삭제</button>
         </div>
       </div>`;
-    }).join('');
+    });
   };
 
   document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
