@@ -3098,6 +3098,52 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         margin-top: 5px !important;
       }
 
+      .webtoon-mobile-cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .webtoon-mobile-card {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        padding: 6px;
+        gap: 6px;
+        border: 1px solid #eee;
+        border-radius: 10px;
+        background: #fff;
+      }
+
+      .webtoon-mobile-card img {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        object-fit: contain;
+        background: #fafafa;
+        border-radius: 5px;
+      }
+
+      .webtoon-mobile-card h4 {
+        margin: 0;
+        font-size: .8rem;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+      }
+
+      .webtoon-mobile-card .webtoon-current-status {
+        font-size: .72rem;
+        color: #8c3550;
+        font-weight: 700;
+      }
+
+      .webtoon-mobile-card .webtoon-card-edit {
+        margin-top: auto;
+        padding: 5px 2px;
+        min-height: 40px;
+        font-size: .7rem;
+        white-space: normal;
+      }
+
       body.liv-mobile-device .webtoon-mobile-list {
         display: flex;
         flex-direction: column;
@@ -3265,7 +3311,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     const writerName = writer ? writer.name : (item.writerName || '미상');
     const status = normalizeWt(item.status);
     const idx = Math.max(0, WT_STEPS_MOBILE.indexOf(status));
-    const img = (typeof getWebtoonCoverSrc === 'function') ? getWebtoonCoverSrc(item) : (item.image || '');
+    const img = work?.coverImg || getWebtoonCoverSrc(item);
 
     if (!document.getElementById('webtoon-info-modal')) {
       document.body.insertAdjacentHTML('beforeend', `
@@ -3282,7 +3328,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
     document.getElementById('webtoon-info-title').innerText = title;
     const body = document.getElementById('webtoon-info-body');
     body.innerHTML = `
-      <div class="webtoon-info-modal-cover"><img src="${img}" alt="대표 이미지"></div>
+      <div class="webtoon-info-modal-cover"><img src="${escapeHtml(img)}" alt="대표 이미지"></div>
       <div class="webtoon-info-modal-line"><b>작가</b> ${escapeHtml(writerName)}</div>
       <div class="webtoon-info-modal-line"><b>에이전시</b> ${escapeHtml(item.agency || '-')}</div>
       <div class="webtoon-info-modal-line"><b>계약 비율</b> ${escapeHtml(item.ratio || '-')}</div>
@@ -3731,9 +3777,6 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
       const main = document.getElementById('main-view');
       if (currentViewName === 'webtoon' && main && form.isConnected) {
         renderWebtoon(main);
-        const savedForm = [...main.querySelectorAll('[data-webtoon-status]')]
-          .find(row => row.dataset.webtoonStatus === form.dataset.webtoonStatus);
-        if (savedForm) savedForm.querySelector('[role="status"]').textContent = '저장 완료';
       }
     } catch (error) {
       message.textContent = '저장하지 못했습니다. 다시 시도해 주세요.';
@@ -3763,20 +3806,22 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         mobileBox.innerHTML = `<div class="card" style="text-align:center; padding:36px; color:#888; width:100%;">등록된 웹툰 계약 작품이 없습니다.</div>`;
         return;
       }
-      mobileBox.innerHTML = renderWebtoonAgencyGroups(list, 'webtoon-mobile-list', item => {
-        const ref = getWorkRef(item.writerId, item.workId);
-        const title = ref.work ? ref.work.title : (item.title || '미지정 작품');
-        return `<div class="webtoon-mobile-title">
-          <button type="button" data-webtoon-info="${escapeHtml(item.id)}"
-            style="border:0; padding:0; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer;">${escapeHtml(title)}</button>
-          ${renderMobileWebtoonStatusForm(item, title)}
-        </div>`;
+      mobileBox.innerHTML = renderWebtoonAgencyGroups(list, 'webtoon-mobile-cards', item => {
+        const { work, writer } = getWorkRef(item.writerId, item.workId);
+        const title = work?.title || item.title || '미지정 작품';
+        const cover = work?.coverImg || getWebtoonCoverSrc(item);
+        const status = normalizeWtDesktopFix(item.status);
+        return `<article class="webtoon-mobile-card">
+          <img src="${escapeHtml(cover)}" loading="lazy" alt="">
+          <h4>${escapeHtml(title)}</h4>
+          <div style="font-size:.72rem; color:#666; overflow-wrap:anywhere;">${escapeHtml(writer?.name || item.writerName || '')}</div>
+          <div class="webtoon-current-status">${escapeHtml(status)}</div>
+          <button type="button" class="btn webtoon-card-edit" data-webtoon-info="${escapeHtml(item.id)}"
+            aria-label="${escapeHtml(title)} 진행 수정 또는 메모">진행 수정 · 메모</button>
+        </article>`;
       });
       for (const button of mobileBox.querySelectorAll('[data-webtoon-info]')) {
-        button.addEventListener('click', () => openWebtoonMobileInfoModal(button.dataset.webtoonInfo));
-      }
-      for (const form of mobileBox.querySelectorAll('[data-webtoon-status]')) {
-        form.addEventListener('submit', saveMobileWebtoonStatus);
+        button.addEventListener('click', () => window.openWebtoonMobileInfoModal(button.dataset.webtoonInfo));
       }
       return;
     }
