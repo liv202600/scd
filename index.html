@@ -239,6 +239,46 @@
         .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--main-pink); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
+<style>
+  body #webtoon-info-modal .modal-content.webtoon-memo-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
+    overflow-y: auto !important;
+  }
+
+  .webtoon-memo-fullscreen #webtoon-info-body,
+  .webtoon-memo-fullscreen [data-webtoon-panel="memo"],
+  .webtoon-memo-fullscreen [data-webtoon-memo] {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+  }
+
+  .webtoon-memo-fullscreen #webtoon-memo-text {
+    display: block;
+    flex: 1 0 auto;
+    min-height: 55vh !important;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 6px 0 10px;
+    padding: 12px;
+    font-size: 16px;
+    line-height: 1.65;
+    resize: none;
+  }
+</style>
 </head>
 <body>
 
@@ -3201,38 +3241,6 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         border-radius: 18px !important;
       }
 
-      #webtoon-info-modal .modal-content:has([data-webtoon-panel="memo"]:not([hidden])) {
-        display: flex;
-        flex-direction: column;
-        box-sizing: border-box;
-        width: min(740px, calc(100vw - 24px)) !important;
-        height: calc(100dvh - 28px);
-        max-width: none !important;
-        padding: 16px !important;
-      }
-
-      #webtoon-info-body:has([data-webtoon-panel="memo"]:not([hidden])),
-      #webtoon-info-body [data-webtoon-panel="memo"]:not([hidden]),
-      #webtoon-info-body [data-webtoon-memo] {
-        display: flex;
-        flex: 1;
-        flex-direction: column;
-        min-height: 0;
-      }
-
-      #webtoon-memo-text {
-        flex: 1;
-        width: 100%;
-        min-height: 0;
-        box-sizing: border-box;
-        margin: 6px 0 10px;
-        padding: 12px;
-        font: inherit;
-        font-size: 16px;
-        line-height: 1.65;
-        resize: none;
-      }
-
       body.liv-mobile-device #webtoon-info-title {
         padding-right: 34px !important;
         margin-bottom: 10px !important;
@@ -3733,6 +3741,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
       </div>`;
     body.querySelector('[data-webtoon-status]').addEventListener('submit', saveMobileWebtoonStatus);
 
+    const content = body.closest('.modal-content');
+    content.classList.remove('webtoon-memo-fullscreen');
     const tabs = [...body.querySelectorAll('[data-webtoon-tab]')];
     const panels = [...body.querySelectorAll('[data-webtoon-panel]')];
     for (const tab of tabs) {
@@ -3743,6 +3753,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
           button.classList.toggle('btn-black', selected);
         }
         for (const panel of panels) panel.hidden = panel.dataset.webtoonPanel !== tab.dataset.webtoonTab;
+        content.classList.toggle('webtoon-memo-fullscreen', tab.dataset.webtoonTab === 'memo');
       });
     }
 
