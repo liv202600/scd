@@ -518,42 +518,45 @@
             try { return new Blob([JSON.stringify(data)]).size; }
             catch(e) { try { return JSON.stringify(data).length; } catch(err) { return 0; } }
         }
-        function resizeLivDataUrl(dataUrl, maxWidth, quality) {
-            return new Promise(resolve => {
-                if (!isLivDataImage(dataUrl)) return resolve(dataUrl);
-                const img = new Image();
-                img.onload = () => {
-                    try {
-                        const sourceW = img.naturalWidth || img.width;
-                        const sourceH = img.naturalHeight || img.height;
-                        if (!sourceW || !sourceH) return resolve(dataUrl);
-                        const ratio = Math.min(1, maxWidth / sourceW);
-                        const targetW = Math.max(1, Math.round(sourceW * ratio));
-                        const targetH = Math.max(1, Math.round(sourceH * ratio));
-                        const canvas = document.createElement('canvas');
-                        canvas.width = targetW;
-                        canvas.height = targetH;
-                        const ctx = canvas.getContext('2d');
-                        ctx.imageSmoothingEnabled = true;
-                        ctx.imageSmoothingQuality = 'high';
-                        ctx.drawImage(img, 0, 0, targetW, targetH);
-                        resolve(canvas.toDataURL('image/jpeg', quality));
-                    } catch(e) {
-                        console.warn('Image resize failed:', e);
-                        resolve(dataUrl);
-                    }
-                };
-                img.onerror = () => resolve(dataUrl);
-                img.src = dataUrl;
-            });
-        }
-        async function resizeLivFileToDataUrl(file, maxWidth, quality) {
-            const original = await new Promise(resolve => {
+        async function resizeLivCoverFile(file) {
+            const dataUrl = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('표지 파일을 읽지 못했습니다.'));
                 reader.readAsDataURL(file);
             });
-            return resizeLivDataUrl(original, maxWidth, quality);
+            if (!isLivDataImage(dataUrl)) throw new Error('지원하지 않는 표지 파일입니다.');
+
+            const image = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('표지 이미지를 열지 못했습니다.'));
+                img.src = dataUrl;
+            });
+            const { naturalWidth: width, naturalHeight: height } = image;
+            if (!width || !height) throw new Error('표지 이미지의 크기를 확인하지 못했습니다.');
+
+            // Leave room below the per-image Firestore limit, including base64 overhead.
+            const byteLimit = 850000;
+            let scale = Math.min(1, 900 / width, 1350 / height);
+            if (scale === 1 && dataUrl.length <= byteLimit) return dataUrl;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            for (let attempt = 0; attempt < 6; attempt++) {
+                canvas.width = Math.max(1, Math.round(width * scale));
+                canvas.height = Math.max(1, Math.round(height * scale));
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+                for (const quality of [0.92, 0.86, 0.78, 0.70]) {
+                    const cover = canvas.toDataURL('image/jpeg', quality);
+                    if (isLivDataImage(cover) && cover.length <= byteLimit) return cover;
+                }
+                scale *= 0.8;
+            }
+            throw new Error('표지를 저장 가능한 크기로 줄이지 못했습니다.');
         }
         function saveData() {
             if (!firebaseLoadedOnce) return Promise.resolve(false);
@@ -1705,7 +1708,7 @@ function renderProgress(c) {
 function getRowHtml(wId, w, isC) { const rc=isC?'row-child':'', px=isC?`<span class="child-indicator">└</span>`:'', bT=(w.title||'').replace(/\s*\d+권$/,'').replace(/'/g,"\'"); const msB=getStatusColor(w.msStatus,'ms'), cvB=getStatusColor(w.coverStatus,'cover'); const coverSrc=getWorkCoverSrc(w); const sH = w.msStatus==='출간 완료' ? `<div class="platform-box" style="margin-top:0; padding:10px;"><div class="platform-box-title" style="margin-bottom:8px;"><span>론칭 플랫폼</span><button class="btn-del" style="height:22px; line-height:20px; font-size:0.7rem;" onclick="revertStatus(${wId}, ${w.id})">상태 변경</button></div><div class="platform-grid">${platforms.map(p=>`<label><input type="checkbox" ${w.platforms&&w.platforms.includes(p)?'checked':''} onchange="togglePlatform(${wId}, ${w.id}, '${p}')"> ${p}</label>`).join('')}</div></div>` : `<div class="status-row"><span class="status-label">작업</span><select class="input-select" style="background-color:${msB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'msStatus', this.value)">${msStatuses2.map(s=>`<option ${w.msStatus===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="status-row"><span class="status-label">표지</span><select class="input-select" style="background-color:${cvB}; font-weight:bold;" onchange="updateWork(${wId}, ${w.id}, 'coverStatus', this.value)">${coverStatuses2.map(s=>`<option ${w.coverStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>`; const sqH = !isC ? `<select class="input-select" style="padding:0 6px; width:45px; height:28px!important;" onchange="updateWork(${wId}, ${w.id}, 'sequel', this.value)"><option value="N" ${w.sequel==='N'?'selected':''}>N</option><option value="Y" ${w.sequel==='Y'?'selected':''}>Y</option></select>${w.sequel==='Y'?`<button class="btn" style="background:#ddd; color:#333; height:28px!important; line-height:28px; padding:0 6px; font-size:0.7rem;" onclick="addSequel(${wId}, ${w.id}, '${bT}')">생성</button>`:''}` : `<span style="color:#aaa; font-size:0.7rem;">종속</span>`; return `<tr id="work-row-${w.id}" class="${rc}"><td><div class="mobile-del-btn"><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div><div style="display:flex; gap:12px; align-items:flex-start;"><label style="cursor:pointer; flex-shrink:0;"><img src="${coverSrc}" class="cover-thumb" id="thumb-${w.id}"><input type="file" style="display:none;" accept="image/*" onchange="uploadWorkCover(this, ${wId}, ${w.id})"></label><div class="mobile-title-wrap" style="display:flex; flex-direction:column; gap:6px; flex-grow:1;"><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${px}<span class="clickable-title" style="font-weight:800; font-size:0.95rem; color:#222; word-break:keep-all; padding-top:4px;" onclick="openWorkPage(${wId}, ${w.id})">${escapeHtml(w.title)}</span><button class="btn-del" onclick="openWorkEditModal(${wId}, ${w.id})">수정</button></div><div class="mobile-only" style="flex-wrap:wrap; align-items:center; gap:6px; background:rgba(0,0,0,0.03); padding:5px 8px; border-radius:4px; border:1px solid #eaeaea;"><span style="font-size:0.75rem; font-weight:bold; color:#666;">인세:</span><input type="number" class="input-text" style="width:55px; height:28px!important;" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)">%<span style="font-size:0.75rem; font-weight:bold; color:#666; margin-left:5px;">후속:</span>${sqH}</div></div></div></td><td class="desktop-only-td"><input type="number" class="input-text" value="${w.royalty}" onchange="updateWork(${wId}, ${w.id}, 'royalty', this.value)"></td><td class="desktop-only-td"><div style="display:flex; align-items:center; gap:5px;">${sqH}</div></td><td>${sH}</td><td><div class="date-grid-2x2"><div class="date-grid-item"><span class="date-grid-label">출간</span><input type="date" class="input-date" value="${w.pubDate||''}" onchange="updateWork(${wId}, ${w.id}, 'pubDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">1교</span><input type="date" class="input-date" value="${w.proofDate||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">표지</span><input type="date" class="input-date" value="${w.coverDate||''}" onchange="updateWork(${wId}, ${w.id}, 'coverDate', this.value)"></div><div class="date-grid-item"><span class="date-grid-label">2교</span><input type="date" class="input-date" value="${w.proofDate2||''}" onchange="updateWork(${wId}, ${w.id}, 'proofDate2', this.value)"></div></div></td><td class="desktop-only-td" style="text-align:center;"><div class="work-action-group"><button class="btn-del" onclick="openWorkEditModal(${wId}, ${w.id})">수정</button><button class="btn-del" onclick="deleteWork(${wId}, ${w.id})">삭제</button></div></td></tr>`; }
 function uploadWorkCover(inp,wId,wkId) {
   if(!inp.files || !inp.files[0]) return;
-  resizeLivFileToDataUrl(inp.files[0], 120, 0.74).then(b64 => {
+  resizeLivCoverFile(inp.files[0]).then(b64 => {
     const thumb=document.getElementById(`thumb-${wkId}`);
     if(thumb) thumb.src=b64;
     updateWork(wId,wkId,'coverImg',b64);
@@ -1719,7 +1722,7 @@ function closeWorkEditModal() { document.getElementById('work-edit-modal').class
 function handleWorkEditFile(e) {
   const file=e.target.files&&e.target.files[0];
   if(!file||!currentEditingWork) return;
-  resizeLivFileToDataUrl(file, 120, 0.74).then(b64 => {
+  resizeLivCoverFile(file).then(b64 => {
     currentEditingWork.tempCover=b64;
     document.getElementById('work-edit-preview').src=b64;
   }).catch(err => {
@@ -3933,40 +3936,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
 
 
 <script>
-/* ===== LIV exact fix: webtoon image edit + 300px preview only ===== */
+/* ===== Webtoon cover upload and preview ===== */
 (function(){
-  async function resizeWebtoonPreviewTo300(file) {
-    const originalDataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.readAsDataURL(file);
-    });
-
-    const img = await new Promise((resolve) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.src = originalDataUrl;
-    });
-
-    const sourceW = img.naturalWidth || img.width;
-    const sourceH = img.naturalHeight || img.height;
-    if (!sourceW || !sourceH) return originalDataUrl;
-
-    const targetW = 300;
-    const ratio = targetW / sourceW;
-    const targetH = Math.max(1, Math.round(sourceH * ratio));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, targetW, targetH);
-
-    return canvas.toDataURL('image/jpeg', 0.82);
-  }
-
   function applyWebtoonPreviewSize() {
     const preview = document.getElementById('wt-modal-preview');
     if (!preview) return;
@@ -3989,7 +3960,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
   window.handleWebtoonModalFile = async function(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const dataUrl = await resizeWebtoonPreviewTo300(file);
+    let dataUrl;
+    try { dataUrl = await resizeLivCoverFile(file); }
+    catch (error) { alert(error.message); return; }
     const preview = document.getElementById('wt-modal-preview');
     if (preview) {
       preview.src = dataUrl;
@@ -4001,7 +3974,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
 
   window.uploadWebtoonImage = async function(inp, id) {
     if (!inp.files || !inp.files[0]) return;
-    const dataUrl = await resizeWebtoonPreviewTo300(inp.files[0]);
+    let dataUrl;
+    try { dataUrl = await resizeLivCoverFile(inp.files[0]); }
+    catch (error) { alert(error.message); return; }
     const item = (livData.webtoons || []).find(x => String(x.id) === String(id));
     if (item) item.image = dataUrl;
     try { localStorage.setItem('liv_webtoons_backup', JSON.stringify(livData.webtoons || [])); } catch(e) {}
