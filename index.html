@@ -3201,6 +3201,38 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
         border-radius: 18px !important;
       }
 
+      #webtoon-info-modal .modal-content:has([data-webtoon-panel="memo"]:not([hidden])) {
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        width: min(740px, calc(100vw - 24px)) !important;
+        height: calc(100dvh - 28px);
+        max-width: none !important;
+        padding: 16px !important;
+      }
+
+      #webtoon-info-body:has([data-webtoon-panel="memo"]:not([hidden])),
+      #webtoon-info-body [data-webtoon-panel="memo"]:not([hidden]),
+      #webtoon-info-body [data-webtoon-memo] {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      #webtoon-memo-text {
+        flex: 1;
+        width: 100%;
+        min-height: 0;
+        box-sizing: border-box;
+        margin: 6px 0 10px;
+        padding: 12px;
+        font: inherit;
+        font-size: 16px;
+        line-height: 1.65;
+        resize: none;
+      }
+
       body.liv-mobile-device #webtoon-info-title {
         padding-right: 34px !important;
         margin-bottom: 10px !important;
@@ -3694,8 +3726,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ gwSetupUi(); if (firebaseLoa
       <div data-webtoon-panel="memo" hidden>
         <form data-webtoon-memo>
           <label for="webtoon-memo-text" style="font-weight:700;">작품 메모</label>
-          <textarea id="webtoon-memo-text" class="input-text" rows="6"
-            style="display:block; width:100%; box-sizing:border-box; margin:6px 0 10px; resize:vertical;"></textarea>
+          <textarea id="webtoon-memo-text" class="input-text" placeholder="메모를 적어 주세요."></textarea>
           <button class="btn btn-black" type="submit" style="min-height:42px;">메모 저장</button>
           <div role="status" style="font-size:.8rem; margin-top:6px;"></div>
         </form>
