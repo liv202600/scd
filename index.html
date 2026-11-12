@@ -1100,6 +1100,9 @@
         }
 
         /* ★ 출간 완료작 보관소 - 임의 추가 버튼 완벽 삭제 ★ */
+        function isLivArchivedPublication(work) {
+            return work.msStatus === '출간 완료';
+        }
         function isPublishedSeriesFullyRegistered(writer, rootWork) {
             const ids = new Set([String(rootWork.id)]);
             let changed = true;
@@ -1112,7 +1115,7 @@
                 }
             }
             return (writer.works || []).filter(work => ids.has(String(work.id))).every(work =>
-                work.msStatus === '출간 완료' && Array.isArray(work.platforms) && platforms.every(platform => work.platforms.includes(platform)));
+                isLivArchivedPublication(work) && Array.isArray(work.platforms) && platforms.every(platform => work.platforms.includes(platform)));
         }
         function renderPublished(c) {
             c.innerHTML = `<div class="card" style="margin-bottom:20px;"><h2 style="margin-top:0; padding-bottom:10px; border-bottom:2px solid #eee;">출간 완료작 보관소 <span id="published-count" style="font-size:1rem; color:var(--main-pink);"></span></h2><div style="font-size:0.85rem; color:#666;">출간이 완료된 작품들의 론칭 플랫폼을 한눈에 확인하세요. (후속권까지 모든 플랫폼 론칭 완료 시 맨 하단으로 이동)</div></div><div id="published-container" class="card" style="padding:0; border:none; box-shadow:none; background:transparent;"></div>`;
@@ -1121,12 +1124,12 @@
             let parentPublished = [];
             livData.writers.forEach(w => {
                 (w.works || []).forEach(wk => {
-                    if (wk.msStatus === '출간 완료') {
+                    if (isLivArchivedPublication(wk)) {
                         let allChecked = wk.platforms && platforms.every(p => wk.platforms.includes(p));
                         if (!wk.parentId) {
                             parentPublished.push({ writer: w, work: wk, allChecked: allChecked, pubDate: wk.pubDate || '' });
                         } else {
-                            let parent = w.works.find(p => p.id === wk.parentId && p.msStatus === '출간 완료');
+                            let parent = w.works.find(p => p.id === wk.parentId && isLivArchivedPublication(p));
                             if (!parent) parentPublished.push({ writer: w, work: wk, allChecked: allChecked, pubDate: wk.pubDate || '' });
                         }
                     }
@@ -1145,7 +1148,7 @@
             parentPublished.forEach(pItem => {
                 allPublished.push({ writer: pItem.writer, work: pItem.work, allChecked: pItem.allChecked, isChild: false });
                 
-                let children = pItem.writer.works.filter(c => c.parentId === pItem.work.id && c.msStatus === '출간 완료');
+                let children = pItem.writer.works.filter(c => c.parentId === pItem.work.id && isLivArchivedPublication(c));
                 children.sort((a,b) => (a.pubDate||'').localeCompare(b.pubDate||''));
                 children.forEach(c => {
                     let cChecked = c.platforms && platforms.every(p => c.platforms.includes(p));
@@ -10709,7 +10712,7 @@ function getLivRegistrationPublicationDate(writer, work) {
         if (!parent || seen.has(String(parent.id))) return {date:'',inherited:false};
         seen.add(String(parent.id));first=parent;
     }
-    const isPublished=first.msStatus==='출간 완료'||!!first.completedDates?.pubDate;
+    const isPublished=isLivArchivedPublication(first)||!!first.completedDates?.pubDate;
     return first!==work && isPublished && livRegistrationDayNumber(first.pubDate)!==null
         ? {date:first.pubDate,inherited:true} : {date:'',inherited:false};
 }
@@ -10717,11 +10720,13 @@ function getLivRegistrationGroups(writers, sites, today) {
     const todayNumber = livRegistrationDayNumber(today);
     const groups = sites.map(site=>({site,items:[]}));
     for (const writer of writers || []) for (const work of writer.works || []) {
-        if (work.msStatus!=='출간 완료' && !work.completedDates?.pubDate) continue;
+        const archived = isLivArchivedPublication(work);
+        if (!archived && !work.completedDates?.pubDate) continue;
         const publication = getLivRegistrationPublicationDate(writer,work);
         const published = livRegistrationDayNumber(publication.date);
-        if (published!==null && todayNumber!==null && published>todayNumber) continue;
-        const days = published!==null && todayNumber!==null ? todayNumber-published : null;
+        const dateIsFuture = published!==null && todayNumber!==null && published>todayNumber;
+        if (dateIsFuture && !archived) continue;
+        const days = published!==null && todayNumber!==null && !dateIsFuture ? todayNumber-published : null;
         for (const group of groups) {
             if (Array.isArray(work.platforms) && work.platforms.includes(group.site)) continue;
             group.items.push({writerId:writer.id,workId:work.id,writerName:writer.name,title:work.title,
